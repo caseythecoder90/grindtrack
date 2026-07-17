@@ -30,3 +30,10 @@ All request/response bodies are JSON. Authenticated endpoints require the `gt_ac
 | PUT | `/api/weeks/{date}` | Upsert review: `{summary, wins, blockers, adjustments, nextFocus, onTrack}` |
 | GET | `/api/stats` | `{totalHours, daysLogged, streak, weeks[12], categories[]}` — category hours split evenly across a day's tags |
 | GET | `/api/export` | Full JSON dump as a download |
+
+## Focus sessions (authenticated)
+
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/api/focus/sessions` | `{date, startedAt, durationMinutes, completed}`. Records a pomodoro session and **atomically adds its minutes to that day's hours** (rounded to 0.1 h, day capped at 24). `completed=false` marks an ended-early session; its partial minutes still count. |
+| GET | `/api/focus/sessions?date=YYYY-MM-DD` | That day's sessions, ordered by start time |

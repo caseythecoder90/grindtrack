@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import Heatmap from "./components/Heatmap";
 import StatBar from "./components/StatBar";
 import Login from "./features/auth/Login";
+import FocusPage from "./features/focus/FocusPage";
 import Landing from "./features/landing/Landing";
 import StatsPage from "./features/tracking/StatsPage";
 import Today from "./features/tracking/Today";
@@ -12,7 +13,7 @@ import { mondayOf, todayISO } from "./lib/dates";
 import type { PublicStats, Stats } from "./lib/types";
 
 type View = "landing" | "login" | "app";
-type Tab = "today" | "week" | "stats";
+type Tab = "today" | "focus" | "week" | "stats";
 
 export default function App() {
   const [view, setView] = useState<View>("landing");
@@ -74,13 +75,14 @@ export default function App() {
           )}
           <Heatmap days={heatDays} />
           <nav className="tabs">
-            {(["today", "week", "stats"] as Tab[]).map((t) => (
+            {(["today", "focus", "week", "stats"] as Tab[]).map((t) => (
               <button key={t} className={tab === t ? "active" : ""} onClick={() => setTab(t)}>
                 {t[0].toUpperCase() + t.slice(1)}
               </button>
             ))}
           </nav>
           {tab === "today" && <Today onSaved={refreshHeader} />}
+          {tab === "focus" && <FocusPage onLogged={refreshHeader} />}
           {tab === "week" && <Week />}
           {tab === "stats" && <StatsPage />}
         </>

@@ -56,7 +56,9 @@ dev.grindtrack
 │   ├── domain/        User, RefreshToken + their Spring Data repositories
 │   └── security/      JwtAuthFilter (cookie → SecurityContext)
 └── tracking/
-    ├── api/           TrackingController (authed), PublicController (landing page), Dtos
-    ├── service/       StatsService, Stats (its result record)
-    └── domain/        DailyLog, WeeklyReview + their Spring Data repositories
+    ├── api/           TrackingController (authed), PublicController (landing page),
+    │                  FocusController (pomodoro sessions), Dtos
+    ├── service/       StatsService, Stats (its result record),
+    │                  FocusService (session + day-hours update in one transaction)
+    └── domain/        DailyLog, WeeklyReview, FocusSession + their Spring Data repositories
 ```

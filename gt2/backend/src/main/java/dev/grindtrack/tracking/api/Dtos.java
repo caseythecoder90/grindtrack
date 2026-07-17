@@ -1,6 +1,7 @@
 package dev.grindtrack.tracking.api;
 
 import dev.grindtrack.tracking.domain.DailyLog;
+import dev.grindtrack.tracking.domain.FocusSession;
 import dev.grindtrack.tracking.domain.WeeklyReview;
 import java.math.BigDecimal;
 import java.util.List;
@@ -68,6 +69,18 @@ public final class Dtos {
           review.getAdjustments(),
           review.getNextFocus(),
           review.getOnTrack());
+    }
+  }
+
+  public record FocusSessionResponse(
+      Long id, String startedAt, int durationMinutes, boolean completed) {
+
+    static FocusSessionResponse from(FocusSession session) {
+      return new FocusSessionResponse(
+          session.getId(),
+          session.getStartedAt().toString(),
+          session.getDurationMinutes(),
+          session.isCompleted());
     }
   }
 

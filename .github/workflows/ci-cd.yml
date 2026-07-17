@@ -45,7 +45,21 @@ jobs:
       group: deploy-production
       cancel-in-progress: false
     steps:
+      # Skip gracefully until the VPS secrets are configured, so merges to main
+      # don't show a red X before the first deployment is set up.
+      - name: Check deploy secrets
+        id: check
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          if [ -n "$VPS_HOST" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "VPS secrets not set — skipping deploy."
+          fi
       - name: Deploy to VPS over SSH
+        if: steps.check.outputs.configured == 'true'
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.VPS_HOST }}
