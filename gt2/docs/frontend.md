@@ -54,9 +54,7 @@ stateDiagram-v2
     App --> Landing : logout, or refresh fails (AuthError)
     state App {
         [*] --> Today
-        Today --> Focus
-        Focus --> Week
-        Week --> Stats
+        note right of Today : tabs — Today / Focus / Plan / Week / Stats
     }
 ```
 

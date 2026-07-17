@@ -94,6 +94,73 @@ docker compose -f docker-compose.prod.yml run --rm certbot \
 
 Visit `https://track.caseyrquinn.com` and log in from your phone.
 
+> Gotcha: your certbot service's entrypoint is overridden to the renew *loop*, so a one-off
+> `docker compose run certbot certonly …` is ignored. Issue the first cert with a standalone
+> container instead:
+> ```bash
+> docker run --rm \
+>   -v /opt/personal-website/certbot/www:/var/www/certbot \
+>   -v /opt/personal-website/certbot/conf:/etc/letsencrypt \
+>   certbot/certbot certonly --webroot -w /var/www/certbot -d track.caseyrquinn.com
+> ```
+
+## 5.1 How issuance & renewal actually work (and the reload hook)
+
+There is no separate renewal setup for grindtrack — issuing the cert into the **shared**
+`/etc/letsencrypt` volume *is* the configuration. Three pieces, all pointing at the same host
+directories:
+
+1. **Issuance writes a renewal recipe.** `certonly` saves the cert under
+   `/etc/letsencrypt/live/track.caseyrquinn.com/` **and** writes
+   `/etc/letsencrypt/renewal/track.caseyrquinn.com.conf`, recording the domain, the `webroot`
+   method, and the webroot path.
+2. **The certbot container renews everything.** Its loop is just `certbot renew; sleep 12h`.
+   `certbot renew` takes **no domain arguments** — it scans every `*.conf` in
+   `/etc/letsencrypt/renewal/` and renews any cert within 30 days of expiry. Because track's recipe
+   now sits alongside `caseyrquinn.com` and `api.caseyrquinn.com` in the shared volume, it's picked
+   up automatically.
+3. **The shared volumes are the glue.** Both nginx and certbot mount the host's
+   `certbot/conf → /etc/letsencrypt` and `certbot/www → /var/www/certbot`. certbot writes the ACME
+   challenge into `/var/www/certbot`; nginx serves it from the same host dir (`:ro`).
+
+```
+/opt/personal-website/certbot/conf  ─┬─► certbot : /etc/letsencrypt  (renew loop reads all *.conf)
+                                     └─► nginx   : /etc/letsencrypt  (:ro, reads live/*/fullchain.pem)
+/opt/personal-website/certbot/www   ─┬─► certbot writes /var/www/certbot/.well-known/...
+                                     └─► nginx   serves /var/www/certbot/.well-known/...
+```
+
+### The reload hook (fixing a real gap)
+
+The renew loop renews certs on disk but **never reloads nginx** — so a renewed cert isn't served
+until nginx restarts. For long-lived containers that can mean serving a cert that's already been
+rotated (or, worst case, expired). Fix it by making **nginx reload itself periodically**; renewals
+happen roughly monthly, so a 6-hour reload cadence is plenty.
+
+In `/opt/personal-website/docker-compose.prod.yml`, give the `nginx` service a `command` that
+backgrounds a reload loop next to the server (the `$${!}` escaping matches your certbot entry):
+
+```yaml
+  nginx:
+    image: nginx:alpine
+    # ...existing ports/volumes/depends_on...
+    command: >
+      /bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g "daemon off;"'
+```
+
+Apply it (brief blip on the website while nginx recreates):
+
+```bash
+cd /opt/personal-website
+docker compose -f docker-compose.prod.yml up -d nginx
+docker compose -f docker-compose.prod.yml exec nginx nginx -t   # sanity
+```
+
+This benefits **both** apps' certs, not just grindtrack. (Alternative: a certbot `--deploy-hook`,
+but the hook runs inside the certbot container which can't signal nginx in another container
+without mounting the docker socket — the periodic nginx reload is the cleaner pattern for this
+compose topology.)
+
 ## 6. CI/CD — automated deploys
 
 `.github/workflows/ci-cd.yml`:
@@ -103,6 +170,27 @@ Visit `https://track.caseyrquinn.com` and log in from your phone.
   `ghcr.io/caseythecoder90/grindtrack:latest`; `deploy` SSHes in, `git reset --hard
   origin/main` (to pick up compose/config changes), `docker compose -f
   docker-compose.prod.yml pull && up -d`, and health-checks `/api/public/stats`.
+
+```mermaid
+sequenceDiagram
+    actor Dev as You
+    participant GH as GitHub Actions
+    participant GHCR as GHCR
+    participant VPS as VPS (grindtrack-app)
+    Dev->>GH: git push origin main
+    par PR/push gates
+        GH->>GH: backend mvn verify (Spotless)
+        GH->>GH: frontend npm run build (tsc + vite)
+    end
+    GH->>GH: build-and-push (docker build, context gt2/)
+    GH->>GHCR: push ghcr.io/.../grindtrack:latest
+    GH->>VPS: SSH (appleboy) — git reset --hard origin/main
+    VPS->>GHCR: docker compose pull
+    GHCR-->>VPS: new image
+    VPS->>VPS: docker compose up -d (recreate app)
+    VPS->>VPS: health-check /api/public/stats (≤150s)
+    VPS-->>GH: healthy → job green
+```
 
 One-time setup — three **repository secrets** (Settings → Secrets and variables → Actions):
 

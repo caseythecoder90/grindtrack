@@ -1,25 +1,61 @@
 @startuml
 ' Deployment topology on the Hetzner VPS. Render: see diagrams/render.sh
 skinparam componentStyle rectangle
-skinparam backgroundColor transparent
-actor Browser
-cloud "Let's Encrypt" as LE
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontSize 14
+skinparam defaultFontName Helvetica
+skinparam shadowing false
+skinparam ArrowColor #33475B
+skinparam ArrowFontColor #1A2B3C
+skinparam actor {
+  BackgroundColor #FFE7BA
+  BorderColor #B5651D
+}
+skinparam node {
+  BorderColor #33475B
+  FontColor #12243A
+  FontStyle bold
+}
+skinparam nodeBackgroundColor #EEF2F7
+skinparam component {
+  BackgroundColor #E3F0FF
+  BorderColor #2D6CDF
+  FontColor #12243A
+}
+skinparam folder {
+  BackgroundColor #FFF3D6
+  BorderColor #B5891D
+  FontColor #4A3B10
+}
+skinparam database {
+  BackgroundColor #E4F9EC
+  BorderColor #2F9E57
+  FontColor #123322
+}
+skinparam cloud {
+  BackgroundColor #F0E9FF
+  BorderColor #6E44C4
+}
 
-node "Hetzner VPS (Ubuntu, CX22 / 4GB)" {
-  node "personal-website compose project" {
-    [nginx\n(TLS, :80/:443)] as nginx
+actor Browser
+
+node "Hetzner VPS (Ubuntu · CX22 · 4GB)" as vps {
+  node "personal-website compose project" as pw #E8EEF5 {
+    [nginx\n(TLS · :80 / :443)] as nginx
     [certbot\n(renew loop)] as certbot
-    folder "/opt/personal-website/certbot\n(shared: /etc/letsencrypt + webroot)" as certs
+    folder "/opt/personal-website/certbot\nshared: /etc/letsencrypt + webroot" as certs
   }
-  node "grindtrack compose project\n(/opt/grindtrack/gt2)" {
+  node "grindtrack compose project\n/opt/grindtrack/gt2" as gtp #EAF3EC {
     [grindtrack-app\nSpring Boot :8080\nAPI + baked SPA] as gt
     database "grindtrack-db\nPostgres 16\nschema: grindtrack" as gtdb
   }
 }
 
-Browser --> nginx : HTTPS track.caseyrquinn.com
-nginx --> gt : HTTP grindtrack-app:8080\n(shared net: personal-website_app-network)
-gt --> gtdb : JDBC (private 'internal' net)
+cloud "Let's Encrypt" as LE
+
+Browser -[#2D6CDF,bold]-> nginx : HTTPS\ntrack.caseyrquinn.com
+nginx -[#2D6CDF,bold]-> gt : HTTP grindtrack-app:8080\nshared net: personal-website_app-network
+gt -[#2F9E57,bold]-> gtdb : JDBC\nprivate 'internal' net
 certbot ..> LE : ACME (webroot)
 nginx ..> certs : reads live/*/fullchain.pem
 certbot ..> certs : writes renewed certs

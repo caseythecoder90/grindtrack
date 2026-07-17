@@ -2,9 +2,18 @@
 ' Grindtrack data model (Postgres schema `grindtrack`). Render: see diagrams/render.sh
 hide circle
 skinparam linetype ortho
-skinparam backgroundColor transparent
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontSize 13
+skinparam defaultFontName Helvetica
+skinparam shadowing false
+skinparam ArrowColor #33475B
+skinparam entity {
+  BackgroundColor #EEF2F7
+  BorderColor #33475B
+  FontColor #12243A
+}
 
-entity users {
+entity "users" as users #E3F0FF {
   * id : bigint <<PK, identity>>
   --
   * username : text <<unique>>
@@ -12,7 +21,7 @@ entity users {
   * totp_secret : text
   created_at : timestamptz
 }
-entity refresh_tokens {
+entity "refresh_tokens" as refresh_tokens #E3F0FF {
   * id : bigint <<PK, identity>>
   --
   * user_id : bigint <<FK → users, ON DELETE CASCADE>>
@@ -20,7 +29,7 @@ entity refresh_tokens {
   * expires_at : timestamptz
   * revoked : boolean
 }
-entity daily_logs {
+entity "daily_logs" as daily_logs #EAF3EC {
   * log_date : date <<PK (natural key)>>
   --
   hours : numeric  (0–24 CHECK)
@@ -29,7 +38,7 @@ entity daily_logs {
   energy : int  (1–5 CHECK, nullable)
   updated_at : timestamptz
 }
-entity weekly_reviews {
+entity "weekly_reviews" as weekly_reviews #EAF3EC {
   * week_start : date <<PK (a Monday)>>
   --
   summary / wins / blockers : text
@@ -37,7 +46,7 @@ entity weekly_reviews {
   on_track : boolean (nullable)
   updated_at : timestamptz
 }
-entity focus_sessions {
+entity "focus_sessions" as focus_sessions #EAF3EC {
   * id : bigint <<PK, identity>>
   --
   * session_date : date
@@ -46,7 +55,7 @@ entity focus_sessions {
   * completed : boolean
   created_at : timestamptz
 }
-entity plan_items {
+entity "plan_items" as plan_items #FFF3D6 {
   * id : bigint <<PK, identity>>
   --
   item_type / title / status : text
@@ -54,13 +63,13 @@ entity plan_items {
   completed_at : timestamptz (set on → done)
   qtr / year_num / tier / sort_order : int
 }
-entity plan_quarters {
+entity "plan_quarters" as plan_quarters #FFF3D6 {
   * qtr : int <<PK>>
   --
   window_label / primary_focus : text
   secondary_focus / career_track : text
 }
-entity plan_reference {
+entity "plan_reference" as plan_reference #FFF3D6 {
   * sheet : text <<PK>>
   --
   title : text

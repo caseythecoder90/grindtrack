@@ -116,66 +116,9 @@ Deep dive with sequence diagrams in [auth.md](auth.md). The moving parts:
 
 ## Data model
 
-```plantuml
-@startuml
-hide circle
-skinparam linetype ortho
-entity users {
-  * id : bigint <<PK, identity>>
-  --
-  * username : text <<unique>>
-  * password_hash : text
-  * totp_secret : text
-  created_at : timestamptz
-}
-entity refresh_tokens {
-  * id : bigint <<PK, identity>>
-  --
-  * user_id : bigint <<FK → users, ON DELETE CASCADE>>
-  * token_hash : text <<unique, sha-256 hex>>
-  * expires_at : timestamptz
-  * revoked : boolean
-}
-entity daily_logs {
-  * log_date : date <<PK (natural key)>>
-  --
-  hours : numeric  (0–24, CHECK)
-  categories : text  (comma-separated)
-  focus / did / wins / blockers : text
-  energy : int  (1–5, CHECK, nullable)
-  updated_at : timestamptz
-}
-entity weekly_reviews {
-  * week_start : date <<PK (a Monday)>>
-  --
-  summary / wins / blockers / adjustments / next_focus : text
-  on_track : boolean (nullable)
-  updated_at : timestamptz
-}
-entity focus_sessions {
-  * id : bigint <<PK, identity>>
-  --
-  * session_date : date
-  * started_at : timestamptz
-  * duration_minutes : int (1–1440, CHECK)
-  * completed : boolean
-  created_at : timestamptz
-}
-entity plan_items {
-  * id : bigint <<PK, identity>>
-  --
-  item_type / title / status / notes / ...
-  completed_at : timestamptz (set on → done)
-}
-entity plan_quarters {
-  * qtr : int <<PK>>
-}
-entity plan_reference {
-  * sheet : text <<PK>>
-}
-users ||--o{ refresh_tokens
-@enduml
-```
+![Grindtrack data model — Postgres schema `grindtrack`](diagrams/data-model.svg)
+
+<sub>PlantUML source: [`diagrams/data-model.puml`](diagrams/data-model.puml) — edit it and regenerate the SVG with [`diagrams/render.sh`](diagrams/render.sh).</sub>
 
 Design notes worth remembering:
 

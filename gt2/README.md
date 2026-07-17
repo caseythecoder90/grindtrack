@@ -10,13 +10,17 @@ heatmap and streak; everything else requires login.
 
 | Doc | What's in it |
 |---|---|
-| [docs/architecture.md](docs/architecture.md) | Components, preliquibase → Liquibase → JPA flow, package layout |
-| [docs/auth.md](docs/auth.md) | The full auth design with PlantUML sequence diagrams and threat notes |
+| [docs/architecture.md](docs/architecture.md) | System view, VPS topology diagram, request lifecycle, preliquibase → Liquibase → JPA flow, package layout |
+| [docs/backend.md](docs/backend.md) | Layers, endpoint tables, auth internals, data model (ER), config, build, request trace |
+| [docs/frontend.md](docs/frontend.md) | Structure, view/tab state machine, the single-flight 401→refresh→retry wrapper, each screen |
+| [docs/auth.md](docs/auth.md) | The full auth design with Mermaid sequence diagrams and threat notes |
 | [docs/api.md](docs/api.md) | Endpoint reference |
-| [docs/deployment.md](docs/deployment.md) | VPS runbook: compose, nginx, TLS, backups, checklist |
-| [docs/frontend.md](docs/frontend.md) | View state machine, the 401→refresh→retry wrapper |
+| [docs/deployment.md](docs/deployment.md) | VPS runbook: GHCR image, shared nginx container, TLS + renewal, CI/CD, backups, checklist |
 
-PlantUML blocks render natively on GitHub/GitLab, in IntelliJ's PlantUML plugin, or at plantuml.com.
+**Diagrams:** sequence/state diagrams are **Mermaid** (GitHub renders them inline). Structural
+diagrams (topology, ER) are **PlantUML** — source in [`docs/diagrams/`](docs/diagrams), rendered to
+committed SVGs (GitHub renders the SVG, not PlantUML source). Regenerate with
+`docs/diagrams/render.sh` after editing a `.puml`.
 
 ## Local dev
 
@@ -40,9 +44,12 @@ mvn verify           # spotless:check runs here — CI-ready
 
 ## Deploying
 
-See [docs/deployment.md](docs/deployment.md). Short version: clone on the VPS, fill `.env`,
-`docker compose up -d --build`, point nginx at 127.0.0.1:8080, certbot the subdomain,
-install the backup cron, enroll TOTP from the first-boot log.
+See [docs/deployment.md](docs/deployment.md). Short version: CI builds the image and pushes it to
+GHCR; the VPS pulls it. Clone to `/opt/grindtrack`, fill `.env`, `docker compose -f
+docker-compose.prod.yml up -d`, route `track.<domain>` through the existing nginx **container**
+(a `conf.d` block proxying to `grindtrack-app:8080`), issue the cert into the shared certbot
+volume, enroll TOTP from the first-boot log, install the backup cron. After the three VPS secrets
+are set, every push to `main` auto-deploys.
 
 ## Extending (all good agentic-coding reps)
 

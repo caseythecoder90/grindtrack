@@ -11,32 +11,9 @@ for TLS and routing. See [deployment.md](deployment.md) for the operational deta
 
 ## Deployment topology (on the VPS)
 
-```plantuml
-@startuml
-skinparam componentStyle rectangle
-actor Browser
-cloud "Let's Encrypt" as LE
+![Deployment topology on the Hetzner VPS](diagrams/topology.svg)
 
-node "Hetzner VPS (Ubuntu, CX22 / 4GB)" {
-  node "personal-website compose project" {
-    [nginx\n(TLS, :80/:443)] as nginx
-    [certbot\n(renew loop)] as certbot
-    folder "/opt/personal-website/certbot\n(shared: /etc/letsencrypt + webroot)" as certs
-  }
-  node "grindtrack compose project\n(/opt/grindtrack/gt2)" {
-    [grindtrack-app\nSpring Boot :8080\nAPI + baked SPA] as gt
-    database "grindtrack-db\nPostgres 16\nschema: grindtrack" as gtdb
-  }
-}
-
-Browser --> nginx : HTTPS track.caseyrquinn.com
-nginx --> gt : HTTP grindtrack-app:8080\n(shared docker net: personal-website_app-network)
-gt --> gtdb : JDBC (private 'internal' net)
-certbot ..> LE : ACME (webroot)
-nginx ..> certs : reads live/*/fullchain.pem
-certbot ..> certs : writes renewed certs
-@enduml
-```
+<sub>PlantUML source: [`diagrams/topology.puml`](diagrams/topology.puml) — edit it and regenerate the SVG with [`diagrams/render.sh`](diagrams/render.sh).</sub>
 
 Key points: the app publishes **no host port** — nginx reaches it by container name over the
 shared docker network. Only `grindtrack-app` joins that shared network; `grindtrack-db` stays on
