@@ -46,7 +46,7 @@ install the backup cron, enroll TOTP from the first-boot log.
 
 ## Extending (all good agentic-coding reps)
 
-- Liquibase changeset 003: a `milestones` table seeded from the plan workbook
+- Liquibase changeset 004: a `milestones` table seeded from the plan workbook
 - Import endpoint for the v1 Node tracker's Export JSON
 - Prometheus metrics via Spring Actuator → a Grafana panel next to your portfolio
 - Kustomize overlays to run this on the kind/kubeadm cluster instead of compose

@@ -26,6 +26,7 @@ src/
 ├── main.tsx, App.tsx, styles.css   entry, view state machine, all styling
 ├── features/
 │   ├── auth/        Login.tsx
+│   ├── focus/       FocusPage.tsx (pomodoro timer)
 │   ├── landing/     Landing.tsx (public view)
 │   └── tracking/    Today.tsx, Week.tsx, StatsPage.tsx
 ├── components/      Heatmap.tsx, StatBar.tsx (shared by landing + app)
@@ -44,6 +45,9 @@ This is the standard SPA companion to short-lived access tokens: the user never 
 - Types for all API shapes live in `src/lib/types.ts`; categories and the 16h target are
   constants there — one place to change.
 - Date helpers (`todayISO`, `mondayOf`, `addDays`) in `src/lib/dates.ts`, local-timezone safe.
+- The Focus timer stores absolute end-timestamps in `localStorage` (`gt-focus-timer-v1`), so a
+  reload or laptop sleep can't lose or drift a running session; each finished session is POSTed
+  to `/api/focus/sessions`, which also adds the minutes to the day's hours server-side.
 - Styling is a single `styles.css` using the dstyle palette (bg `#0d1b2a`, cyan/green/magenta);
   no CSS framework.
 - Local dev: `npm run dev` serves the UI on :5173 and proxies `/api` to the Spring app on :8080

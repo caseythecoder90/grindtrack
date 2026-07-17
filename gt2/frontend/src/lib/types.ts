@@ -35,6 +35,15 @@ export interface PublicStats {
   days: { date: string; hours: number }[];
 }
 
+export interface FocusSession {
+  id: number;
+  startedAt: string;
+  durationMinutes: number;
+  completed: boolean;
+}
+
+export const FOCUS_DEFAULTS = { sessions: 3, focusMin: 60, breakMin: 10 };
+
 export const CATEGORIES = [
   "Certs",
   "Protocols & security",

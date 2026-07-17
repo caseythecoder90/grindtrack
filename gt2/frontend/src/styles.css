@@ -94,3 +94,12 @@ tr.today-row td { background: rgba(127, 209, 255, 0.06); }
 
 .login-card { max-width: 380px; margin: 8vh auto 0; }
 .landing-cta { margin: 20px 0; }
+
+.timer { font-family: var(--mono); font-size: 64px; letter-spacing: 0.04em; text-align: center; margin: 8px 0 2px; color: var(--cyan); }
+.timer.break { color: var(--green); }
+.timer-phase { text-align: center; font-family: var(--mono); font-size: 12px; color: var(--muted); margin-top: 6px; }
+.dots { display: flex; gap: 8px; justify-content: center; margin: 8px 0 6px; }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--panel2); border: 1px solid var(--line); }
+.dot.done { background: var(--green); border-color: var(--green); }
+.dot.now { border-color: var(--cyan); background: rgba(127, 209, 255, 0.25); }
+.focus-actions { justify-content: center; }
