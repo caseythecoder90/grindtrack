@@ -10,7 +10,7 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 
 /**
- * One trackable unit of the 3-year plan: a milestone, cert, protocol module, book, or project.
+ * One trackable unit of the 4-year plan: a milestone, cert, protocol module, book, or project.
  * Content is loaded via the authenticated import endpoint (the repo is public, so plan text never
  * lives in git); status/notes/completed_at are the user's progress and survive re-imports.
  */

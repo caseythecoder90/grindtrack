@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- grindtrack: mini contribution heatmap on the app's navy, magenta ring = today -->
+  <rect width="32" height="32" rx="7" fill="#0d1b2a"/>
+  <g>
+    <rect x="4"  y="4"  width="7" height="7" rx="1.5" fill="#16304a"/>
+    <rect x="13" y="4"  width="7" height="7" rx="1.5" fill="#1d5c38"/>
+    <rect x="22" y="4"  width="7" height="7" rx="1.5" fill="#2a8a4d"/>
+    <rect x="4"  y="13" width="7" height="7" rx="1.5" fill="#2a8a4d"/>
+    <rect x="13" y="13" width="7" height="7" rx="1.5" fill="#3fbf5f"/>
+    <rect x="22" y="13" width="7" height="7" rx="1.5" fill="#16304a"/>
+    <rect x="4"  y="22" width="7" height="7" rx="1.5" fill="#3fbf5f"/>
+    <rect x="13" y="22" width="7" height="7" rx="1.5" fill="#8fe8a8"/>
+    <rect x="22" y="22" width="7" height="7" rx="1.5" fill="#3fbf5f" stroke="#ff2e93" stroke-width="1.6"/>
+  </g>
+</svg>

@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -30,6 +31,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api")
 public class TrackingController {
+
+  private static final int MAX_TEXT_CHARS = 10_000;
+  private static final int MAX_CATEGORIES = 50;
 
   private final DailyLogRepository dailyLogs;
   private final WeeklyReviewRepository weeklyReviews;
@@ -48,11 +52,8 @@ public class TrackingController {
 
   @GetMapping("/days")
   public ResponseEntity<?> range(@RequestParam String from, @RequestParam String to) {
-    LocalDate fromDate = parse(from);
-    LocalDate toDate = parse(to);
-    if (fromDate == null || toDate == null) {
-      return badRequest("from and to must be YYYY-MM-DD");
-    }
+    LocalDate fromDate = requireDate(from, "from and to must be YYYY-MM-DD");
+    LocalDate toDate = requireDate(to, "from and to must be YYYY-MM-DD");
     List<DayResponse> body =
         dailyLogs.findByLogDateBetweenOrderByLogDate(fromDate, toDate).stream()
             .map(DayResponse::from)
@@ -62,34 +63,15 @@ public class TrackingController {
 
   @GetMapping("/days/{date}")
   public ResponseEntity<?> day(@PathVariable String date) {
-    LocalDate parsed = parse(date);
-    if (parsed == null) {
-      return badRequest("invalid date");
-    }
+    LocalDate parsed = requireDate(date, "invalid date");
     return ResponseEntity.ok(dailyLogs.findById(parsed).map(DayResponse::from).orElse(null));
   }
 
   @PutMapping("/days/{date}")
   public ResponseEntity<?> upsertDay(@PathVariable String date, @RequestBody DayRequest body) {
-    LocalDate parsed = parse(date);
-    if (parsed == null) {
-      return badRequest("invalid date");
-    }
+    LocalDate parsed = requireDate(date, "invalid date");
     BigDecimal hours = body.hours() == null ? BigDecimal.ZERO : body.hours();
-    if (hours.signum() < 0 || hours.doubleValue() > 24) {
-      return badRequest("hours must be 0-24");
-    }
-    if (body.energy() != null && (body.energy() < 1 || body.energy() > 5)) {
-      return badRequest("energy must be 1-5");
-    }
-    if (body.categories() != null
-        && (body.categories().size() > MAX_CATEGORIES
-            || body.categories().stream().anyMatch(c -> c == null || c.length() > 100))) {
-      return badRequest("too many categories, or a category name over 100 chars");
-    }
-    if (tooLong(body.focus(), body.did(), body.wins(), body.blockers())) {
-      return badRequest("text fields are limited to " + MAX_TEXT_CHARS + " characters");
-    }
+    validateDayFields(hours, body);
     DailyLog log = dailyLogs.findById(parsed).orElseGet(() -> new DailyLog(parsed));
     log.update(
         hours,
@@ -105,10 +87,7 @@ public class TrackingController {
 
   @DeleteMapping("/days/{date}")
   public ResponseEntity<?> deleteDay(@PathVariable String date) {
-    LocalDate parsed = parse(date);
-    if (parsed == null) {
-      return badRequest("invalid date");
-    }
+    LocalDate parsed = requireDate(date, "invalid date");
     dailyLogs.deleteById(parsed);
     return ResponseEntity.ok(Map.of("deleted", parsed.toString()));
   }
@@ -118,9 +97,6 @@ public class TrackingController {
   @GetMapping("/weeks/{weekStart}")
   public ResponseEntity<?> week(@PathVariable String weekStart) {
     LocalDate monday = mondayOf(weekStart);
-    if (monday == null) {
-      return badRequest("invalid date");
-    }
     return ResponseEntity.ok(weeklyReviews.findById(monday).map(WeekResponse::from).orElse(null));
   }
 
@@ -128,12 +104,9 @@ public class TrackingController {
   public ResponseEntity<?> upsertWeek(
       @PathVariable String weekStart, @RequestBody WeekRequest body) {
     LocalDate monday = mondayOf(weekStart);
-    if (monday == null) {
-      return badRequest("invalid date");
-    }
     if (tooLong(
         body.summary(), body.wins(), body.blockers(), body.adjustments(), body.nextFocus())) {
-      return badRequest("text fields are limited to " + MAX_TEXT_CHARS + " characters");
+      throw new BadRequest("text fields are limited to " + MAX_TEXT_CHARS + " characters");
     }
     WeeklyReview review = weeklyReviews.findById(monday).orElseGet(() -> new WeeklyReview(monday));
     review.update(
@@ -147,32 +120,31 @@ public class TrackingController {
     return ResponseEntity.ok(Map.of("saved", monday.toString()));
   }
 
-  // ---------- stats + export ----------
+  // ---------- stats ----------
 
   @GetMapping("/stats")
   public Stats stats() {
     return statsService.compute();
   }
 
-  @GetMapping("/export")
-  public ResponseEntity<Map<String, Object>> export() {
-    List<DayResponse> days =
-        dailyLogs.findAll().stream()
-            .sorted((a, b) -> a.getLogDate().compareTo(b.getLogDate()))
-            .map(DayResponse::from)
-            .toList();
-    List<WeekResponse> weeks =
-        weeklyReviews.findAll().stream()
-            .sorted((a, b) -> a.getWeekStart().compareTo(b.getWeekStart()))
-            .map(WeekResponse::from)
-            .toList();
-    return ResponseEntity.ok()
-        .header("Content-Disposition", "attachment; filename=\"grindtrack-export.json\"")
-        .body(Map.of("dailyLogs", days, "weeklyReviews", weeks));
-  }
+  // ---------- validation ----------
 
-  private static final int MAX_TEXT_CHARS = 10_000;
-  private static final int MAX_CATEGORIES = 50;
+  private static void validateDayFields(BigDecimal hours, DayRequest body) {
+    if (hours.signum() < 0 || hours.doubleValue() > 24) {
+      throw new BadRequest("hours must be 0-24");
+    }
+    if (body.energy() != null && (body.energy() < 1 || body.energy() > 5)) {
+      throw new BadRequest("energy must be 1-5");
+    }
+    if (body.categories() != null
+        && (body.categories().size() > MAX_CATEGORIES
+            || body.categories().stream().anyMatch(c -> c == null || c.length() > 100))) {
+      throw new BadRequest("too many categories, or a category name over 100 chars");
+    }
+    if (tooLong(body.focus(), body.did(), body.wins(), body.blockers())) {
+      throw new BadRequest("text fields are limited to " + MAX_TEXT_CHARS + " characters");
+    }
+  }
 
   private static boolean tooLong(String... values) {
     for (String value : values) {
@@ -183,20 +155,27 @@ public class TrackingController {
     return false;
   }
 
-  private static LocalDate parse(String value) {
+  private static LocalDate requireDate(String value, String message) {
     try {
       return LocalDate.parse(value);
     } catch (DateTimeParseException e) {
-      return null;
+      throw new BadRequest(message);
     }
   }
 
   private static LocalDate mondayOf(String value) {
-    LocalDate parsed = parse(value);
-    return parsed == null ? null : parsed.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+    return requireDate(value, "invalid date")
+        .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
   }
 
-  private static ResponseEntity<Map<String, String>> badRequest(String message) {
-    return ResponseEntity.badRequest().body(Map.of("error", message));
+  @ExceptionHandler(BadRequest.class)
+  ResponseEntity<Map<String, String>> onBadRequest(BadRequest e) {
+    return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+  }
+
+  private static final class BadRequest extends RuntimeException {
+    BadRequest(String message) {
+      super(message);
+    }
   }
 }

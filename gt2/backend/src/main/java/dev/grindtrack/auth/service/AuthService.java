@@ -53,11 +53,9 @@ public class AuthService {
   /** Issues a new opaque refresh token, storing only its SHA-256 hash. */
   @Transactional
   public String issueRefreshToken(User user) {
-    byte[] bytes = new byte[32];
-    random.nextBytes(bytes);
-    String token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-    OffsetDateTime expires = OffsetDateTime.now().plusDays(props.refreshTokenDays());
-    refreshTokens.save(new RefreshToken(user.getId(), sha256(token), expires));
+    String token = randomUrlSafeToken();
+    OffsetDateTime expiresAt = OffsetDateTime.now().plusDays(props.refreshTokenDays());
+    refreshTokens.save(new RefreshToken(user.getId(), sha256(token), expiresAt));
     return token;
   }
 
@@ -68,29 +66,20 @@ public class AuthService {
    */
   @Transactional
   public Optional<RotatedTokens> rotate(String presentedToken) {
-    return refreshTokens
-        .findByTokenHash(sha256(presentedToken))
-        .flatMap(
-            t -> {
-              if (t.isRevoked()) {
-                revokeAllForUser(t.getUserId());
-                return Optional.empty();
-              }
-              if (!t.getExpiresAt().isAfter(OffsetDateTime.now())) {
-                return Optional.empty();
-              }
-              t.revoke();
-              refreshTokens.save(t);
-              return users
-                  .findById(t.getUserId())
-                  .map(u -> new RotatedTokens(u, issueRefreshToken(u)));
-            });
+    return refreshTokens.findByTokenHash(sha256(presentedToken)).flatMap(this::rotateStoredToken);
   }
 
-  private void revokeAllForUser(Long userId) {
-    List<RefreshToken> active = refreshTokens.findByUserIdAndRevokedFalse(userId);
-    active.forEach(RefreshToken::revoke);
-    refreshTokens.saveAll(active);
+  private Optional<RotatedTokens> rotateStoredToken(RefreshToken stored) {
+    if (stored.isRevoked()) {
+      revokeAllForUser(stored.getUserId());
+      return Optional.empty();
+    }
+    if (isExpired(stored)) {
+      return Optional.empty();
+    }
+    stored.revoke();
+    refreshTokens.save(stored);
+    return users.findById(stored.getUserId()).map(u -> new RotatedTokens(u, issueRefreshToken(u)));
   }
 
   @Transactional
@@ -104,7 +93,23 @@ public class AuthService {
             });
   }
 
-  private static String sha256(String value) {
+  private void revokeAllForUser(Long userId) {
+    List<RefreshToken> active = refreshTokens.findByUserIdAndRevokedFalse(userId);
+    active.forEach(RefreshToken::revoke);
+    refreshTokens.saveAll(active);
+  }
+
+  private static boolean isExpired(RefreshToken token) {
+    return !token.getExpiresAt().isAfter(OffsetDateTime.now());
+  }
+
+  private String randomUrlSafeToken() {
+    byte[] bytes = new byte[32];
+    random.nextBytes(bytes);
+    return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+  }
+
+  static String sha256(String value) {
     try {
       MessageDigest digest = MessageDigest.getInstance("SHA-256");
       return HexFormat.of().formatHex(digest.digest(value.getBytes(StandardCharsets.UTF_8)));

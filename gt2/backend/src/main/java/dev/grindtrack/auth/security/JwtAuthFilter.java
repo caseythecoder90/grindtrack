@@ -3,7 +3,6 @@ package dev.grindtrack.auth.security;
 import dev.grindtrack.auth.service.JwtService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
-import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -30,23 +29,17 @@ public class JwtAuthFilter extends OncePerRequestFilter {
   protected void doFilterInternal(
       HttpServletRequest request, HttpServletResponse response, FilterChain chain)
       throws ServletException, IOException {
-    Cookie[] cookies = request.getCookies();
-    if (cookies != null) {
-      for (Cookie cookie : cookies) {
-        if (ACCESS_COOKIE.equals(cookie.getName())) {
-          jwtService
-              .validate(cookie.getValue())
-              .ifPresent(
-                  username -> {
-                    var auth =
-                        new UsernamePasswordAuthenticationToken(
-                            username, null, List.of(new SimpleGrantedAuthority("ROLE_USER")));
-                    SecurityContextHolder.getContext().setAuthentication(auth);
-                  });
-          break;
-        }
-      }
+    String accessToken = Cookies.value(request, ACCESS_COOKIE);
+    if (accessToken != null) {
+      jwtService.validate(accessToken).ifPresent(JwtAuthFilter::setAuthenticatedUser);
     }
     chain.doFilter(request, response);
+  }
+
+  private static void setAuthenticatedUser(String username) {
+    var auth =
+        new UsernamePasswordAuthenticationToken(
+            username, null, List.of(new SimpleGrantedAuthority("ROLE_USER")));
+    SecurityContextHolder.getContext().setAuthentication(auth);
   }
 }

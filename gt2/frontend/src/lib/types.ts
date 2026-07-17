@@ -1,3 +1,6 @@
+/** Shared API payload shapes and app-wide constants, grouped by feature. */
+
+// --- tracking: daily logs and weekly reviews -------------------------------
 
 export interface DayLog {
   logDate: string;
@@ -20,6 +23,8 @@ export interface WeekReview {
   onTrack: boolean | null;
 }
 
+// --- stats: header bar and heatmap -----------------------------------------
+
 export interface Stats {
   totalHours: number;
   daysLogged: number;
@@ -35,6 +40,8 @@ export interface PublicStats {
   days: { date: string; hours: number }[];
 }
 
+// --- focus timer ------------------------------------------------------------
+
 export interface FocusSession {
   id: number;
   startedAt: string;
@@ -43,6 +50,8 @@ export interface FocusSession {
 }
 
 export const FOCUS_DEFAULTS = { sessions: 3, focusMin: 60, breakMin: 10 };
+
+// --- 3-year plan ------------------------------------------------------------
 
 export type PlanItemType = "milestone" | "cert" | "module" | "book" | "project";
 export type PlanStatus = "not_started" | "in_progress" | "done";
@@ -85,6 +94,8 @@ export interface PlanData {
   quarters: PlanQuarter[];
   reference: PlanReferenceSheet[];
 }
+
+// --- app constants ----------------------------------------------------------
 
 export const CATEGORIES = [
   "Certs",

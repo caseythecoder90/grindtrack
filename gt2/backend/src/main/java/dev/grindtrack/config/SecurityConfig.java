@@ -22,6 +22,18 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @EnableWebSecurity
 public class SecurityConfig {
 
+  private static final String[] PUBLIC_PATHS = {
+    "/",
+    "/index.html",
+    "/assets/**",
+    "/vite.svg",
+    "/favicon.ico",
+    "/api/public/**",
+    "/api/auth/login",
+    "/api/auth/refresh",
+    "/api/auth/logout",
+  };
+
   @Bean
   public PasswordEncoder passwordEncoder() {
     return new BCryptPasswordEncoder();
@@ -33,20 +45,7 @@ public class SecurityConfig {
     return http.csrf(AbstractHttpConfigurer::disable)
         .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .authorizeHttpRequests(
-            auth ->
-                auth.requestMatchers(
-                        "/",
-                        "/index.html",
-                        "/assets/**",
-                        "/vite.svg",
-                        "/favicon.ico",
-                        "/api/public/**",
-                        "/api/auth/login",
-                        "/api/auth/refresh",
-                        "/api/auth/logout")
-                    .permitAll()
-                    .anyRequest()
-                    .authenticated())
+            auth -> auth.requestMatchers(PUBLIC_PATHS).permitAll().anyRequest().authenticated())
         .exceptionHandling(
             e ->
                 e.authenticationEntryPoint(

@@ -7,3 +7,5 @@ databaseChangeLog:
       file: db/changelog/003-focus-sessions.sql
   - include:
       file: db/changelog/004-plan.sql
+  - include:
+      file: db/changelog/005-plan-year4.sql

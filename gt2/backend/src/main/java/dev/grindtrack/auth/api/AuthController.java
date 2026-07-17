@@ -1,11 +1,12 @@
 package dev.grindtrack.auth.api;
 
+import dev.grindtrack.auth.domain.User;
+import dev.grindtrack.auth.security.Cookies;
 import dev.grindtrack.auth.security.JwtAuthFilter;
 import dev.grindtrack.auth.service.AuthService;
 import dev.grindtrack.auth.service.JwtService;
 import dev.grindtrack.auth.service.LoginRateLimiter;
 import dev.grindtrack.config.AppProperties;
-import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.NotBlank;
 import java.security.Principal;
@@ -50,55 +51,31 @@ public class AuthController {
     }
     return authService
         .authenticate(body.username(), body.password(), body.otp())
-        .map(
-            user ->
-                ResponseEntity.ok()
-                    .header(
-                        HttpHeaders.SET_COOKIE,
-                        accessCookie(jwtService.issueAccessToken(user.getUsername())).toString())
-                    .header(
-                        HttpHeaders.SET_COOKIE,
-                        refreshCookie(authService.issueRefreshToken(user)).toString())
-                    .body((Object) Map.of("username", user.getUsername())))
-        .orElseGet(
-            () ->
-                ResponseEntity.status(401)
-                    .body((Object) Map.of("error", "Invalid username, password, or code.")));
+        .map(user -> sessionResponse(user, authService.issueRefreshToken(user)))
+        .orElseGet(() -> unauthorized("Invalid username, password, or code."));
   }
 
   @PostMapping("/refresh")
   public ResponseEntity<?> refresh(HttpServletRequest request) {
-    String presented = readCookie(request, REFRESH_COOKIE);
+    String presented = Cookies.value(request, REFRESH_COOKIE);
     if (presented == null) {
-      return ResponseEntity.status(401).body(Map.of("error", "No refresh token."));
+      return unauthorized("No refresh token.");
     }
     return authService
         .rotate(presented)
-        .map(
-            rotated ->
-                ResponseEntity.ok()
-                    .header(
-                        HttpHeaders.SET_COOKIE,
-                        accessCookie(jwtService.issueAccessToken(rotated.user().getUsername()))
-                            .toString())
-                    .header(
-                        HttpHeaders.SET_COOKIE, refreshCookie(rotated.newRefreshToken()).toString())
-                    .body((Object) Map.of("username", rotated.user().getUsername())))
-        .orElseGet(
-            () ->
-                ResponseEntity.status(401)
-                    .body((Object) Map.of("error", "Refresh token invalid.")));
+        .map(rotated -> sessionResponse(rotated.user(), rotated.newRefreshToken()))
+        .orElseGet(() -> unauthorized("Refresh token invalid."));
   }
 
   @PostMapping("/logout")
   public ResponseEntity<?> logout(HttpServletRequest request) {
-    String presented = readCookie(request, REFRESH_COOKIE);
+    String presented = Cookies.value(request, REFRESH_COOKIE);
     if (presented != null) {
       authService.revoke(presented);
     }
     return ResponseEntity.ok()
-        .header(HttpHeaders.SET_COOKIE, expire(JwtAuthFilter.ACCESS_COOKIE, "/").toString())
-        .header(HttpHeaders.SET_COOKIE, expire(REFRESH_COOKIE, REFRESH_PATH).toString())
+        .header(HttpHeaders.SET_COOKIE, expiredCookie(JwtAuthFilter.ACCESS_COOKIE, "/").toString())
+        .header(HttpHeaders.SET_COOKIE, expiredCookie(REFRESH_COOKIE, REFRESH_PATH).toString())
         .body(Map.of("status", "logged out"));
   }
 
@@ -107,16 +84,34 @@ public class AuthController {
     return Map.of("username", principal.getName());
   }
 
+  /** 200 with fresh access + refresh cookies — the shared success shape of login and refresh. */
+  private ResponseEntity<Object> sessionResponse(User user, String refreshToken) {
+    String accessToken = jwtService.issueAccessToken(user.getUsername());
+    return ResponseEntity.ok()
+        .header(HttpHeaders.SET_COOKIE, accessCookie(accessToken).toString())
+        .header(HttpHeaders.SET_COOKIE, refreshCookie(refreshToken).toString())
+        .body(Map.of("username", user.getUsername()));
+  }
+
+  private static ResponseEntity<Object> unauthorized(String message) {
+    return ResponseEntity.status(401).body(Map.of("error", message));
+  }
+
   private ResponseCookie accessCookie(String token) {
-    return build(
+    return authCookie(
         JwtAuthFilter.ACCESS_COOKIE, token, "/", Duration.ofMinutes(props.accessTokenMinutes()));
   }
 
   private ResponseCookie refreshCookie(String token) {
-    return build(REFRESH_COOKIE, token, REFRESH_PATH, Duration.ofDays(props.refreshTokenDays()));
+    return authCookie(
+        REFRESH_COOKIE, token, REFRESH_PATH, Duration.ofDays(props.refreshTokenDays()));
   }
 
-  private ResponseCookie build(String name, String value, String path, Duration maxAge) {
+  private ResponseCookie expiredCookie(String name, String path) {
+    return authCookie(name, "", path, Duration.ZERO);
+  }
+
+  private ResponseCookie authCookie(String name, String value, String path, Duration maxAge) {
     return ResponseCookie.from(name, value)
         .httpOnly(true)
         .secure(props.cookieSecure())
@@ -124,29 +119,6 @@ public class AuthController {
         .path(path)
         .maxAge(maxAge)
         .build();
-  }
-
-  private ResponseCookie expire(String name, String path) {
-    return ResponseCookie.from(name, "")
-        .httpOnly(true)
-        .secure(props.cookieSecure())
-        .sameSite("Strict")
-        .path(path)
-        .maxAge(0)
-        .build();
-  }
-
-  private static String readCookie(HttpServletRequest request, String name) {
-    Cookie[] cookies = request.getCookies();
-    if (cookies == null) {
-      return null;
-    }
-    for (Cookie cookie : cookies) {
-      if (name.equals(cookie.getName())) {
-        return cookie.getValue();
-      }
-    }
-    return null;
   }
 
   private static String clientIp(HttpServletRequest request) {

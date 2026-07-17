@@ -20,9 +20,18 @@ src/
 ├── features/
 │   ├── auth/Login.tsx           username + password + TOTP form
 │   ├── landing/Landing.tsx      public read-only view
-│   ├── focus/FocusPage.tsx      Pomodoro timer + today's sessions
+│   ├── focus/
+│   │   ├── FocusPage.tsx        session list + POST wiring + JSX
+│   │   ├── timer.ts             pure pomodoro state machine (framework-free, nowMs-parameterized)
+│   │   ├── useFocusTimer.ts     hook: persistence, 500ms tick, transitions, alert wiring
+│   │   └── alerts.ts            chime / notification side effects
 │   ├── plan/
-│   │   ├── PlanPage.tsx         3-year plan tracker (status cycling, notes, import)
+│   │   ├── PlanPage.tsx         orchestration: load, update, import, composition
+│   │   ├── PlanHeader.tsx       progress bar + type filter chips
+│   │   ├── YearPanel.tsx        per-year panel incl. quarter roadmap cards
+│   │   ├── ItemRow.tsx          status chip + expandable details + notes
+│   │   ├── ImportControl.tsx    plan.json file picker
+│   │   ├── planModel.ts         pure labels/constants/sorting/progress helpers
 │   │   └── Reference.tsx        generic renderer for the reference sheets
 │   └── tracking/
 │       ├── Today.tsx            daily log editor

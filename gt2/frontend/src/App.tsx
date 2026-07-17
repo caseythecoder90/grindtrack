@@ -52,8 +52,8 @@ export default function App() {
   return (
     <div className="wrap">
       <header>
-        <div className="brand"><b>grindtrack</b> // 3-year plan<span className="cursor">_</span></div>
-        <div className="sub">jul 2026 → jun 2029 · target: 16 h/wk</div>
+        <div className="brand"><b>grindtrack</b> // 4-year plan<span className="cursor">_</span></div>
+        <div className="sub">jul 2026 → jun 2030 · target: 20 h/wk</div>
         <div className="spacer" />
         {view === "app" && (
           <>

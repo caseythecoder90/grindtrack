@@ -21,6 +21,8 @@ import org.springframework.stereotype.Service;
 @Service
 public class StatsService {
 
+  private static final int WEEKS_SHOWN = 12;
+
   private final DailyLogRepository dailyLogs;
 
   public StatsService(DailyLogRepository dailyLogs) {
@@ -28,53 +30,85 @@ public class StatsService {
   }
 
   public Stats compute() {
-    List<DailyLog> all = dailyLogs.findAll();
-    double totalHours = all.stream().mapToDouble(l -> l.getHours().doubleValue()).sum();
+    return compute(dailyLogs.findAll(), LocalDate.now());
+  }
 
-    LocalDate today = LocalDate.now();
-    LocalDate thisMonday = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
-    LocalDate windowStart = thisMonday.minusWeeks(11);
-    Map<LocalDate, Double> weekTotals = new TreeMap<>();
-    for (LocalDate w = windowStart; !w.isAfter(thisMonday); w = w.plusWeeks(1)) {
-      weekTotals.put(w, 0.0);
+  /** Package-private and clock-explicit so the aggregation logic is testable without Spring. */
+  static Stats compute(List<DailyLog> logs, LocalDate today) {
+    double totalHours = logs.stream().mapToDouble(l -> l.getHours().doubleValue()).sum();
+    return new Stats(
+        round1(totalHours),
+        logs.size(),
+        currentStreak(logs, today),
+        weeklyHours(logs, today),
+        categoryHours(logs));
+  }
+
+  /**
+   * Hours per week for the {@value #WEEKS_SHOWN} weeks ending with the current one. Every Monday in
+   * the window appears (empty weeks as 0.0); logs outside the window are dropped.
+   */
+  private static List<Stats.WeekHours> weeklyHours(List<DailyLog> logs, LocalDate today) {
+    LocalDate thisMonday = mondayOf(today);
+    Map<LocalDate, Double> totals = new TreeMap<>();
+    for (LocalDate w = thisMonday.minusWeeks(WEEKS_SHOWN - 1);
+        !w.isAfter(thisMonday);
+        w = w.plusWeeks(1)) {
+      totals.put(w, 0.0);
     }
-    Map<String, Double> categoryTotals = new HashMap<>();
-    Set<LocalDate> daysWithHours = new HashSet<>();
+    for (DailyLog log : logs) {
+      totals.computeIfPresent(
+          mondayOf(log.getLogDate()), (k, v) -> v + log.getHours().doubleValue());
+    }
+    return totals.entrySet().stream()
+        .map(e -> new Stats.WeekHours(e.getKey().toString(), round1(e.getValue())))
+        .toList();
+  }
 
-    for (DailyLog log : all) {
-      double hours = log.getHours().doubleValue();
-      if (hours > 0) {
+  /**
+   * Total hours per category, most-worked first. A day's hours are split evenly across its
+   * categories; days without categories contribute nothing.
+   */
+  private static List<Stats.CategoryHours> categoryHours(List<DailyLog> logs) {
+    Map<String, Double> totals = new HashMap<>();
+    for (DailyLog log : logs) {
+      List<String> categories = log.categoryList();
+      if (categories.isEmpty()) {
+        continue;
+      }
+      double share = log.getHours().doubleValue() / categories.size();
+      for (String category : categories) {
+        totals.merge(category, share, Double::sum);
+      }
+    }
+    return totals.entrySet().stream()
+        .sorted(Map.Entry.<String, Double>comparingByValue(Comparator.reverseOrder()))
+        .map(e -> new Stats.CategoryHours(e.getKey(), round1(e.getValue())))
+        .toList();
+  }
+
+  /**
+   * Consecutive days with logged hours, counting back from today — or from yesterday, so a streak
+   * isn't shown as broken before today's work is logged. A day with zero hours breaks it.
+   */
+  private static int currentStreak(List<DailyLog> logs, LocalDate today) {
+    Set<LocalDate> daysWithHours = new HashSet<>();
+    for (DailyLog log : logs) {
+      if (log.getHours().signum() > 0) {
         daysWithHours.add(log.getLogDate());
       }
-      LocalDate monday = log.getLogDate().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
-      weekTotals.computeIfPresent(monday, (k, v) -> v + hours);
-      List<String> cats = log.categoryList();
-      if (!cats.isEmpty()) {
-        double share = hours / cats.size();
-        for (String cat : cats) {
-          categoryTotals.merge(cat, share, Double::sum);
-        }
-      }
     }
-
     int streak = 0;
     LocalDate cursor = daysWithHours.contains(today) ? today : today.minusDays(1);
     while (daysWithHours.contains(cursor)) {
       streak++;
       cursor = cursor.minusDays(1);
     }
+    return streak;
+  }
 
-    List<Stats.WeekHours> weeks =
-        weekTotals.entrySet().stream()
-            .map(e -> new Stats.WeekHours(e.getKey().toString(), round1(e.getValue())))
-            .toList();
-    List<Stats.CategoryHours> categories =
-        categoryTotals.entrySet().stream()
-            .sorted(Map.Entry.<String, Double>comparingByValue(Comparator.reverseOrder()))
-            .map(e -> new Stats.CategoryHours(e.getKey(), round1(e.getValue())))
-            .toList();
-
-    return new Stats(round1(totalHours), all.size(), streak, weeks, categories);
+  private static LocalDate mondayOf(LocalDate date) {
+    return date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
   }
 
   private static double round1(double value) {

@@ -1,5 +1,6 @@
 package dev.grindtrack.auth.service;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -19,15 +20,25 @@ public class LoginRateLimiter {
   private static final int MAX_TRACKED_IPS = 10_000;
 
   private final Map<String, Deque<Instant>> attempts = new ConcurrentHashMap<>();
+  private final Clock clock;
+
+  public LoginRateLimiter() {
+    this(Clock.systemUTC());
+  }
+
+  LoginRateLimiter(Clock clock) {
+    this.clock = clock;
+  }
 
   public boolean allow(String ip) {
-    Instant now = Instant.now();
+    Instant now = clock.instant();
     if (attempts.size() > MAX_TRACKED_IPS) {
       purgeExpired(now);
     }
+    Instant cutoff = now.minusSeconds(WINDOW_SECONDS);
     Deque<Instant> window = attempts.computeIfAbsent(ip, k -> new ArrayDeque<>());
     synchronized (window) {
-      while (!window.isEmpty() && window.peekFirst().isBefore(now.minusSeconds(WINDOW_SECONDS))) {
+      while (!window.isEmpty() && window.peekFirst().isBefore(cutoff)) {
         window.pollFirst();
       }
       if (window.size() >= MAX_ATTEMPTS) {
