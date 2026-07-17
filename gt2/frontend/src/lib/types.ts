@@ -44,6 +44,48 @@ export interface FocusSession {
 
 export const FOCUS_DEFAULTS = { sessions: 3, focusMin: 60, breakMin: 10 };
 
+export type PlanItemType = "milestone" | "cert" | "module" | "book" | "project";
+export type PlanStatus = "not_started" | "in_progress" | "done";
+
+export interface PlanItem {
+  id: number;
+  type: PlanItemType;
+  title: string;
+  details: string;
+  targetLabel: string;
+  targetDate: string | null;
+  yearNum: number | null;
+  qtr: number | null;
+  tier: string | null;
+  status: PlanStatus;
+  notes: string;
+  completedAt: string | null;
+  sortOrder: number;
+}
+
+export interface PlanQuarter {
+  qtr: number;
+  windowLabel: string;
+  yearNum: number;
+  primaryFocus: string;
+  secondaryFocus: string;
+  careerTrack: string;
+  deliverables: string;
+}
+
+export interface PlanReferenceSheet {
+  sheet: string;
+  title: string;
+  contentJson: string;
+  sortOrder: number;
+}
+
+export interface PlanData {
+  items: PlanItem[];
+  quarters: PlanQuarter[];
+  reference: PlanReferenceSheet[];
+}
+
 export const CATEGORIES = [
   "Certs",
   "Protocols & security",

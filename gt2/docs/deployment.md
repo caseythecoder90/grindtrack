@@ -145,4 +145,6 @@ gunzip -c grindtrack-YYYY-MM-DD.sql.gz | docker compose -f docker-compose.prod.y
 - [ ] TOTP enrolled, bootstrap log lines cleared (force-recreate app)
 - [ ] Backup cron installed AND one restore tested
 - [ ] Login works from your phone over HTTPS
+- [ ] Plan imported: generate `plan.json` locally (`gt2/tools/plan-import/`), upload via the
+      Plan tab (plan content is personal — it ships via import, never via git)
 - [ ] Three GitHub repo secrets set → push to main auto-deploys

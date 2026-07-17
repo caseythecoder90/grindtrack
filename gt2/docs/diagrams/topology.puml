@@ -1,0 +1,26 @@
+@startuml
+' Deployment topology on the Hetzner VPS. Render: see diagrams/render.sh
+skinparam componentStyle rectangle
+skinparam backgroundColor transparent
+actor Browser
+cloud "Let's Encrypt" as LE
+
+node "Hetzner VPS (Ubuntu, CX22 / 4GB)" {
+  node "personal-website compose project" {
+    [nginx\n(TLS, :80/:443)] as nginx
+    [certbot\n(renew loop)] as certbot
+    folder "/opt/personal-website/certbot\n(shared: /etc/letsencrypt + webroot)" as certs
+  }
+  node "grindtrack compose project\n(/opt/grindtrack/gt2)" {
+    [grindtrack-app\nSpring Boot :8080\nAPI + baked SPA] as gt
+    database "grindtrack-db\nPostgres 16\nschema: grindtrack" as gtdb
+  }
+}
+
+Browser --> nginx : HTTPS track.caseyrquinn.com
+nginx --> gt : HTTP grindtrack-app:8080\n(shared net: personal-website_app-network)
+gt --> gtdb : JDBC (private 'internal' net)
+certbot ..> LE : ACME (webroot)
+nginx ..> certs : reads live/*/fullchain.pem
+certbot ..> certs : writes renewed certs
+@enduml

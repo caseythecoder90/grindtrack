@@ -10,6 +10,10 @@
 # Personal local notes (STARTUP.local.md etc.)
 *.local.md
 
+# Personal plan content — schema is in git, data is imported at runtime, never committed
+*.xlsx
+plan.json
+
 # Build output
 target/
 dist/
