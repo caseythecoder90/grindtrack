@@ -1,0 +1,70 @@
+
+name: CI/CD
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+      # verify runs spotless:check too — formatting violations fail the build
+      - run: mvn -B verify
+        working-directory: gt2/backend
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: gt2/frontend/package-lock.json
+      - run: npm ci
+        working-directory: gt2/frontend
+      # build = tsc --noEmit (strict) + vite build
+      - run: npm run build
+        working-directory: gt2/frontend
+
+  deploy:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [backend, frontend]
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    steps:
+      - name: Deploy to VPS over SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+            cd ~/grindtrack/gt2
+            git fetch origin main
+            git reset --hard origin/main
+            docker compose up -d --build
+            for i in $(seq 1 30); do
+              if curl -sf http://127.0.0.1:8080/api/public/stats > /dev/null; then
+                echo "deploy healthy"
+                docker image prune -f
+                exit 0
+              fi
+              sleep 5
+            done
+            echo "health check failed after 150s"
+            docker compose logs --tail 100 app
+            exit 1

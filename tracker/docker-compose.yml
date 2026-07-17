@@ -1,0 +1,30 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: grind
+      POSTGRES_PASSWORD: grind
+      POSTGRES_DB: grindtrack
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U grind -d grindtrack"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build: ./app
+    environment:
+      DATABASE_URL: postgres://grind:grind@db:5432/grindtrack
+      PORT: 8080
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:

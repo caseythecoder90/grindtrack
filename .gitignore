@@ -1,0 +1,16 @@
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Secrets — never commit real environment files
+.env
+*.env.local
+
+# Build output
+target/
+dist/
+node_modules/
+
+# Logs
+*.log

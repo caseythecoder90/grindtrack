@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grindtrack</title>
+<style>
+  :root{
+    --bg:#0d1b2a; --panel:#122539; --panel2:#0f2032; --line:#22405f;
+    --text:#d7e3f4; --muted:#7f97b3;
+    --cyan:#7fd1ff; --green:#3fbf5f; --yellow:#ffd166; --magenta:#ff2e93; --purple:#7a5cff; --red:#ff4d4d;
+    --mono:ui-monospace,"Cascadia Code",Consolas,"JetBrains Mono",monospace;
+    --sans:"Segoe UI",system-ui,-apple-system,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15px;line-height:1.5}
+  a{color:var(--cyan)}
+  .wrap{max-width:1040px;margin:0 auto;padding:20px 20px 64px}
+
+  header{display:flex;flex-wrap:wrap;align-items:baseline;gap:12px;margin-bottom:6px}
+  .brand{font-family:var(--mono);font-size:20px;letter-spacing:.04em}
+  .brand b{color:var(--cyan);font-weight:600}
+  .brand .cursor{color:var(--magenta);animation:blink 1.1s steps(1) infinite}
+  @keyframes blink{50%{opacity:0}}
+  @media (prefers-reduced-motion: reduce){.brand .cursor{animation:none}}
+  .sub{color:var(--muted);font-family:var(--mono);font-size:12px}
+  header .spacer{flex:1}
+  button{font-family:var(--mono);font-size:13px;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:7px 12px;cursor:pointer}
+  button:hover{border-color:var(--cyan)}
+  button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+  button.primary{background:var(--cyan);color:#06121e;border-color:var(--cyan);font-weight:600}
+  button.primary:hover{filter:brightness(1.08)}
+
+  .statbar{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0 10px;font-family:var(--mono);font-size:13px}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 14px}
+  .stat .k{color:var(--muted);font-size:11px;display:block}
+  .stat .v{font-size:17px}
+  .stat .v.green{color:var(--green)} .stat .v.cyan{color:var(--cyan)} .stat .v.magenta{color:var(--magenta)} .stat .v.yellow{color:var(--yellow)}
+
+  .heatwrap{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px 10px;margin-bottom:18px;overflow-x:auto}
+  .heatlabel{font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:8px}
+  .heat{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,12px);gap:3px;width:max-content}
+  .cell{width:12px;height:12px;border-radius:2px;background:#16304a}
+  .cell.h1{background:#1d5c38}.cell.h2{background:#2a8a4d}.cell.h3{background:var(--green)}.cell.h4{background:#8fe8a8}
+  .cell.today{outline:1px solid var(--magenta)}
+  .heatkey{display:flex;gap:6px;align-items:center;font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:8px}
+  .heatkey .cell{display:inline-block}
+
+  nav{display:flex;gap:6px;margin-bottom:14px;border-bottom:1px solid var(--line)}
+  nav button{border:none;background:none;border-radius:0;padding:9px 14px;color:var(--muted);border-bottom:2px solid transparent}
+  nav button.active{color:var(--cyan);border-bottom-color:var(--cyan)}
+  section{display:none}
+  section.active{display:block}
+
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px}
+  h2{font-family:var(--mono);font-size:14px;font-weight:600;color:var(--cyan);margin:0 0 14px;letter-spacing:.05em;text-transform:lowercase}
+  label{display:block;font-family:var(--mono);font-size:12px;color:var(--muted);margin:12px 0 4px}
+  input[type=date],input[type=number],textarea{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:6px;color:var(--text);padding:8px 10px;font-family:var(--sans);font-size:14px}
+  input:focus-visible,textarea:focus-visible{outline:2px solid var(--cyan);outline-offset:1px;border-color:var(--cyan)}
+  textarea{min-height:64px;resize:vertical}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media (max-width:700px){.row{grid-template-columns:1fr}}
+  .row3{display:grid;grid-template-columns:180px 120px 1fr;gap:16px;align-items:end}
+  @media (max-width:700px){.row3{grid-template-columns:1fr 1fr}}
+
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{font-family:var(--mono);font-size:12px;padding:5px 10px;border-radius:999px;border:1px solid var(--line);background:var(--panel2);color:var(--muted);cursor:pointer}
+  .chip.on{border-color:var(--purple);color:#cfc2ff;background:rgba(122,92,255,.18)}
+  .energy{display:flex;gap:6px}
+  .energy button{width:38px}
+  .energy button.on{border-color:var(--yellow);color:var(--yellow)}
+
+  .actions{margin-top:18px;display:flex;gap:10px;align-items:center}
+  .toast{font-family:var(--mono);font-size:12px;color:var(--green);opacity:0;transition:opacity .3s}
+  .toast.show{opacity:1}
+
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{font-family:var(--mono);font-size:11px;color:var(--muted);text-align:left;font-weight:400;padding:6px 8px;border-bottom:1px solid var(--line)}
+  td{padding:7px 8px;border-bottom:1px solid #1a3450;vertical-align:top}
+  td.num{font-family:var(--mono)}
+  tr.today-row td{background:rgba(127,209,255,.06)}
+  .weeknav{display:flex;gap:8px;align-items:center;margin-bottom:12px;font-family:var(--mono);font-size:13px}
+  .progress{height:8px;background:var(--panel2);border:1px solid var(--line);border-radius:999px;overflow:hidden;margin:8px 0 16px}
+  .progress i{display:block;height:100%;background:var(--green)}
+  .progress.over i{background:var(--cyan)}
+
+  .bars{display:grid;gap:6px;margin-top:8px}
+  .bar{display:grid;grid-template-columns:110px 1fr 56px;gap:10px;align-items:center;font-family:var(--mono);font-size:12px}
+  .bar .track{height:10px;background:var(--panel2);border:1px solid var(--line);border-radius:4px;overflow:hidden}
+  .bar .track i{display:block;height:100%}
+  .muted{color:var(--muted)}
+  .empty{color:var(--muted);font-family:var(--mono);font-size:13px;padding:10px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand"><b>grindtrack</b> // 3-year plan<span class="cursor">_</span></div>
+    <div class="sub">jul 2026 → jun 2029 · target: 16 h/wk</div>
+    <div class="spacer"></div>
+    <button id="exportBtn" title="Download all data as JSON">Export JSON</button>
+  </header>
+
+  <div class="statbar" id="statbar"></div>
+
+  <div class="heatwrap">
+    <div class="heatlabel">last 26 weeks · one cell per day · green = hours logged</div>
+    <div class="heat" id="heat" aria-label="Daily hours heatmap for the last 26 weeks"></div>
+    <div class="heatkey">0 <span class="cell"></span><span class="cell h1"></span><span class="cell h2"></span><span class="cell h3"></span><span class="cell h4"></span> 4h+</div>
+  </div>
+
+  <nav>
+    <button data-tab="today" class="active">Today</button>
+    <button data-tab="week">Week</button>
+    <button data-tab="stats">Stats</button>
+  </nav>
+
+  <section id="tab-today" class="active">
+    <div class="panel">
+      <h2>daily log</h2>
+      <div class="row3">
+        <div><label for="d-date">Date</label><input type="date" id="d-date"></div>
+        <div><label for="d-hours">Hours</label><input type="number" id="d-hours" min="0" max="24" step="0.5" value="0"></div>
+        <div><label>Energy</label><div class="energy" id="d-energy"></div></div>
+      </div>
+      <label>Categories</label>
+      <div class="chips" id="d-cats"></div>
+      <div class="row">
+        <div><label for="d-focus">Planned focus</label><textarea id="d-focus" placeholder="What was this block for? e.g. CKA labs: etcd backup/restore"></textarea></div>
+        <div><label for="d-did">What actually happened</label><textarea id="d-did" placeholder="What you did, what you finished"></textarea></div>
+      </div>
+      <div class="row">
+        <div><label for="d-wins">Wins</label><textarea id="d-wins" placeholder="Anything Impact-Log worthy goes here too"></textarea></div>
+        <div><label for="d-blockers">Blockers / notes</label><textarea id="d-blockers" placeholder="What got in the way"></textarea></div>
+      </div>
+      <div class="actions">
+        <button class="primary" id="d-save">Save day</button>
+        <span class="toast" id="d-toast">saved ✓</span>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-week">
+    <div class="panel">
+      <h2>week view</h2>
+      <div class="weeknav">
+        <button id="w-prev">◀</button>
+        <span id="w-label"></span>
+        <button id="w-next">▶</button>
+        <button id="w-this">this week</button>
+      </div>
+      <div id="w-progress"></div>
+      <table>
+        <thead><tr><th style="width:110px">day</th><th style="width:60px">hrs</th><th style="width:180px">categories</th><th>what happened</th></tr></thead>
+        <tbody id="w-body"></tbody>
+      </table>
+      <h2 style="margin-top:24px">weekly review</h2>
+      <div class="row">
+        <div><label for="w-summary">Summary of the week</label><textarea id="w-summary"></textarea></div>
+        <div><label for="w-wins">Wins</label><textarea id="w-wins"></textarea></div>
+      </div>
+      <div class="row">
+        <div><label for="w-blockers">Blockers</label><textarea id="w-blockers"></textarea></div>
+        <div><label for="w-adjust">Adjustments to the plan</label><textarea id="w-adjust"></textarea></div>
+      </div>
+      <label for="w-next-focus">Next week's focus</label>
+      <textarea id="w-next-focus"></textarea>
+      <label>On track for the quarter?</label>
+      <div class="chips" id="w-ontrack">
+        <span class="chip" data-v="true">yes</span>
+        <span class="chip" data-v="false">no — adjust</span>
+      </div>
+      <div class="actions">
+        <button class="primary" id="w-save">Save review</button>
+        <span class="toast" id="w-toast">saved ✓</span>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-stats">
+    <div class="panel">
+      <h2>hours per week · last 12</h2>
+      <div class="bars" id="s-weeks"></div>
+      <h2 style="margin-top:24px">hours by category · all time</h2>
+      <div class="bars" id="s-cats"></div>
+    </div>
+  </section>
+</div>
+
+<script>
+const CATS = ["Certs","Protocols & security","Distributed systems","Go","Java","Payments","Projects","Open source","AI","Interview prep","Work impact","Reading"];
+const CAT_COLORS = ["#7fd1ff","#ff2e93","#7a5cff","#3fbf5f","#ffd166","#ff8c66","#66e0d0","#c2f06e","#e08cff","#ffa3c0","#8fb8ff","#d7e3f4"];
+const TARGET = 16;
+const $ = id => document.getElementById(id);
+const iso = d => d.toISOString().slice(0,10);
+const todayISO = () => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; };
+function mondayOf(ds){ const d=new Date(ds+"T00:00:00"); const dow=(d.getDay()+6)%7; d.setDate(d.getDate()-dow); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
+function addDays(ds,n){ const d=new Date(ds+"T00:00:00"); d.setDate(d.getDate()+n); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
+async function api(path, opts){ const r = await fetch(path, opts); if(!r.ok){ const e = await r.json().catch(()=>({})); throw new Error(e.error||r.statusText);} return r.json(); }
+function toast(id){ const t=$(id); t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),1600); }
+
+// ---------- tabs ----------
+document.querySelectorAll("nav button").forEach(b=>b.addEventListener("click",()=>{
+  document.querySelectorAll("nav button").forEach(x=>x.classList.remove("active"));
+  document.querySelectorAll("section").forEach(x=>x.classList.remove("active"));
+  b.classList.add("active"); $("tab-"+b.dataset.tab).classList.add("active");
+  if(b.dataset.tab==="stats") loadStats();
+  if(b.dataset.tab==="week") loadWeek();
+}));
+
+// ---------- today form ----------
+let dayCats = new Set(), dayEnergy = null;
+function renderCatChips(){
+  const box=$("d-cats"); box.innerHTML="";
+  CATS.forEach(c=>{ const s=document.createElement("span"); s.className="chip"+(dayCats.has(c)?" on":""); s.textContent=c;
+    s.onclick=()=>{ dayCats.has(c)?dayCats.delete(c):dayCats.add(c); renderCatChips(); }; box.appendChild(s); });
+}
+function renderEnergy(){
+  const box=$("d-energy"); box.innerHTML="";
+  for(let i=1;i<=5;i++){ const b=document.createElement("button"); b.type="button"; b.textContent=i;
+    if(dayEnergy===i) b.classList.add("on");
+    b.onclick=()=>{ dayEnergy = dayEnergy===i?null:i; renderEnergy(); }; box.appendChild(b); }
+}
+async function loadDay(ds){
+  const d = await api(`/api/days/${ds}`);
+  dayCats = new Set(d?.categories||[]); dayEnergy = d?.energy||null;
+  $("d-hours").value = d?.hours ?? 0;
+  $("d-focus").value = d?.focus||""; $("d-did").value = d?.did||"";
+  $("d-wins").value = d?.wins||""; $("d-blockers").value = d?.blockers||"";
+  renderCatChips(); renderEnergy();
+}
+$("d-date").value = todayISO();
+$("d-date").addEventListener("change", e=>loadDay(e.target.value));
+$("d-save").addEventListener("click", async ()=>{
+  const ds = $("d-date").value;
+  await api(`/api/days/${ds}`, { method:"PUT", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({ hours:$("d-hours").value, categories:[...dayCats], focus:$("d-focus").value,
+      did:$("d-did").value, wins:$("d-wins").value, blockers:$("d-blockers").value, energy:dayEnergy })});
+  toast("d-toast"); loadHeader();
+});
+
+// ---------- week view ----------
+let weekStart = mondayOf(todayISO());
+const DOW = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+let weekOnTrack = null;
+$("w-prev").onclick=()=>{ weekStart=addDays(weekStart,-7); loadWeek(); };
+$("w-next").onclick=()=>{ weekStart=addDays(weekStart,7); loadWeek(); };
+$("w-this").onclick=()=>{ weekStart=mondayOf(todayISO()); loadWeek(); };
+$("w-ontrack").querySelectorAll(".chip").forEach(ch=>ch.onclick=()=>{
+  weekOnTrack = weekOnTrack===(ch.dataset.v==="true") ? null : (ch.dataset.v==="true");
+  renderOnTrack();
+});
+function renderOnTrack(){
+  $("w-ontrack").querySelectorAll(".chip").forEach(ch=>{
+    ch.classList.toggle("on", weekOnTrack!==null && (ch.dataset.v==="true")===weekOnTrack);
+  });
+}
+async function loadWeek(){
+  const end = addDays(weekStart,6);
+  $("w-label").textContent = `${weekStart} → ${end}`;
+  const days = await api(`/api/days?from=${weekStart}&to=${end}`);
+  const map = Object.fromEntries(days.map(d=>[d.log_date,d]));
+  let total=0; const tb=$("w-body"); tb.innerHTML="";
+  for(let i=0;i<7;i++){
+    const ds=addDays(weekStart,i), d=map[ds];
+    if(d) total+=d.hours;
+    const tr=document.createElement("tr");
+    if(ds===todayISO()) tr.className="today-row";
+    tr.innerHTML = `<td class="num">${DOW[i]} <span class="muted">${ds.slice(5)}</span></td>
+      <td class="num">${d? d.hours.toFixed(1):"—"}</td>
+      <td class="muted">${d? d.categories.join(", "):""}</td>
+      <td>${d? (d.did||d.focus||"").slice(0,140):""}</td>`;
+    tb.appendChild(tr);
+  }
+  const pct=Math.min(100, Math.round(total/TARGET*100));
+  $("w-progress").innerHTML = `<div class="muted" style="font-family:var(--mono);font-size:12px">${total.toFixed(1)} / ${TARGET} h</div>
+    <div class="progress ${total>=TARGET?"over":""}"><i style="width:${pct}%"></i></div>`;
+  const rev = await api(`/api/weeks/${weekStart}`);
+  $("w-summary").value=rev?.summary||""; $("w-wins").value=rev?.wins||"";
+  $("w-blockers").value=rev?.blockers||""; $("w-adjust").value=rev?.adjustments||"";
+  $("w-next-focus").value=rev?.next_focus||"";
+  weekOnTrack = rev?.on_track ?? null; renderOnTrack();
+}
+$("w-save").addEventListener("click", async ()=>{
+  await api(`/api/weeks/${weekStart}`, { method:"PUT", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({ summary:$("w-summary").value, wins:$("w-wins").value, blockers:$("w-blockers").value,
+      adjustments:$("w-adjust").value, next_focus:$("w-next-focus").value, on_track:weekOnTrack })});
+  toast("w-toast");
+});
+
+// ---------- header: stats strip + heatmap ----------
+async function loadHeader(){
+  const s = await api("/api/stats");
+  const thisWeek = s.weeks.find(w=>w.week_start===mondayOf(todayISO()));
+  const wh = thisWeek? thisWeek.hours : 0;
+  $("statbar").innerHTML = `
+    <div class="stat"><span class="k">streak</span><span class="v magenta">${s.streak}d</span></div>
+    <div class="stat"><span class="k">this week</span><span class="v ${wh>=TARGET?"green":"cyan"}">${wh.toFixed(1)}/${TARGET}h</span></div>
+    <div class="stat"><span class="k">total hours</span><span class="v cyan">${s.total_hours.toFixed(0)}</span></div>
+    <div class="stat"><span class="k">days logged</span><span class="v yellow">${s.days_logged}</span></div>`;
+  // heatmap: 26 weeks ending this week
+  const start = mondayOf(addDays(todayISO(), -7*25));
+  const days = await api(`/api/days?from=${start}&to=${addDays(mondayOf(todayISO()),6)}`);
+  const hmap = Object.fromEntries(days.map(d=>[d.log_date,d.hours]));
+  const heat=$("heat"); heat.innerHTML="";
+  for(let w=0;w<26;w++) for(let dow=0;dow<7;dow++){
+    const ds = addDays(start, w*7+dow);
+    const h = hmap[ds]||0;
+    const c=document.createElement("span");
+    let cls="cell";
+    if(h>0) cls += h<1?" h1": h<2?" h2": h<3.5?" h3":" h4";
+    if(ds===todayISO()) cls+=" today";
+    c.className=cls; c.title=`${ds}: ${h}h`;
+    if(ds>todayISO()) c.style.visibility="hidden";
+    heat.appendChild(c);
+  }
+}
+
+// ---------- stats tab ----------
+function bars(el, rows, max, color){
+  el.innerHTML = rows.length? "" : `<div class="empty">nothing logged yet — the first entry starts the streak</div>`;
+  rows.forEach((r,i)=>{
+    const div=document.createElement("div"); div.className="bar";
+    const pct = max? Math.max(2, Math.round(r.hours/max*100)) : 0;
+    div.innerHTML=`<span class="muted">${r.label}</span>
+      <span class="track"><i style="width:${pct}%;background:${color(i,r)}"></i></span>
+      <span>${r.hours.toFixed(1)}h</span>`;
+    el.appendChild(div);
+  });
+}
+async function loadStats(){
+  const s = await api("/api/stats");
+  const wrows = s.weeks.map(w=>({label:w.week_start.slice(5), hours:w.hours}));
+  const wmax = Math.max(TARGET, ...wrows.map(r=>r.hours), 1);
+  bars($("s-weeks"), wrows, wmax, (_i,r)=> r.hours>=TARGET? "var(--green)":"var(--cyan)");
+  const crows = s.categories.map(c=>({label:c.category, hours:c.hours}));
+  const cmax = Math.max(...crows.map(r=>r.hours), 1);
+  bars($("s-cats"), crows, cmax, i=> CAT_COLORS[i % CAT_COLORS.length]);
+}
+
+// ---------- export ----------
+$("exportBtn").onclick = ()=>{ window.location.href="/api/export"; };
+
+// init
+loadDay(todayISO());
+loadWeek();
+loadHeader();
+</script>
+</body>
+</html>

@@ -1,0 +1,33 @@
+spring:
+  application:
+    name: grindtrack
+  threads:
+    virtual:
+      enabled: true   # Java 21 virtual threads: every request runs on a virtual thread
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/grindtrack}
+    username: ${SPRING_DATASOURCE_USERNAME:grind}
+    password: ${SPRING_DATASOURCE_PASSWORD:grind}
+  jpa:
+    hibernate:
+      ddl-auto: validate   # Liquibase owns the schema; Hibernate only validates
+    properties:
+      hibernate:
+        default_schema: grindtrack
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+    default-schema: grindtrack
+
+preliquibase:
+  enabled: true   # runs classpath:preliquibase/postgresql.sql before Liquibase
+
+grindtrack:
+  jwt-secret: ${JWT_SECRET:dev-only-secret-change-me-dev-only-secret-change-me}
+  access-token-minutes: 15
+  refresh-token-days: 14
+  cookie-secure: ${COOKIE_SECURE:false}
+  bootstrap-username: ${GRINDTRACK_USERNAME:}
+  bootstrap-password: ${GRINDTRACK_PASSWORD:}
+
+server:
+  port: 8080

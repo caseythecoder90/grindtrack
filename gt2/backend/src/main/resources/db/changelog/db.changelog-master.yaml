@@ -1,0 +1,5 @@
+databaseChangeLog:
+  - include:
+      file: db/changelog/001-users-and-tokens.sql
+  - include:
+      file: db/changelog/002-tracking.sql
