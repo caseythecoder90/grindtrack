@@ -1,12 +1,47 @@
-# Adjust server_name, then let certbot add TLS:  certbot --nginx -d track.YOURDOMAIN.com
+# grindtrack reverse-proxy for the EXISTING containerized nginx.
+#
+# On the VPS this file goes into the personal-website nginx container's config dir:
+#   /opt/personal-website/nginx/conf.d/track.conf
+# (that dir is bind-mounted read-only into the nginx container).
+#
+# It proxies track.caseyrquinn.com -> the grindtrack-app container over the shared
+# docker network. Issue the TLS cert BEFORE enabling the 443 block, or nginx fails to
+# start on the missing ssl_certificate files — see gt2/docs/deployment.md.
+
+# HTTP: serve the ACME challenge for certbot, redirect everything else to HTTPS.
 server {
-    server_name track.YOURDOMAIN.com;
+    listen 80;
+    listen [::]:80;
+    server_name track.caseyrquinn.com;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+# HTTPS: terminate TLS and reverse-proxy to grindtrack-app.
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name track.caseyrquinn.com;
+
+    ssl_certificate     /etc/letsencrypt/live/track.caseyrquinn.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/track.caseyrquinn.com/privkey.pem;
 
     location / {
-        proxy_pass http://127.0.0.1:8080;
+        # Resolve the upstream at request time via Docker's embedded DNS (127.0.0.11)
+        # so a grindtrack outage yields a 502 instead of breaking nginx reloads for the
+        # other app on this shared proxy.
+        resolver 127.0.0.11 valid=30s;
+        set $upstream http://grindtrack-app:8080;
+        proxy_pass $upstream;
+
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $remote_addr;   # overwrite, never append: the first XFF entry must not be client-controlled (login rate limiter keys on it)
+        proxy_set_header X-Forwarded-For $remote_addr;   # overwrite, never append: grindtrack's login rate limiter keys on the first XFF entry
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 }

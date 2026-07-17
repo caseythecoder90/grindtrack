@@ -1,4 +1,3 @@
-
 name: CI/CD
 
 on:
@@ -7,7 +6,12 @@ on:
   push:
     branches: [main]
 
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}   # -> ghcr.io/caseythecoder90/grindtrack
+
 jobs:
+  # --- PR + push gates ---------------------------------------------------------
   backend:
     runs-on: ubuntu-latest
     steps:
@@ -36,9 +40,42 @@ jobs:
       - run: npm run build
         working-directory: gt2/frontend
 
-  deploy:
+  # --- Build the image and push to GHCR (main only) ----------------------------
+  build-and-push:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: [backend, frontend]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix=
+            type=raw,value=latest
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: gt2               # Dockerfile COPYs frontend/ and backend/ from here
+          file: gt2/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  # --- Pull the new image on the VPS and restart -------------------------------
+  deploy:
+    needs: build-and-push
     runs-on: ubuntu-latest
     environment: production
     concurrency:
@@ -67,18 +104,21 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
             set -e
-            cd ~/grindtrack/gt2
+            cd /opt/grindtrack
             git fetch origin main
-            git reset --hard origin/main
-            docker compose up -d --build
+            git reset --hard origin/main       # pick up compose/config changes
+            cd gt2
+            docker compose -f docker-compose.prod.yml pull
+            docker compose -f docker-compose.prod.yml up -d
+            docker image prune -f
             for i in $(seq 1 30); do
-              if curl -sf http://127.0.0.1:8080/api/public/stats > /dev/null; then
+              if docker compose -f docker-compose.prod.yml exec -T app \
+                   wget -qO- http://localhost:8080/api/public/stats > /dev/null 2>&1; then
                 echo "deploy healthy"
-                docker image prune -f
                 exit 0
               fi
               sleep 5
             done
             echo "health check failed after 150s"
-            docker compose logs --tail 100 app
+            docker compose -f docker-compose.prod.yml logs --tail 100 app
             exit 1
