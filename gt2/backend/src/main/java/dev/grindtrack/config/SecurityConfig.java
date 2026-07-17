@@ -28,6 +28,7 @@ public class SecurityConfig {
     "/assets/**",
     "/vite.svg",
     "/favicon.ico",
+    "/favicon.svg",
     "/api/public/**",
     "/api/auth/login",
     "/api/auth/refresh",
