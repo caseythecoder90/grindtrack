@@ -103,3 +103,34 @@ tr.today-row td { background: rgba(127, 209, 255, 0.06); }
 .dot.done { background: var(--green); border-color: var(--green); }
 .dot.now { border-color: var(--cyan); background: rgba(127, 209, 255, 0.25); }
 .focus-actions { justify-content: center; }
+
+.yearpanel { margin-top: 14px; }
+.panel + .panel { margin-top: 14px; }
+.chips .spacer { flex: 1; }
+.linkish { border: none; background: none; padding: 4px 6px; color: var(--muted); font-family: var(--mono); font-size: 12px; }
+.linkish:hover { color: var(--cyan); border: none; }
+.qcard { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 8px 0; font-size: 13px; }
+.qcard .qhead { font-family: var(--mono); color: var(--cyan); font-size: 12px; margin-bottom: 6px; }
+.qcard b { color: var(--muted); font-weight: 600; }
+
+.plan-item { border-bottom: 1px solid #1a3450; padding: 6px 0; }
+.plan-item.is-done .plan-title { color: var(--muted); text-decoration: line-through; text-decoration-color: rgba(127, 151, 179, 0.5); }
+.plan-row { display: flex; gap: 10px; align-items: center; }
+.plan-title { flex: 1; cursor: pointer; font-size: 14px; }
+.plan-target { font-family: var(--mono); font-size: 11px; color: var(--muted); white-space: nowrap; }
+.status-chip { font-family: var(--mono); font-size: 11px; width: 96px; text-align: center; padding: 4px 0; border-radius: 999px; }
+.status-chip.not_started { color: var(--muted); }
+.status-chip.in_progress { color: var(--yellow); border-color: var(--yellow); }
+.status-chip.done { color: #06121e; background: var(--green); border-color: var(--green); font-weight: 600; }
+.badge { font-family: var(--mono); font-size: 10px; padding: 2px 7px; border-radius: 4px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.badge-milestone { color: var(--magenta); border-color: rgba(255, 46, 147, 0.4); }
+.badge-cert { color: var(--yellow); border-color: rgba(255, 209, 102, 0.4); }
+.badge-module { color: var(--cyan); border-color: rgba(127, 209, 255, 0.4); }
+.badge-book { color: #cfc2ff; border-color: rgba(122, 92, 255, 0.4); }
+.badge-project { color: var(--green); border-color: rgba(63, 191, 95, 0.4); }
+.plan-detail { padding: 8px 6px 12px 106px; }
+@media (max-width: 700px) { .plan-detail { padding-left: 6px; } .plan-row { flex-wrap: wrap; } }
+.refpara { font-size: 13px; color: var(--text); margin: 8px 0; }
+.refpara.pre { white-space: pre-wrap; color: var(--muted); }
+.refsheet { margin-top: 14px; }
+.refscroll { overflow-x: auto; margin: 10px 0; }

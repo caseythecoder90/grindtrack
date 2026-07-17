@@ -37,3 +37,15 @@ All request/response bodies are JSON. Authenticated endpoints require the `gt_ac
 |---|---|---|
 | POST | `/api/focus/sessions` | `{date, startedAt, durationMinutes, completed}`. Records a pomodoro session and **atomically adds its minutes to that day's hours** (rounded to 0.1 h, day capped at 24). `completed=false` marks an ended-early session; its partial minutes still count. |
 | GET | `/api/focus/sessions?date=YYYY-MM-DD` | That day's sessions, ordered by start time |
+
+## Plan (authenticated)
+
+Plan **content** never lives in the repo (it's personal; the repo is public) — it is loaded at
+runtime via the import endpoint from a locally generated `plan.json`
+(`gt2/tools/plan-import/xlsx_to_plan_json.py`).
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/plan` | `{items[], quarters[], reference[]}` — all trackable items (milestones/certs/modules/books/projects), the 12-quarter roadmap, and the reference sheets (row-JSON) |
+| PATCH | `/api/plan/items/{id}` | `{status?, notes?}` — status ∈ `not_started/in_progress/done`; transitioning to done stamps `completedAt` |
+| POST | `/api/plan/import` | Full plan.json replace. Items matched by (type, title) **keep their status, completedAt, and notes** — re-importing an evolved workbook never loses progress. |
