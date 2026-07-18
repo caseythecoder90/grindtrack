@@ -112,4 +112,4 @@ export const CATEGORIES = [
   "Reading",
 ];
 
-export const WEEKLY_TARGET = 16;
+export const WEEKLY_TARGET = 20;
