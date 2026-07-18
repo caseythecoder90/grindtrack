@@ -51,7 +51,7 @@ export interface FocusSession {
 
 export const FOCUS_DEFAULTS = { sessions: 3, focusMin: 60, breakMin: 10 };
 
-// --- 3-year plan ------------------------------------------------------------
+// --- 4-year plan ------------------------------------------------------------
 
 export type PlanItemType = "milestone" | "cert" | "module" | "book" | "project";
 export type PlanStatus = "not_started" | "in_progress" | "done";

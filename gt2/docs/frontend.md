@@ -40,7 +40,7 @@ src/
 └── lib/                framework-free
     ├── api.ts          fetch wrapper + 401/refresh/retry
     ├── dates.ts        todayISO, mondayOf, addDays (local-tz safe)
-    └── types.ts        interfaces + constants (CATEGORIES, WEEKLY_TARGET=16, FOCUS_DEFAULTS)
+    └── types.ts        interfaces + constants (CATEGORIES, WEEKLY_TARGET=20, FOCUS_DEFAULTS)
 ```
 
 ## Routing = a two-level state machine (`App.tsx`)
@@ -154,7 +154,7 @@ sequenceDiagram
 | `auth/Login` | `POST /api/auth/login` | username / password / 6-digit `otp`; inline errors; `onSuccess(username)` |
 | `landing/Landing` | `GET /api/public/stats` | `StatBar` (no week tile) + `Heatmap`; **no text ever** |
 | `tracking/Today` | `GET/PUT /api/days/{date}`, `DELETE` | hours (0–24, step 0.5), energy 1–5, category chips, 4 textareas; "saved ✓" toast → `onSaved()` |
-| `tracking/Week` | `GET /api/days?from=&to=`, `GET/PUT /api/weeks/{monday}` | Mon–Sun grid, progress bar vs `WEEKLY_TARGET` (16), review form with `onTrack` toggle |
+| `tracking/Week` | `GET /api/days?from=&to=`, `GET/PUT /api/weeks/{monday}` | Mon–Sun grid, progress bar vs `WEEKLY_TARGET` (20), review form with `onTrack` toggle |
 | `tracking/StatsPage` | `GET /api/stats` | two bar charts: hours/week (last 12), hours by category (all time) |
 | `focus/FocusPage` | `GET/POST /api/focus/sessions` | Pomodoro timer (below) → `onLogged()` |
 | `plan/PlanPage` | `GET /api/plan`, `PATCH /api/plan/items/{id}`, `POST /api/plan/import` | progress header + type filters, year panels with collapsible quarter roadmap, 3-state status chip (cycles on click), per-item notes, plan.json upload (empty state + re-import box). `Reference.tsx` renders the read-only sheets from row-JSON. |

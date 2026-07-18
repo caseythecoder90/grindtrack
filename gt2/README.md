@@ -1,6 +1,6 @@
 # Grindtrack v2
 
-Self-hosted tracker for a 3-year engineering study plan. Spring Boot 3 / Java 21 (virtual
+Self-hosted tracker for a 4-year engineering study plan. Spring Boot 3 / Java 21 (virtual
 threads) + React 18 / TypeScript + Postgres 16, with real production-pattern auth:
 BCrypt password + TOTP second factor + short-lived JWT access tokens + rotating opaque
 refresh tokens, all in httpOnly SameSite=Strict cookies. Public landing page shows the
