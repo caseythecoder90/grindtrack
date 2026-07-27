@@ -10,6 +10,7 @@ export const TYPE_LABEL: Record<PlanItemType, string> = {
   cert: "certs",
   module: "protocol modules",
   book: "books",
+  paper: "papers & RFCs",
   project: "projects",
 };
 

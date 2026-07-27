@@ -1,4 +1,4 @@
-"""Converts the 3-Year Engineering Career Plan workbook into plan.json for POST /api/plan/import.
+"""Converts the 4-Year Engineering Career Plan workbook into plan.json for POST /api/plan/import.
 
 Usage:
     pip install openpyxl
@@ -7,7 +7,9 @@ Usage:
 The output contains personal plan content — plan.json is gitignored; never commit it.
 Sheet layout expectations match the workbook: Roadmap, Cert Tracker, Protocols & Security,
 Books, Projects, Milestones (trackables) + Overview, Stripe Target, Weekly Schedule,
-Resources (reference, stored as row JSON and rendered generically).
+Resources (reference, stored as row JSON and rendered generically). The Books sheet carries
+two stacked tables — the book list and a "Core Papers & RFCs" list — emitted as the "book"
+and "paper" item types respectively.
 """
 
 import json
@@ -136,11 +138,18 @@ def main():
             add("module", r[0], details, r[1].replace("\n", " "), target, year, qtr, None,
                 status_of(r[6]))
 
-    # --- Books: # | Title | Tier | When | Why | Status
+    # --- Books + Papers/RFCs: two "# | Title | Tier | When | Why | Status" tables
+    #     stacked on the Books sheet. The first is the book list; a second header row
+    #     whose title column reads "Paper / Spec" begins the papers/RFC list, which we
+    #     emit as its own "paper" type so the tracker can show it apart from books.
+    book_type = "book"
     for r in rows_of(wb["Books"]):
+        if len(r) >= 2 and r[0] == "#" and "Paper" in r[1]:
+            book_type = "paper"
+            continue
         if len(r) >= 6 and r[0].isdigit():
             year, qtr, target = parse_when(r[3])
-            add("book", r[1], join_details([("Why it's on the list", r[4])]), r[3], target,
+            add(book_type, r[1], join_details([("Why it's on the list", r[4])]), r[3], target,
                 year, qtr, r[2], status_of(r[5]))
 
     # --- Projects: # | Project | When | Type | What | Skills | Status

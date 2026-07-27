@@ -127,6 +127,7 @@ tr.today-row td { background: rgba(127, 209, 255, 0.06); }
 .badge-cert { color: var(--yellow); border-color: rgba(255, 209, 102, 0.4); }
 .badge-module { color: var(--cyan); border-color: rgba(127, 209, 255, 0.4); }
 .badge-book { color: #cfc2ff; border-color: rgba(122, 92, 255, 0.4); }
+.badge-paper { color: #ffab70; border-color: rgba(255, 150, 80, 0.4); }
 .badge-project { color: var(--green); border-color: rgba(63, 191, 95, 0.4); }
 .plan-detail { padding: 8px 6px 12px 106px; }
 @media (max-width: 700px) { .plan-detail { padding-left: 6px; } .plan-row { flex-wrap: wrap; } }
