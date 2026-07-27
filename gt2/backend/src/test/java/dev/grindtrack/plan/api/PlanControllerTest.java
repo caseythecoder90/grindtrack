@@ -57,6 +57,14 @@ class PlanControllerTest {
   }
 
   @Test
+  void importAcceptsThePaperType() throws Exception {
+    when(planService.importPlan(anyList(), anyList(), anyList())).thenReturn(1);
+    postImport("{\"items\": [{\"type\": \"paper\", \"title\": \"Paxos Made Simple\"}]}")
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.items").value(1));
+  }
+
+  @Test
   void importRejectsAMissingTitle() throws Exception {
     postImport("{\"items\": [{\"type\": \"cert\", \"title\": \"  \"}]}")
         .andExpect(status().isBadRequest())

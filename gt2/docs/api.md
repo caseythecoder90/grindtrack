@@ -46,6 +46,6 @@ runtime via the import endpoint from a locally generated `plan.json`
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/api/plan` | `{items[], quarters[], reference[]}` — all trackable items (milestones/certs/modules/books/projects), the 12-quarter roadmap, and the reference sheets (row-JSON) |
+| GET | `/api/plan` | `{items[], quarters[], reference[]}` — all trackable items (milestones/certs/modules/books/papers/projects), the 16-quarter roadmap, and the reference sheets (row-JSON) |
 | PATCH | `/api/plan/items/{id}` | `{status?, notes?}` — status ∈ `not_started/in_progress/done`; transitioning to done stamps `completedAt` |
 | POST | `/api/plan/import` | Full plan.json replace. Items matched by (type, title) **keep their status, completedAt, and notes** — re-importing an evolved workbook never loses progress. |

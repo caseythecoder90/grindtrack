@@ -34,7 +34,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class PlanController {
 
   private static final Set<String> ITEM_TYPES =
-      Set.of("milestone", "cert", "module", "book", "project");
+      Set.of("milestone", "cert", "module", "book", "paper", "project");
   private static final Set<String> STATUSES = Set.of("not_started", "in_progress", "done");
   private static final int MAX_NOTES_CHARS = 10_000;
 
