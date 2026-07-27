@@ -59,4 +59,4 @@ networks:
     # The network the personal-website nginx container already lives on.
     # Confirm the real name on the VPS:  docker network ls | grep app-network
     external: true
-    name: personal-website_app-network
+    name: edge
