@@ -1,0 +1,131 @@
+import { useEffect, useState } from "react";
+import { api, jsonInit } from "../../lib/api";
+import { todayISO } from "../../lib/dates";
+import { WORK_CATEGORIES, type WorkDay as WorkDayT } from "../../lib/types";
+
+/**
+ * One day of the actual job: hours, project, categories, and the goals →
+ * did → blockers → learnings journal. "What I did" is impact-log material;
+ * "Learnings" is where the deliberate system/tooling knowledge gets captured.
+ */
+export default function WorkDay() {
+  const [date, setDate] = useState(todayISO());
+  const [hours, setHours] = useState("0");
+  const [cats, setCats] = useState<Set<string>>(new Set());
+  const [project, setProject] = useState("");
+  const [goals, setGoals] = useState("");
+  const [did, setDid] = useState("");
+  const [blockers, setBlockers] = useState("");
+  const [learnings, setLearnings] = useState("");
+  const [toast, setToast] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let ignore = false;
+    api<WorkDayT | null>(`/api/work/days/${date}`)
+      .then((d) => {
+        if (ignore) return;
+        setHours(String(d?.hours ?? 0));
+        setCats(new Set(d?.categories ?? []));
+        setProject(d?.project ?? "");
+        setGoals(d?.goals ?? "");
+        setDid(d?.did ?? "");
+        setBlockers(d?.blockers ?? "");
+        setLearnings(d?.learnings ?? "");
+      })
+      .catch(() => {
+        if (!ignore) setError("could not load this day");
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [date]);
+
+  function toggleCat(c: string) {
+    const next = new Set(cats);
+    next.has(c) ? next.delete(c) : next.add(c);
+    setCats(next);
+  }
+
+  async function save() {
+    setError("");
+    try {
+      await api(
+        `/api/work/days/${date}`,
+        jsonInit("PUT", {
+          hours: Number(hours),
+          categories: [...cats],
+          project,
+          goals,
+          did,
+          blockers,
+          learnings,
+        }),
+      );
+      setToast(true);
+      setTimeout(() => setToast(false), 1600);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "save failed");
+    }
+  }
+
+  return (
+    <div className="panel">
+      <h2>work log</h2>
+      <div className="row3">
+        <div>
+          <label htmlFor="w-date">Date</label>
+          <input id="w-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+        </div>
+        <div>
+          <label htmlFor="w-hours">Hours</label>
+          <input id="w-hours" type="number" min={0} max={24} step={0.5} value={hours}
+            onChange={(e) => setHours(e.target.value)} />
+        </div>
+        <div>
+          <label htmlFor="w-project">Project / initiative</label>
+          <input id="w-project" type="text" value={project} maxLength={120}
+            onChange={(e) => setProject(e.target.value)}
+            placeholder="e.g. modernization, microbatching engine" />
+        </div>
+      </div>
+      <label>Categories</label>
+      <div className="chips">
+        {WORK_CATEGORIES.map((c) => (
+          <span key={c} className={"chip" + (cats.has(c) ? " on" : "")} onClick={() => toggleCat(c)}>
+            {c}
+          </span>
+        ))}
+      </div>
+      <div className="row">
+        <div>
+          <label htmlFor="w-goals">Goals for the day</label>
+          <textarea id="w-goals" value={goals} onChange={(e) => setGoals(e.target.value)}
+            placeholder="What did you set out to accomplish?" />
+        </div>
+        <div>
+          <label htmlFor="w-did">What I did</label>
+          <textarea id="w-did" value={did} onChange={(e) => setDid(e.target.value)}
+            placeholder="Accomplishments — this is your impact-log / promo material" />
+        </div>
+      </div>
+      <div className="row">
+        <div>
+          <label htmlFor="w-blockers">Blockers</label>
+          <textarea id="w-blockers" value={blockers} onChange={(e) => setBlockers(e.target.value)}
+            placeholder="What slowed you down or needs a decision?" />
+        </div>
+        <div>
+          <label htmlFor="w-learnings">Learnings</label>
+          <textarea id="w-learnings" value={learnings} onChange={(e) => setLearnings(e.target.value)}
+            placeholder="What did you learn about the system, tooling, or domain today?" />
+        </div>
+      </div>
+      <div className="actions">
+        <button className="primary" onClick={save}>Save day</button>
+        <span className={"toast" + (toast ? " show" : "")}>saved ✓</span>
+      </div>
+      {error && <div className="error" style={{ marginTop: 8 }}>{error}</div>}
+    </div>
+  );
+}

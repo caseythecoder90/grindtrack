@@ -122,6 +122,7 @@ tr.today-row td { background: rgba(127, 209, 255, 0.06); }
 .status-chip.not_started { color: var(--muted); }
 .status-chip.in_progress { color: var(--yellow); border-color: var(--yellow); }
 .status-chip.done { color: #06121e; background: var(--green); border-color: var(--green); font-weight: 600; }
+.status-chip.proficient { color: #06121e; background: var(--green); border-color: var(--green); font-weight: 600; }
 .badge { font-family: var(--mono); font-size: 10px; padding: 2px 7px; border-radius: 4px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
 .badge-milestone { color: var(--magenta); border-color: rgba(255, 46, 147, 0.4); }
 .badge-cert { color: var(--yellow); border-color: rgba(255, 209, 102, 0.4); }

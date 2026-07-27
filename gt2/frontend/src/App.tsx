@@ -9,12 +9,13 @@ import PlanPage from "./features/plan/PlanPage";
 import StatsPage from "./features/tracking/StatsPage";
 import Today from "./features/tracking/Today";
 import Week from "./features/tracking/Week";
+import WorkPage from "./features/work/WorkPage";
 import { api, AuthError } from "./lib/api";
 import { mondayOf, todayISO } from "./lib/dates";
 import type { PublicStats, Stats } from "./lib/types";
 
 type View = "landing" | "login" | "app";
-type Tab = "today" | "focus" | "plan" | "week" | "stats";
+type Tab = "today" | "focus" | "plan" | "work" | "week" | "stats";
 
 export default function App() {
   const [view, setView] = useState<View>("landing");
@@ -76,7 +77,7 @@ export default function App() {
           )}
           <Heatmap days={heatDays} />
           <nav className="tabs">
-            {(["today", "focus", "plan", "week", "stats"] as Tab[]).map((t) => (
+            {(["today", "focus", "plan", "work", "week", "stats"] as Tab[]).map((t) => (
               <button key={t} className={tab === t ? "active" : ""} onClick={() => setTab(t)}>
                 {t[0].toUpperCase() + t.slice(1)}
               </button>
@@ -85,6 +86,7 @@ export default function App() {
           {tab === "today" && <Today onSaved={refreshHeader} />}
           {tab === "focus" && <FocusPage onLogged={refreshHeader} />}
           {tab === "plan" && <PlanPage />}
+          {tab === "work" && <WorkPage />}
           {tab === "week" && <Week />}
           {tab === "stats" && <StatsPage />}
         </>

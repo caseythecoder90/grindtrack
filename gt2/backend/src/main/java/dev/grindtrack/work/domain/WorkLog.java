@@ -1,0 +1,109 @@
+package dev.grindtrack.work.domain;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.util.Arrays;
+import java.util.List;
+
+/**
+ * One day of actual day-job work: hours put in, what the day was for, what got done, blockers, and
+ * what was learned. Separate from {@code daily_logs} (personal study time) — this is the 40h/ week
+ * accountability and impact journal for the paid role.
+ */
+@Entity
+@Table(name = "work_logs")
+public class WorkLog {
+
+  @Id
+  @Column(name = "log_date")
+  private LocalDate logDate;
+
+  @Column(nullable = false)
+  private BigDecimal hours = BigDecimal.ZERO;
+
+  /** Comma-separated category names; exposed as a list via {@link #categoryList()}. */
+  @Column(nullable = false)
+  private String categories = "";
+
+  @Column(nullable = false)
+  private String project = "";
+
+  @Column(nullable = false)
+  private String goals = "";
+
+  @Column(nullable = false)
+  private String did = "";
+
+  @Column(nullable = false)
+  private String blockers = "";
+
+  @Column(nullable = false)
+  private String learnings = "";
+
+  @Column(name = "updated_at", nullable = false)
+  private OffsetDateTime updatedAt = OffsetDateTime.now();
+
+  protected WorkLog() {}
+
+  public WorkLog(LocalDate logDate) {
+    this.logDate = logDate;
+  }
+
+  public LocalDate getLogDate() {
+    return logDate;
+  }
+
+  public BigDecimal getHours() {
+    return hours;
+  }
+
+  public List<String> categoryList() {
+    if (categories == null || categories.isBlank()) {
+      return List.of();
+    }
+    return Arrays.stream(categories.split(",")).map(String::trim).toList();
+  }
+
+  public String getProject() {
+    return project;
+  }
+
+  public String getGoals() {
+    return goals;
+  }
+
+  public String getDid() {
+    return did;
+  }
+
+  public String getBlockers() {
+    return blockers;
+  }
+
+  public String getLearnings() {
+    return learnings;
+  }
+
+  public void update(
+      BigDecimal hours,
+      List<String> categoryList,
+      String project,
+      String goals,
+      String did,
+      String blockers,
+      String learnings) {
+    this.hours = hours;
+    this.categories = categoryList == null ? "" : String.join(",", categoryList);
+    this.project = project == null ? "" : project;
+    this.goals = goals == null ? "" : goals;
+    this.did = did == null ? "" : did;
+    this.blockers = blockers == null ? "" : blockers;
+    this.learnings = learnings == null ? "" : learnings;
+    this.updatedAt = OffsetDateTime.now();
+  }
+}

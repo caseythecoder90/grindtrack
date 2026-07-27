@@ -33,10 +33,15 @@ src/
 │   │   ├── ImportControl.tsx    plan.json file picker
 │   │   ├── planModel.ts         pure labels/constants/sorting/progress helpers
 │   │   └── Reference.tsx        generic renderer for the reference sheets
-│   └── tracking/
-│       ├── Today.tsx            daily log editor
-│       ├── Week.tsx             week grid + weekly review
-│       └── StatsPage.tsx        bar charts
+│   ├── tracking/
+│   │   ├── Today.tsx            daily log editor
+│   │   ├── Week.tsx             week grid + weekly review
+│   │   └── StatsPage.tsx        bar charts
+│   └── work/
+│       ├── WorkPage.tsx         sub-tab shell (Day / Week / Skills)
+│       ├── WorkDay.tsx          daily work-log editor
+│       ├── WorkWeek.tsx         week grid vs 40h target
+│       └── WorkSkills.tsx       competency checklist (add / cycle / notes / delete)
 └── lib/                framework-free
     ├── api.ts          fetch wrapper + 401/refresh/retry
     ├── dates.ts        todayISO, mondayOf, addDays (local-tz safe)
@@ -49,7 +54,7 @@ There is no router library and no URL/History involvement — everything is one 
 
 ```ts
 type View = "landing" | "login" | "app";
-type Tab  = "today" | "focus" | "plan" | "week" | "stats";
+type Tab  = "today" | "focus" | "plan" | "work" | "week" | "stats";
 ```
 
 ```mermaid
@@ -63,12 +68,12 @@ stateDiagram-v2
     App --> Landing : logout, or refresh fails (AuthError)
     state App {
         [*] --> Today
-        note right of Today : tabs — Today / Focus / Plan / Week / Stats
+        note right of Today : tabs — Today / Focus / Plan / Work / Week / Stats
     }
 ```
 
 - **`view`** picks Landing (public) / Login (form) / App (authenticated shell).
-- Inside App, a `<nav class="tabs">` toggles **`tab`** between Today / Focus / Plan / Week / Stats.
+- Inside App, a `<nav class="tabs">` toggles **`tab`** between Today / Focus / Plan / Work / Week / Stats.
 - **Auth guard:** App-only content renders only when `view === "app"`. Entry is gated by a session
   probe on mount; any `AuthError` from the header-refresh path calls `setView("landing")` — the
   "redirect to login" for an expired session.
@@ -158,6 +163,10 @@ sequenceDiagram
 | `tracking/StatsPage` | `GET /api/stats` | two bar charts: hours/week (last 12), hours by category (all time) |
 | `focus/FocusPage` | `GET/POST /api/focus/sessions` | Pomodoro timer (below) → `onLogged()` |
 | `plan/PlanPage` | `GET /api/plan`, `PATCH /api/plan/items/{id}`, `POST /api/plan/import` | progress header + type filters, year panels with collapsible quarter roadmap, 3-state status chip (cycles on click), per-item notes, plan.json upload (empty state + re-import box). `Reference.tsx` renders the read-only sheets from row-JSON. |
+| `work/WorkPage` | — | secondary tab bar over Day / Week / Skills (day-job tracking, separate from study) |
+| `work/WorkDay` | `GET/PUT /api/work/days/{date}` | hours, project, category chips, goals/did/blockers/learnings; try/catch save + load |
+| `work/WorkWeek` | `GET /api/work/days?from=&to=` | Mon–Sun grid, progress bar vs `WORK_WEEKLY_TARGET` (40) |
+| `work/WorkSkills` | `GET/POST /api/work/skills`, `PATCH`/`DELETE /api/work/skills/{id}` | competency checklist: add, 3-state status chip (not_started/in_progress/proficient), per-skill notes, delete |
 
 ### FocusPage — a durable timer
 

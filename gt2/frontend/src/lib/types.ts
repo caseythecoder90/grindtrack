@@ -95,6 +95,46 @@ export interface PlanData {
   reference: PlanReferenceSheet[];
 }
 
+// --- work: day-job tracking (separate from study tracking above) -----------
+
+export interface WorkDay {
+  logDate: string;
+  hours: number;
+  categories: string[];
+  project: string;
+  goals: string;
+  did: string;
+  blockers: string;
+  learnings: string;
+}
+
+export type WorkSkillStatus = "not_started" | "in_progress" | "proficient";
+
+export interface WorkSkill {
+  id: number;
+  name: string;
+  category: string;
+  detail: string;
+  status: WorkSkillStatus;
+  notes: string;
+  sortOrder: number;
+}
+
+export const WORK_WEEKLY_TARGET = 40;
+
+export const WORK_CATEGORIES = [
+  "Feature dev",
+  "Maintenance",
+  "Bug fix",
+  "Ops / observability",
+  "Design",
+  "Code review",
+  "Meetings",
+  "Learning",
+  "Docs",
+  "On-call",
+];
+
 // --- app constants ----------------------------------------------------------
 
 export const CATEGORIES = [

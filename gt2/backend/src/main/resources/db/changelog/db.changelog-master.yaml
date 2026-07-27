@@ -11,3 +11,5 @@ databaseChangeLog:
       file: db/changelog/005-plan-year4.sql
   - include:
       file: db/changelog/006-plan-paper.sql
+  - include:
+      file: db/changelog/007-work.sql

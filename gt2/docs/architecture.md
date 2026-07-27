@@ -74,9 +74,9 @@ Order on startup: **preliquibase → Liquibase → JPA validate**.
 1. preliquibase executes `resources/preliquibase/postgresql.sql` (`CREATE SCHEMA IF NOT EXISTS
    grindtrack`). This solves the chicken-and-egg problem: Liquibase needs a schema to write its
    own `DATABASECHANGELOG` into.
-2. Liquibase runs `db/changelog/db.changelog-master.yaml`, which includes four formatted-SQL
-   changelogs in order (users/tokens → tracking → focus → plan). Every schema change forever after
-   is a new changeset — never edit an applied one.
+2. Liquibase runs `db/changelog/db.changelog-master.yaml`, which includes the formatted-SQL
+   changelogs in order (users/tokens → tracking → focus → plan → work). Every schema change forever
+   after is a new changeset — never edit an applied one.
 3. Hibernate validates that entities match reality (`ddl-auto: validate`) and refuses to start on
    drift.
 
@@ -101,10 +101,13 @@ dev.grindtrack
 │   ├── api/                      TrackingController, FocusController, PublicController, Dtos
 │   ├── service/                  StatsService (+Stats record), FocusService
 │   └── domain/                   DailyLog, WeeklyReview, FocusSession + repositories
-└── plan/
-    ├── api/                      PlanController, PlanDtos
-    ├── service/                  PlanService
-    └── domain/                   PlanItem, PlanQuarter, PlanReference + repositories
+├── plan/
+│   ├── api/                      PlanController, PlanDtos
+│   ├── service/                  PlanService
+│   └── domain/                   PlanItem, PlanQuarter, PlanReference + repositories
+└── work/
+    ├── api/                      WorkController, WorkDtos
+    └── domain/                   WorkLog, WorkSkill + repositories
 ```
 
 There is intentionally **no** CORS config, `@ControllerAdvice`, `WebMvcConfigurer`, or
