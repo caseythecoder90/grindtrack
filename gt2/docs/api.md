@@ -49,3 +49,19 @@ runtime via the import endpoint from a locally generated `plan.json`
 | GET | `/api/plan` | `{items[], quarters[], reference[]}` — all trackable items (milestones/certs/modules/books/papers/projects), the 16-quarter roadmap, and the reference sheets (row-JSON) |
 | PATCH | `/api/plan/items/{id}` | `{status?, notes?}` — status ∈ `not_started/in_progress/done`; transitioning to done stamps `completedAt` |
 | POST | `/api/plan/import` | Full plan.json replace. Items matched by (type, title) **keep their status, completedAt, and notes** — re-importing an evolved workbook never loses progress. |
+
+## Work (authenticated)
+
+Day-job tracking, kept separate from the personal study tracking above. Content is user-entered
+and lives only in the database — nothing is seeded (the repo is public).
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/work/days?from=YYYY-MM-DD&to=YYYY-MM-DD` | Ordered range of work-day logs |
+| GET | `/api/work/days/{date}` | Single work day or `null` |
+| PUT | `/api/work/days/{date}` | Upsert: `{hours, categories[], project, goals, did, blockers, learnings}`. Validates hours 0–24. |
+| DELETE | `/api/work/days/{date}` | Remove a work day |
+| GET | `/api/work/skills` | Deliberate competency checklist, ordered by `sortOrder` then id |
+| POST | `/api/work/skills` | Create: `{name, category?, detail?}` — name required; status defaults to `not_started` |
+| PATCH | `/api/work/skills/{id}` | Partial update `{name?, category?, detail?, status?, notes?, sortOrder?}`; status ∈ `not_started/in_progress/proficient`; 404 if missing |
+| DELETE | `/api/work/skills/{id}` | Remove a skill |

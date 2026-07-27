@@ -42,10 +42,13 @@ dev.grindtrack
 │   ├── api/{TrackingController,FocusController,PublicController,ExportController,Dtos}.java
 │   ├── service/{StatsService,Stats,FocusService}.java
 │   └── domain/{DailyLog,WeeklyReview,FocusSession}(+Repository).java
-└── plan/
-    ├── api/{PlanController,PlanDtos}.java
-    ├── service/PlanService.java
-    └── domain/{PlanItem,PlanQuarter,PlanReference}(+Repository).java
+├── plan/
+│   ├── api/{PlanController,PlanDtos}.java
+│   ├── service/PlanService.java
+│   └── domain/{PlanItem,PlanQuarter,PlanReference}(+Repository).java
+└── work/
+    ├── api/{WorkController,WorkDtos}.java
+    └── domain/{WorkLog,WorkSkill}(+Repository).java
 ```
 
 DTOs are Java **records**; response records carry a static `from(entity)` factory. DTO holders
@@ -95,6 +98,16 @@ requires a valid `gt_access` JWT cookie. Full request/response bodies in [api.md
 | PATCH | `/items/{id}` | `{status,notes}`; 404 if missing; validates status ∈ {not_started,in_progress,done} |
 | POST | `/import` | bulk `{items[],quarters[],reference[]}` |
 
+### `WorkController` — `/api/work`
+| Method | Path | Notes |
+|---|---|---|
+| GET/PUT/DELETE | `/days/{date}` | day-job log upsert `{hours,categories[],project,goals,did,blockers,learnings}`; hours 0–24 |
+| GET | `/days?from=&to=` | ordered range (the 40h/week view) |
+| GET/POST | `/skills` | competency checklist; POST create `{name,category?,detail?}` |
+| PATCH/DELETE | `/skills/{id}` | partial update; status ∈ {not_started,in_progress,proficient}; 404 if missing |
+
+Direct-to-repository CRUD (no service layer), mirroring `TrackingController`.
+
 ## Auth internals (summary)
 
 Deep dive with sequence diagrams in [auth.md](auth.md). The moving parts:
@@ -143,6 +156,9 @@ Schema **`grindtrack`**; Hibernate is `validate`-only, so Liquibase is the singl
   - `002-tracking.sql` — `daily_logs` (CHECK hours 0–24, energy 1–5), `weekly_reviews`
   - `003-focus-sessions.sql` — `focus_sessions` (CHECK duration 1–1440, + index)
   - `004-plan.sql` — `plan_quarters`, `plan_items` (CHECKs + index), `plan_reference`
+  - `005-plan-year4.sql` — widen year/qtr CHECKs to 4 years / 16 quarters
+  - `006-plan-paper.sql` — add `paper` to the `plan_items` item_type CHECK
+  - `007-work.sql` — `work_logs` (CHECK hours 0–24), `work_skills` (status CHECK)
 - Every changeset has a `--rollback`. Time columns are `TIMESTAMPTZ DEFAULT now()`. **Add schema
   changes only as new changesets** — never edit an applied one.
 
