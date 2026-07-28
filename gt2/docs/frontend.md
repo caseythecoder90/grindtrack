@@ -161,7 +161,7 @@ sequenceDiagram
 | `tracking/Today` | `GET/PUT /api/days/{date}`, `DELETE` | hours (0–24, step 0.5), energy 1–5, category chips, 4 textareas; "saved ✓" toast → `onSaved()` |
 | `tracking/Week` | `GET /api/days?from=&to=`, `GET/PUT /api/weeks/{monday}` | Mon–Sun grid, progress bar vs `WEEKLY_TARGET` (20), review form with `onTrack` toggle |
 | `tracking/StatsPage` | `GET /api/stats` | two bar charts: hours/week (last 12), hours by category (all time) |
-| `focus/FocusPage` | `GET/POST /api/focus/sessions` | Pomodoro timer (below) → `onLogged()` |
+| `focus/FocusPage` | `GET/POST /api/focus/sessions` | Pomodoro timer (below) with a **study/work toggle** → `onLogged()`; a work session's minutes fold into `work_logs`, a study session's into `daily_logs` |
 | `plan/PlanPage` | `GET /api/plan`, `PATCH /api/plan/items/{id}`, `POST /api/plan/import` | progress header + type filters, year panels with collapsible quarter roadmap, 3-state status chip (cycles on click), per-item notes, plan.json upload (empty state + re-import box). `Reference.tsx` renders the read-only sheets from row-JSON. |
 | `work/WorkPage` | — | secondary tab bar over Day / Week / Skills (day-job tracking, separate from study) |
 | `work/WorkDay` | `GET/PUT /api/work/days/{date}` | hours, project, category chips, goals/did/blockers/learnings; try/catch save + load |

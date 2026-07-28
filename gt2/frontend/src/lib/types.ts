@@ -42,11 +42,14 @@ export interface PublicStats {
 
 // --- focus timer ------------------------------------------------------------
 
+export type FocusKind = "study" | "work";
+
 export interface FocusSession {
   id: number;
   startedAt: string;
   durationMinutes: number;
   completed: boolean;
+  kind: FocusKind;
 }
 
 export const FOCUS_DEFAULTS = { sessions: 3, focusMin: 60, breakMin: 10 };

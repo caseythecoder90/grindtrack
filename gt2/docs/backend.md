@@ -83,8 +83,10 @@ requires a valid `gt_access` JWT cookie. Full request/response bodies in [api.md
 ### `FocusController` — `/api/focus`
 | Method | Path | Notes |
 |---|---|---|
-| POST | `/sessions` | `{date,startedAt,durationMinutes(1–1440),completed}` |
-| GET | `/sessions?date=` | that day's sessions, ordered by start |
+| POST | `/sessions` | `{date,startedAt,durationMinutes(1–1440),completed,kind}`; `kind` study→`daily_logs`, work→`work_logs` |
+| GET | `/sessions?date=[&kind=]` | that day's sessions, ordered by start; optional `kind` filter |
+
+`FocusService` deliberately depends on both `DailyLogRepository` and (cross-feature) `WorkLogRepository` so a work session's minutes fold into the work log in the same transaction.
 
 ### `PublicController` — `/api/public`
 | Method | Path | Notes |
@@ -159,6 +161,7 @@ Schema **`grindtrack`**; Hibernate is `validate`-only, so Liquibase is the singl
   - `005-plan-year4.sql` — widen year/qtr CHECKs to 4 years / 16 quarters
   - `006-plan-paper.sql` — add `paper` to the `plan_items` item_type CHECK
   - `007-work.sql` — `work_logs` (CHECK hours 0–24), `work_skills` (status CHECK)
+  - `008-focus-kind.sql` — add `kind` (study/work) to `focus_sessions` (CHECK)
 - Every changeset has a `--rollback`. Time columns are `TIMESTAMPTZ DEFAULT now()`. **Add schema
   changes only as new changesets** — never edit an applied one.
 
