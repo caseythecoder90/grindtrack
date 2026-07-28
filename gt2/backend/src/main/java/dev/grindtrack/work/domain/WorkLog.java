@@ -89,6 +89,15 @@ public class WorkLog {
     return learnings;
   }
 
+  private static final BigDecimal MAX_DAY_HOURS = BigDecimal.valueOf(24);
+
+  /** Adds hours (e.g. from a finished work focus session), clamped to the DB's 0-24 range. */
+  public void addHours(BigDecimal delta) {
+    BigDecimal sum = this.hours.add(delta);
+    this.hours = sum.compareTo(MAX_DAY_HOURS) > 0 ? MAX_DAY_HOURS : sum;
+    this.updatedAt = OffsetDateTime.now();
+  }
+
   public void update(
       BigDecimal hours,
       List<String> categoryList,

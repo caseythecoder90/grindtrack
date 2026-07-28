@@ -73,14 +73,15 @@ public final class Dtos {
   }
 
   public record FocusSessionResponse(
-      Long id, String startedAt, int durationMinutes, boolean completed) {
+      Long id, String startedAt, int durationMinutes, boolean completed, String kind) {
 
     static FocusSessionResponse from(FocusSession session) {
       return new FocusSessionResponse(
           session.getId(),
           session.getStartedAt().toString(),
           session.getDurationMinutes(),
-          session.isCompleted());
+          session.isCompleted(),
+          session.getKind());
     }
   }
 

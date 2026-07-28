@@ -41,19 +41,27 @@ public class FocusController {
       return badRequest("durationMinutes must be 1-1440");
     }
     boolean completed = Boolean.TRUE.equals(body.completed());
+    String kind = body.kind() == null ? "study" : body.kind();
+    if (!kind.equals("study") && !kind.equals("work")) {
+      return badRequest("kind must be study or work");
+    }
     return ResponseEntity.ok(
         FocusSessionResponse.from(
-            focusService.record(date, startedAt, body.durationMinutes(), completed)));
+            focusService.record(date, startedAt, body.durationMinutes(), completed, kind)));
   }
 
   @GetMapping("/sessions")
-  public ResponseEntity<?> list(@RequestParam String date) {
+  public ResponseEntity<?> list(
+      @RequestParam String date, @RequestParam(required = false) String kind) {
     LocalDate parsed = parseDate(date);
     if (parsed == null) {
       return badRequest("date must be YYYY-MM-DD");
     }
+    if (kind != null && !kind.equals("study") && !kind.equals("work")) {
+      return badRequest("kind must be study or work");
+    }
     return ResponseEntity.ok(
-        focusService.sessionsOn(parsed).stream().map(FocusSessionResponse::from).toList());
+        focusService.sessionsOn(parsed, kind).stream().map(FocusSessionResponse::from).toList());
   }
 
   private static LocalDate parseDate(String value) {
@@ -77,5 +85,5 @@ public class FocusController {
   }
 
   public record SessionRequest(
-      String date, String startedAt, Integer durationMinutes, Boolean completed) {}
+      String date, String startedAt, Integer durationMinutes, Boolean completed, String kind) {}
 }

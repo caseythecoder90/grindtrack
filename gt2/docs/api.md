@@ -35,8 +35,8 @@ All request/response bodies are JSON. Authenticated endpoints require the `gt_ac
 
 | Method | Path | Notes |
 |---|---|---|
-| POST | `/api/focus/sessions` | `{date, startedAt, durationMinutes, completed}`. Records a pomodoro session and **atomically adds its minutes to that day's hours** (rounded to 0.1 h, day capped at 24). `completed=false` marks an ended-early session; its partial minutes still count. |
-| GET | `/api/focus/sessions?date=YYYY-MM-DD` | That day's sessions, ordered by start time |
+| POST | `/api/focus/sessions` | `{date, startedAt, durationMinutes, completed, kind}`. Records a pomodoro session and **atomically adds its minutes to that day's hours** (rounded to 0.1 h, day capped at 24). `kind` is `study` (default → `daily_logs.hours`) or `work` (→ `work_logs.hours`). `completed=false` marks an ended-early session; its partial minutes still count. |
+| GET | `/api/focus/sessions?date=YYYY-MM-DD[&kind=study\|work]` | That day's sessions, ordered by start time; optional `kind` filters to study or work |
 
 ## Plan (authenticated)
 

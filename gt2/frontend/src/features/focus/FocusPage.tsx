@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, jsonInit } from "../../lib/api";
 import { todayISO } from "../../lib/dates";
-import type { FocusSession } from "../../lib/types";
+import type { FocusKind, FocusSession } from "../../lib/types";
 import { useFocusTimer } from "./useFocusTimer";
 
 interface Props {
@@ -16,15 +16,16 @@ interface Props {
  */
 export default function FocusPage({ onLogged }: Props) {
   const [sessions, setSessions] = useState<FocusSession[]>([]);
+  const [kind, setKind] = useState<FocusKind>("study");
   const [error, setError] = useState("");
 
   const loadSessions = useCallback(async () => {
     try {
-      setSessions(await api<FocusSession[]>(`/api/focus/sessions?date=${todayISO()}`));
+      setSessions(await api<FocusSession[]>(`/api/focus/sessions?date=${todayISO()}&kind=${kind}`));
     } catch {
       /* list is cosmetic; auth errors surface via the app shell */
     }
-  }, []);
+  }, [kind]);
 
   useEffect(() => {
     loadSessions();
@@ -36,7 +37,13 @@ export default function FocusPage({ onLogged }: Props) {
       try {
         await api(
           "/api/focus/sessions",
-          jsonInit("POST", { date: todayISO(), startedAt, durationMinutes: minutes, completed }),
+          jsonInit("POST", {
+            date: todayISO(),
+            startedAt,
+            durationMinutes: minutes,
+            completed,
+            kind,
+          }),
         );
         setError("");
         onLogged();
@@ -45,7 +52,7 @@ export default function FocusPage({ onLogged }: Props) {
         setError(e instanceof Error ? e.message : "could not save session");
       }
     },
-    [onLogged, loadSessions],
+    [onLogged, loadSessions, kind],
   );
 
   const timer = useFocusTimer(recordSession);
@@ -59,6 +66,15 @@ export default function FocusPage({ onLogged }: Props) {
 
       {state.phase === "idle" && (
         <>
+          <label>Focus for</label>
+          <div className="chips">
+            <span className={"chip" + (kind === "study" ? " on" : "")} onClick={() => setKind("study")}>
+              study
+            </span>
+            <span className={"chip" + (kind === "work" ? " on" : "")} onClick={() => setKind("work")}>
+              work
+            </span>
+          </div>
           <div className="row3">
             <div>
               <label htmlFor="f-sessions">Sessions</label>
@@ -78,7 +94,7 @@ export default function FocusPage({ onLogged }: Props) {
           </div>
           <div className="actions">
             <button className="primary" onClick={timer.start}>
-              Start · {cfg.sessions} × {cfg.focusMin}min
+              Start {kind} · {cfg.sessions} × {cfg.focusMin}min
             </button>
           </div>
         </>
@@ -88,7 +104,7 @@ export default function FocusPage({ onLogged }: Props) {
         <>
           <div className="timer-phase">
             {state.phase === "focus"
-              ? `session ${state.sessionIndex + 1} of ${cfg.sessions}${paused ? " · paused" : ""}`
+              ? `${kind} · session ${state.sessionIndex + 1} of ${cfg.sessions}${paused ? " · paused" : ""}`
               : "break — step away from the desk"}
           </div>
           <div className={"timer" + (state.phase === "break" ? " break" : "")}>{clock}</div>
@@ -127,7 +143,7 @@ export default function FocusPage({ onLogged }: Props) {
 
       {error && <div className="error" style={{ marginTop: 10 }}>{error}</div>}
 
-      <h2 style={{ marginTop: 24 }}>today's sessions · {(focusedMin / 60).toFixed(1)}h focused</h2>
+      <h2 style={{ marginTop: 24 }}>today's {kind} sessions · {(focusedMin / 60).toFixed(1)}h focused</h2>
       {sessions.length === 0 ? (
         <div className="empty">none yet — start the timer</div>
       ) : (
