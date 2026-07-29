@@ -8,7 +8,7 @@ import { WORK_CATEGORIES, type WorkDay as WorkDayT } from "../../lib/types";
  * did → blockers → learnings journal. "What I did" is impact-log material;
  * "Learnings" is where the deliberate system/tooling knowledge gets captured.
  */
-export default function WorkDay() {
+export default function WorkDay({ onSaved }: { onSaved: () => void }) {
   const [date, setDate] = useState(todayISO());
   const [hours, setHours] = useState("0");
   const [cats, setCats] = useState<Set<string>>(new Set());
@@ -64,6 +64,7 @@ export default function WorkDay() {
       );
       setToast(true);
       setTimeout(() => setToast(false), 1600);
+      onSaved();
     } catch (e) {
       setError(e instanceof Error ? e.message : "save failed");
     }
@@ -92,9 +93,10 @@ export default function WorkDay() {
       <label>Categories</label>
       <div className="chips">
         {WORK_CATEGORIES.map((c) => (
-          <span key={c} className={"chip" + (cats.has(c) ? " on" : "")} onClick={() => toggleCat(c)}>
+          <button key={c} type="button" className="chip" aria-pressed={cats.has(c)}
+            onClick={() => toggleCat(c)}>
             {c}
-          </span>
+          </button>
         ))}
       </div>
       <div className="row">

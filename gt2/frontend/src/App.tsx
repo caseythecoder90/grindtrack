@@ -1,4 +1,3 @@
-
 import { useCallback, useEffect, useState } from "react";
 import Heatmap from "./components/Heatmap";
 import StatBar from "./components/StatBar";
@@ -9,28 +8,42 @@ import PlanPage from "./features/plan/PlanPage";
 import StatsPage from "./features/tracking/StatsPage";
 import Today from "./features/tracking/Today";
 import Week from "./features/tracking/Week";
+import TodoPage from "./features/todo/TodoPage";
 import WorkPage from "./features/work/WorkPage";
 import { api, AuthError } from "./lib/api";
-import { mondayOf, todayISO } from "./lib/dates";
-import type { PublicStats, Stats } from "./lib/types";
+import type { Scope, Stats } from "./lib/types";
 
 type View = "landing" | "login" | "app";
-type Tab = "today" | "focus" | "plan" | "work" | "week" | "stats";
+type Tab = "today" | "focus" | "todos" | "plan" | "work" | "week" | "stats";
+
+const TABS: Tab[] = ["today", "focus", "todos", "plan", "work", "week", "stats"];
+
+const SCOPE_KEY = "gt-scope";
+
+function storedScope(): Scope {
+  const raw = localStorage.getItem(SCOPE_KEY);
+  return raw === "study" || raw === "work" || raw === "all" ? raw : "all";
+}
 
 export default function App() {
   const [view, setView] = useState<View>("landing");
   const [tab, setTab] = useState<Tab>("today");
   const [stats, setStats] = useState<Stats | null>(null);
-  const [heatDays, setHeatDays] = useState<PublicStats["days"]>([]);
+  const [scope, setScope] = useState<Scope>(storedScope);
 
+  // One request: /api/stats now carries the heatmap day series for every scope,
+  // so switching scope is local and the header no longer needs /api/public/stats.
   const refreshHeader = useCallback(async () => {
     try {
       setStats(await api<Stats>("/api/stats"));
-      const pub = await api<PublicStats>("/api/public/stats");
-      setHeatDays(pub.days);
     } catch (e) {
       if (e instanceof AuthError) setView("landing");
     }
+  }, []);
+
+  const changeScope = useCallback((next: Scope) => {
+    setScope(next);
+    localStorage.setItem(SCOPE_KEY, next);
   }, []);
 
   useEffect(() => {
@@ -48,13 +61,11 @@ export default function App() {
     setView("landing");
   }
 
-  const weekHours = stats?.weeks.find((w) => w.weekStart === mondayOf(todayISO()))?.hours ?? 0;
-
   return (
     <div className="wrap">
       <header>
         <div className="brand"><b>grindtrack</b> // 4-year plan<span className="cursor">_</span></div>
-        <div className="sub">jul 2026 → jun 2030 · target: 20 h/wk</div>
+        <div className="sub">jul 2026 → jun 2030 · 20 h/wk study · 40 h/wk work</div>
         <div className="spacer" />
         {view === "app" && (
           <>
@@ -72,23 +83,27 @@ export default function App() {
       {view === "app" && (
         <>
           {stats && (
-            <StatBar streak={stats.streak} weekHours={weekHours}
-              totalHours={stats.totalHours} daysLogged={stats.daysLogged} />
+            <>
+              <StatBar stats={stats} scope={scope} onScopeChange={changeScope} />
+              <Heatmap study={stats.study.days} work={stats.work.days} scope={scope} />
+            </>
           )}
-          <Heatmap days={heatDays} />
-          <nav className="tabs">
-            {(["today", "focus", "plan", "work", "week", "stats"] as Tab[]).map((t) => (
-              <button key={t} className={tab === t ? "active" : ""} onClick={() => setTab(t)}>
-                {t[0].toUpperCase() + t.slice(1)}
+          <nav className="tabs" aria-label="Sections">
+            {TABS.map((t) => (
+              <button key={t} className={tab === t ? "active" : ""}
+                aria-current={tab === t ? "page" : undefined}
+                onClick={() => setTab(t)}>
+                {t}
               </button>
             ))}
           </nav>
           {tab === "today" && <Today onSaved={refreshHeader} />}
           {tab === "focus" && <FocusPage onLogged={refreshHeader} />}
+          {tab === "todos" && <TodoPage />}
           {tab === "plan" && <PlanPage />}
-          {tab === "work" && <WorkPage />}
+          {tab === "work" && <WorkPage onSaved={refreshHeader} />}
           {tab === "week" && <Week />}
-          {tab === "stats" && <StatsPage />}
+          {tab === "stats" && stats && <StatsPage stats={stats} scope={scope} />}
         </>
       )}
     </div>

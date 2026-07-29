@@ -25,22 +25,24 @@ export default function PlanHeader({
         <i style={{ width: `${progressPercent(done, items.length)}%` }} />
       </div>
       <div className="chips">
-        <span className={"chip" + (filter === null ? " on" : "")} onClick={() => onFilter(null)}>
+        <button type="button" className="chip" aria-pressed={filter === null}
+          onClick={() => onFilter(null)}>
           all
-        </span>
+        </button>
         {TYPES.map((t) => {
           const of = items.filter((i) => i.type === t);
           return (
-            <span key={t} className={"chip" + (filter === t ? " on" : "")}
+            <button key={t} type="button" className="chip" aria-pressed={filter === t}
               onClick={() => onFilter(filter === t ? null : t)}>
               {TYPE_LABEL[t]} {doneCount(of)}/{of.length}
-            </span>
+            </button>
           );
         })}
         <span className="spacer" />
-        <span className={"chip" + (referenceOpen ? " on" : "")} onClick={onToggleReference}>
+        <button type="button" className="chip" aria-pressed={referenceOpen}
+          onClick={onToggleReference}>
           reference sheets
-        </span>
+        </button>
       </div>
       {error && <div className="error" style={{ marginTop: 8 }}>{error}</div>}
     </div>

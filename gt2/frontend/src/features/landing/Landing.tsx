@@ -1,7 +1,6 @@
 
 import { useEffect, useState } from "react";
 import Heatmap from "../../components/Heatmap";
-import StatBar from "../../components/StatBar";
 import { api } from "../../lib/api";
 import type { PublicStats } from "../../lib/types";
 
@@ -25,8 +24,24 @@ export default function Landing({ onLoginClick }: Props) {
       </p>
       {stats && (
         <>
-          <StatBar streak={stats.streak} totalHours={stats.totalHours} daysLogged={stats.daysLogged} />
-          <Heatmap days={stats.days} />
+          {/* Study only, and no scope switcher: day-job hours are not public. */}
+          <section className="statbar" aria-label="Study progress">
+            <div className="stats public">
+              <div className="stat">
+                <span className="k">streak</span>
+                <span className="v">{stats.streak}d</span>
+              </div>
+              <div className="stat">
+                <span className="k">total hours</span>
+                <span className="v">{stats.totalHours.toFixed(0)}</span>
+              </div>
+              <div className="stat">
+                <span className="k">days logged</span>
+                <span className="v">{stats.daysLogged}</span>
+              </div>
+            </div>
+          </section>
+          <Heatmap study={stats.days} work={[]} scope="study" />
         </>
       )}
       <div className="landing-cta">

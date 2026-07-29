@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import Segmented from "../../components/Segmented";
 import { api, jsonInit } from "../../lib/api";
 import { todayISO } from "../../lib/dates";
 import type { FocusKind, FocusSession } from "../../lib/types";
@@ -16,23 +17,20 @@ interface Props {
  */
 export default function FocusPage({ onLogged }: Props) {
   const [sessions, setSessions] = useState<FocusSession[]>([]);
-  const [kind, setKind] = useState<FocusKind>("study");
   const [error, setError] = useState("");
 
-  const loadSessions = useCallback(async () => {
+  // Both callbacks take the kind as an argument rather than closing over it, so
+  // they stay referentially stable — useFocusTimer keys effects off them.
+  const loadSessions = useCallback(async (k: FocusKind) => {
     try {
-      setSessions(await api<FocusSession[]>(`/api/focus/sessions?date=${todayISO()}&kind=${kind}`));
+      setSessions(await api<FocusSession[]>(`/api/focus/sessions?date=${todayISO()}&kind=${k}`));
     } catch {
       /* list is cosmetic; auth errors surface via the app shell */
     }
-  }, [kind]);
-
-  useEffect(() => {
-    loadSessions();
-  }, [loadSessions]);
+  }, []);
 
   const recordSession = useCallback(
-    async (startedAt: string, minutes: number, completed: boolean) => {
+    async (startedAt: string, minutes: number, completed: boolean, k: FocusKind) => {
       if (minutes < 1) return;
       try {
         await api(
@@ -42,23 +40,28 @@ export default function FocusPage({ onLogged }: Props) {
             startedAt,
             durationMinutes: minutes,
             completed,
-            kind,
+            kind: k,
           }),
         );
         setError("");
         onLogged();
-        loadSessions();
+        loadSessions(k);
       } catch (e) {
         setError(e instanceof Error ? e.message : "could not save session");
       }
     },
-    [onLogged, loadSessions, kind],
+    [onLogged, loadSessions],
   );
 
   const timer = useFocusTimer(recordSession);
   const { state, clock, paused, pct } = timer;
   const cfg = state.config;
+  const kind = cfg.kind;
   const focusedMin = sessions.reduce((sum, s) => sum + s.durationMinutes, 0);
+
+  useEffect(() => {
+    loadSessions(kind);
+  }, [loadSessions, kind]);
 
   return (
     <div className="panel">
@@ -67,14 +70,15 @@ export default function FocusPage({ onLogged }: Props) {
       {state.phase === "idle" && (
         <>
           <label>Focus for</label>
-          <div className="chips">
-            <span className={"chip" + (kind === "study" ? " on" : "")} onClick={() => setKind("study")}>
-              study
-            </span>
-            <span className={"chip" + (kind === "work" ? " on" : "")} onClick={() => setKind("work")}>
-              work
-            </span>
-          </div>
+          <Segmented
+            label="What this session counts as"
+            value={kind}
+            onChange={(k) => timer.setConfig({ kind: k })}
+            options={[
+              { value: "study", label: "study", tone: "study" },
+              { value: "work", label: "work", tone: "work" },
+            ]}
+          />
           <div className="row3">
             <div>
               <label htmlFor="f-sessions">Sessions</label>

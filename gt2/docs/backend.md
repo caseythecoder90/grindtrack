@@ -46,6 +46,9 @@ dev.grindtrack
 │   ├── api/{PlanController,PlanDtos}.java
 │   ├── service/PlanService.java
 │   └── domain/{PlanItem,PlanQuarter,PlanReference}(+Repository).java
+├── todo/
+│   ├── api/{TodoController,TodoDtos}.java
+│   └── domain/{Todo,TodoRepository}.java
 └── work/
     ├── api/{WorkController,WorkDtos}.java
     └── domain/{WorkLog,WorkSkill}(+Repository).java
@@ -91,7 +94,17 @@ requires a valid `gt_access` JWT cookie. Full request/response bodies in [api.md
 ### `PublicController` — `/api/public`
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/stats` | `{streak,totalHours,daysLogged,days[]}` — last 26 weeks of `{date,hours}` only. **Never exposes text.** |
+| GET | `/stats` | `{streak,totalHours,daysLogged,days[]}` — last 26 weeks of `{date,hours}` only. **Never exposes text**, and reads `stats.study()` only: work hours are not public. |
+
+### `TodoController` — `/api/todos`
+| Method | Path | Notes |
+|---|---|---|
+| GET | `` | `?kind=work\|personal` optional; open items first, then `sortOrder`, then id |
+| POST | `` | `{title,kind?,dueDate?}`; title required ≤300 chars; defaults to `personal` |
+| PATCH | `/{id}` | partial; null `dueDate` means "leave alone", `clearDueDate:true` removes it; `done` keeps `completedAt` in step; 404 if missing |
+| DELETE | `/{id}` | remove |
+
+Flat CRUD with no service layer, mirroring `WorkController` — there is no logic beyond field checks.
 
 ### `PlanController` — `/api/plan`
 | Method | Path | Notes |
@@ -162,6 +175,7 @@ Schema **`grindtrack`**; Hibernate is `validate`-only, so Liquibase is the singl
   - `006-plan-paper.sql` — add `paper` to the `plan_items` item_type CHECK
   - `007-work.sql` — `work_logs` (CHECK hours 0–24), `work_skills` (status CHECK)
   - `008-focus-kind.sql` — add `kind` (study/work) to `focus_sessions` (CHECK)
+  - `009-todos.sql` — `todos` (kind CHECK work/personal, `idx_todos_kind_done`)
 - Every changeset has a `--rollback`. Time columns are `TIMESTAMPTZ DEFAULT now()`. **Add schema
   changes only as new changesets** — never edit an applied one.
 
@@ -219,7 +233,21 @@ materialized only during the Docker build. Stage 3 runs `java -jar app.jar` on
    `cookieSecure`).
 7. **Return** — JSON body + any cookies; the virtual thread is released.
 
-Read-path example (`GET /api/stats`): `StatsService.compute()` loads all `daily_logs` and folds
-them in-process — total hours, 12-week window totals, per-category shares (a day's hours split
-evenly across its categories), and current streak by walking backward from today. It deliberately
+Read-path example (`GET /api/stats`): `StatsService.compute()` loads all `daily_logs` **and all
+`work_logs`**, maps both onto a source-agnostic `DayRow(date, hours, categories)`, and runs the same
+folds three times — study, work, and the two combined. Each scope yields total hours, 12-week window
+totals, per-category shares (a day's hours split evenly across its categories), a current streak by
+walking backward from today, `daysThisMonth`, and the 26-week heatmap series. It deliberately
 aggregates in Java ("~350 rows/year… simpler and plenty fast") rather than in SQL.
+
+Two details in the combined scope that are easy to get wrong:
+
+- **Hours** merge per date, so a day logged on both sides counts once with the sum.
+- **Categories** are the **sum of the two scopes' category maps**, not a fold over merged rows.
+  Because `categoryTotals` splits a day's hours evenly across its categories, merging rows first
+  would spread the combined hours across the union of that day's study and work tags and
+  mis-attribute both sides. `StatsServiceTest.categoryTotalsAreSummedPerScopeNotSplitAcrossTheUnion`
+  pins this.
+
+`streak` is carried on every scope but is close to meaningless for work — weekends off reset it
+every Saturday — so that view shows `daysThisMonth` instead. That is a UI choice, not a data one.

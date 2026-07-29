@@ -1,8 +1,9 @@
 
 import { useCallback, useEffect, useState } from "react";
+import WeekTotals from "../../components/WeekTotals";
 import { api, jsonInit } from "../../lib/api";
 import { addDays, mondayOf, todayISO } from "../../lib/dates";
-import { WEEKLY_TARGET, type DayLog, type WeekReview } from "../../lib/types";
+import type { DayLog, WeekReview } from "../../lib/types";
 
 const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -34,8 +35,6 @@ export default function Week() {
   }, [load]);
 
   const byDate = new Map(days.map((d) => [d.logDate, d]));
-  const total = days.reduce((sum, d) => sum + d.hours, 0);
-  const pct = Math.min(100, Math.round((total / WEEKLY_TARGET) * 100));
 
   async function save() {
     await api(`/api/weeks/${weekStart}`, jsonInit("PUT", {
@@ -54,12 +53,7 @@ export default function Week() {
         <button onClick={() => setWeekStart(addDays(weekStart, 7))}>▶</button>
         <button onClick={() => setWeekStart(mondayOf(todayISO()))}>this week</button>
       </div>
-      <div className="muted" style={{ fontFamily: "var(--mono)", fontSize: 12 }}>
-        {total.toFixed(1)} / {WEEKLY_TARGET} h
-      </div>
-      <div className={"progress" + (total >= WEEKLY_TARGET ? " over" : "")}>
-        <i style={{ width: `${pct}%` }} />
-      </div>
+      <WeekTotals weekStart={weekStart} />
       <table>
         <thead>
           <tr><th style={{ width: 110 }}>day</th><th style={{ width: 60 }}>hrs</th>
@@ -97,10 +91,10 @@ export default function Week() {
       <textarea value={nextFocus} onChange={(e) => setNextFocus(e.target.value)} />
       <label>On track for the quarter?</label>
       <div className="chips">
-        <span className={"chip" + (onTrack === true ? " on" : "")}
-          onClick={() => setOnTrack(onTrack === true ? null : true)}>yes</span>
-        <span className={"chip" + (onTrack === false ? " on" : "")}
-          onClick={() => setOnTrack(onTrack === false ? null : false)}>no — adjust</span>
+        <button type="button" className="chip" aria-pressed={onTrack === true}
+          onClick={() => setOnTrack(onTrack === true ? null : true)}>yes</button>
+        <button type="button" className="chip" aria-pressed={onTrack === false}
+          onClick={() => setOnTrack(onTrack === false ? null : false)}>no — adjust</button>
       </div>
       <div className="actions">
         <button className="primary" onClick={save}>Save review</button>

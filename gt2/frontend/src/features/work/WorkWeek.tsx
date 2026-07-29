@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
+import WeekTotals from "../../components/WeekTotals";
 import { api } from "../../lib/api";
 import { addDays, mondayOf, todayISO } from "../../lib/dates";
-import { WORK_WEEKLY_TARGET, type WorkDay as WorkDayT } from "../../lib/types";
+import type { WorkDay as WorkDayT } from "../../lib/types";
 
 const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -26,8 +27,6 @@ export default function WorkWeek() {
   }, [load]);
 
   const byDate = new Map(days.map((d) => [d.logDate, d]));
-  const total = days.reduce((sum, d) => sum + d.hours, 0);
-  const pct = Math.min(100, Math.round((total / WORK_WEEKLY_TARGET) * 100));
 
   return (
     <div className="panel">
@@ -38,12 +37,7 @@ export default function WorkWeek() {
         <button onClick={() => setWeekStart(addDays(weekStart, 7))}>▶</button>
         <button onClick={() => setWeekStart(mondayOf(todayISO()))}>this week</button>
       </div>
-      <div className="muted" style={{ fontFamily: "var(--mono)", fontSize: 12 }}>
-        {total.toFixed(1)} / {WORK_WEEKLY_TARGET} h
-      </div>
-      <div className={"progress" + (total >= WORK_WEEKLY_TARGET ? " over" : "")}>
-        <i style={{ width: `${pct}%` }} />
-      </div>
+      <WeekTotals weekStart={weekStart} />
       <table>
         <thead>
           <tr>
