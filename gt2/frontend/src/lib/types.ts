@@ -25,12 +25,28 @@ export interface WeekReview {
 
 // --- stats: header bar and heatmap -----------------------------------------
 
-export interface Stats {
+/**
+ * Which side of the day a view is showing. "all" is study + work combined; the
+ * backend computes all three on every request so switching never refetches.
+ */
+export type Scope = "all" | "study" | "work";
+
+export const SCOPES: Scope[] = ["all", "study", "work"];
+
+export interface ScopeStats {
   totalHours: number;
   daysLogged: number;
   streak: number;
+  daysThisMonth: number;
   weeks: { weekStart: string; hours: number }[];
   categories: { category: string; hours: number }[];
+  days: { date: string; hours: number }[];
+}
+
+export interface Stats {
+  study: ScopeStats;
+  work: ScopeStats;
+  all: ScopeStats;
 }
 
 export interface PublicStats {
@@ -39,6 +55,15 @@ export interface PublicStats {
   daysLogged: number;
   days: { date: string; hours: number }[];
 }
+
+/** Weekly hour target per scope. "all" is the two added together. */
+export const TARGETS: Record<Scope, number> = { study: 20, work: 40, all: 60 };
+
+export const SCOPE_LABELS: Record<Scope, string> = {
+  all: "everything",
+  study: "study",
+  work: "work",
+};
 
 // --- focus timer ------------------------------------------------------------
 
@@ -52,7 +77,7 @@ export interface FocusSession {
   kind: FocusKind;
 }
 
-export const FOCUS_DEFAULTS = { sessions: 3, focusMin: 60, breakMin: 10 };
+export const FOCUS_DEFAULTS = { sessions: 3, focusMin: 60, breakMin: 10, kind: "study" as FocusKind };
 
 // --- 4-year plan ------------------------------------------------------------
 
@@ -123,7 +148,7 @@ export interface WorkSkill {
   sortOrder: number;
 }
 
-export const WORK_WEEKLY_TARGET = 40;
+export const WORK_WEEKLY_TARGET = TARGETS.work;
 
 export const WORK_CATEGORIES = [
   "Feature dev",
@@ -137,6 +162,20 @@ export const WORK_CATEGORIES = [
   "Docs",
   "On-call",
 ];
+
+// --- todos ------------------------------------------------------------------
+
+/** Todos are tagged by which side of the day they belong to, not by study/work. */
+export type TodoKind = "work" | "personal";
+
+export interface Todo {
+  id: number;
+  title: string;
+  kind: TodoKind;
+  done: boolean;
+  dueDate: string | null;
+  sortOrder: number;
+}
 
 // --- app constants ----------------------------------------------------------
 
@@ -155,4 +194,4 @@ export const CATEGORIES = [
   "Reading",
 ];
 
-export const WEEKLY_TARGET = 20;
+export const WEEKLY_TARGET = TARGETS.study;

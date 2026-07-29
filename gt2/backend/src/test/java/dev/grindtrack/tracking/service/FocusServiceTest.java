@@ -116,7 +116,20 @@ class FocusServiceTest {
   }
 
   @Test
-  void anUnknownKindFallsBackToStudy() {
+  void anUnrecognisedKindFallsBackToStudy() {
+    when(dailyLogs.findById(DATE)).thenReturn(Optional.empty());
+
+    // The controller rejects anything but study/work, so this only guards a
+    // caller that bypasses it — the fold must never silently land in work_logs.
+    FocusSession session = service.record(DATE, STARTED_AT, 30, true, "personal");
+
+    assertThat(session.getKind()).isEqualTo("study");
+    verify(dailyLogs).save(any());
+    verify(workLogs, never()).save(any());
+  }
+
+  @Test
+  void aMissingKindFallsBackToStudy() {
     when(dailyLogs.findById(DATE)).thenReturn(Optional.empty());
 
     FocusSession session = service.record(DATE, STARTED_AT, 30, true, null);

@@ -7,7 +7,7 @@ All request/response bodies are JSON. Authenticated endpoints require the `gt_ac
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/api/public/stats` | Streak, total hours, days logged, and 26 weeks of `{date, hours}` for the landing heatmap. **No text fields are ever exposed here.** |
+| GET | `/api/public/stats` | Streak, total hours, days logged, and 26 weeks of `{date, hours}` for the landing heatmap. **No text fields are ever exposed here**, and it serves the **study scope only** — day-job hours and project names stay behind the authenticated API. |
 
 ## Auth
 
@@ -28,7 +28,7 @@ All request/response bodies are JSON. Authenticated endpoints require the `gt_ac
 | DELETE | `/api/days/{date}` | Remove a day |
 | GET | `/api/weeks/{date}` | Weekly review; any date normalizes to its Monday |
 | PUT | `/api/weeks/{date}` | Upsert review: `{summary, wins, blockers, adjustments, nextFocus, onTrack}` |
-| GET | `/api/stats` | `{totalHours, daysLogged, streak, weeks[12], categories[]}` — category hours split evenly across a day's tags |
+| GET | `/api/stats` | `{study, work, all}`, each a scope of `{totalHours, daysLogged, streak, daysThisMonth, weeks[12], categories[], days[]}`. All three are computed per request so the UI switches scope without refetching. `days[]` is the 26-week heatmap series. Category hours are split evenly across a day's tags; in `all` the two scopes' category maps are **summed**, not recomputed over merged rows (see backend.md). |
 | GET | `/api/export` | Full JSON dump as a download |
 
 ## Focus sessions (authenticated)
@@ -49,6 +49,18 @@ runtime via the import endpoint from a locally generated `plan.json`
 | GET | `/api/plan` | `{items[], quarters[], reference[]}` — all trackable items (milestones/certs/modules/books/papers/projects), the 16-quarter roadmap, and the reference sheets (row-JSON) |
 | PATCH | `/api/plan/items/{id}` | `{status?, notes?}` — status ∈ `not_started/in_progress/done`; transitioning to done stamps `completedAt` |
 | POST | `/api/plan/import` | Full plan.json replace. Items matched by (type, title) **keep their status, completedAt, and notes** — re-importing an evolved workbook never loses progress. |
+
+## Todos (authenticated)
+
+Short-lived actionable items, tagged `work` or `personal` so the list can be filtered to one side
+of the day. Separate from the Plan, which is the fixed 4-year roadmap.
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/todos[?kind=work\|personal]` | Open items first, then `sortOrder`, then id. Unknown `kind` → 400 |
+| POST | `/api/todos` | Create `{title, kind?, dueDate?}` — title required (≤300 chars, trimmed); `kind` defaults to `personal`; new items sort to the end |
+| PATCH | `/api/todos/{id}` | Partial `{title?, kind?, done?, dueDate?, clearDueDate?, sortOrder?}`. A null `dueDate` leaves the existing one alone — pass `clearDueDate: true` to remove it. Flipping `done` stamps/clears `completedAt`. 404 if missing |
+| DELETE | `/api/todos/{id}` | Remove a todo |
 
 ## Work (authenticated)
 

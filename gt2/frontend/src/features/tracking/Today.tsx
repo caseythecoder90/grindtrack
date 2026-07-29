@@ -72,9 +72,10 @@ export default function Today({ onSaved }: Props) {
       <label>Categories</label>
       <div className="chips">
         {CATEGORIES.map((c) => (
-          <span key={c} className={"chip" + (cats.has(c) ? " on" : "")} onClick={() => toggleCat(c)}>
+          <button key={c} type="button" className="chip" aria-pressed={cats.has(c)}
+            onClick={() => toggleCat(c)}>
             {c}
-          </span>
+          </button>
         ))}
       </div>
       <div className="row">

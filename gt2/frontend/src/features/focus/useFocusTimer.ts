@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FOCUS_DEFAULTS } from "../../lib/types";
+import { FOCUS_DEFAULTS, type FocusKind } from "../../lib/types";
 import { chime, notify, requestNotifyPermission } from "./alerts";
 import {
   FOCUS_TIMER_STORAGE_KEY,
@@ -45,10 +45,18 @@ export interface FocusTimer {
  * and chime/notification side effects.
  *
  * `onFocusSessionEnd` fires when a focus session finishes or is ended early
- * (never for breaks); pass a stable callback to avoid re-running effects.
+ * (never for breaks); pass a stable callback to avoid re-running effects. It
+ * receives the session's own `kind` — read from the persisted timer state at
+ * the moment it ends, so a session restored after a reload is still logged as
+ * what it was started as.
  */
 export function useFocusTimer(
-  onFocusSessionEnd: (startedAt: string, minutes: number, completed: boolean) => void,
+  onFocusSessionEnd: (
+    startedAt: string,
+    minutes: number,
+    completed: boolean,
+    kind: FocusKind,
+  ) => void,
 ): FocusTimer {
   const [state, setState] = useState<TimerState>(
     () => decodeState(localStorage.getItem(FOCUS_TIMER_STORAGE_KEY)) ?? idleState({ ...FOCUS_DEFAULTS }),
@@ -66,7 +74,7 @@ export function useFocusTimer(
     (ranFull: boolean) => {
       const s = stateRef.current;
       const minutes = ranFull ? s.config.focusMin : elapsedFocusMinutes(s, Date.now());
-      if (s.startedAt) onFocusSessionEnd(s.startedAt, minutes, ranFull);
+      if (s.startedAt) onFocusSessionEnd(s.startedAt, minutes, ranFull, s.config.kind);
       chime();
       if (!ranFull) {
         setState(idleState(s.config));

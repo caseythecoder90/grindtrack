@@ -15,8 +15,11 @@ src/
 ├── App.tsx             top-level shell: view/tab state machine, session probe, header
 ├── styles.css          single global stylesheet (dstyle palette; no CSS framework)
 ├── components/         shared, presentational
-│   ├── Heatmap.tsx     26-week contribution grid (used by Landing + App)
-│   └── StatBar.tsx     counters row (streak / this week / total / days)
+│   ├── Heatmap.tsx     26-week contribution grid, per-scope ramp (used by Landing + App)
+│   ├── Meter.tsx       the split study/work bar against a target — the app's one recurring device
+│   ├── Segmented.tsx   accessible one-of-N control for switching what you're looking at
+│   ├── StatBar.tsx     scope switcher + KPI row (week / streak / total / days)
+│   └── WeekTotals.tsx  study · work · total for one week, on both week tabs
 ├── features/
 │   ├── auth/Login.tsx           username + password + TOTP form
 │   ├── landing/Landing.tsx      public read-only view
@@ -91,10 +94,30 @@ useEffect(() => {
 }, [refreshHeader]);
 ```
 
-`refreshHeader` (memoized with `useCallback`) loads `/api/stats` (→ `StatBar`) and
-`/api/public/stats` (→ `Heatmap`), and is passed down as `onSaved`/`onLogged` so child screens can
-refresh the header after a mutation. There is **no** shared cache/context/store — each feature
-screen owns its remote state locally and re-fetches in its own effects.
+`refreshHeader` (memoized with `useCallback`) loads `/api/stats` — a **single** request that now
+carries the heatmap day series for every scope, so it feeds both `StatBar` and `Heatmap`. It is
+passed down as `onSaved`/`onLogged` so child screens can refresh the header after a mutation,
+including `WorkPage` (work hours move the combined totals). There is **no** shared
+cache/context/store — each feature screen owns its remote state locally and re-fetches in its own
+effects, with the exception of `StatsPage`, which receives the already-loaded `stats` as a prop
+rather than refetching the same payload on every tab switch.
+
+### Scope (`all` / `study` / `work`)
+
+`App` holds a `Scope` in state, persisted to `localStorage` under `gt-scope`, and passes it to
+`StatBar`, `Heatmap`, and `StatsPage`. Because the backend returns all three scopes in one payload,
+switching is purely local — no refetch. Weekly targets live in `TARGETS` (`types.ts`): study 20,
+work 40, combined 60.
+
+Two rules the components follow:
+
+- **Colour means one thing.** `--study` (green) and `--work` (violet) encode data and nothing else;
+  `--cyan` is UI chrome (headings, focus rings, active tab, selected chips) and never a series. The
+  pair is validated for colour-vision deficiency — green + amber, the intuitive choice, fails
+  protan separation badly.
+- **The heatmap rescales per scope.** A workday is 6–9h, so reusing the study thresholds would put
+  every work cell in the top bucket and render a solid slab. In `all`, a day holding both kinds is
+  drawn as a hard-stop split showing the study/work share.
 
 ## The `api()` wrapper (`src/lib/api.ts`)
 
@@ -157,15 +180,16 @@ sequenceDiagram
 | Screen | Endpoints | Notes |
 |---|---|---|
 | `auth/Login` | `POST /api/auth/login` | username / password / 6-digit `otp`; inline errors; `onSuccess(username)` |
-| `landing/Landing` | `GET /api/public/stats` | `StatBar` (no week tile) + `Heatmap`; **no text ever** |
+| `landing/Landing` | `GET /api/public/stats` | plain 3-tile counter row (no scope switcher) + `Heatmap` pinned to `study`; **no text ever, no work hours** |
 | `tracking/Today` | `GET/PUT /api/days/{date}`, `DELETE` | hours (0–24, step 0.5), energy 1–5, category chips, 4 textareas; "saved ✓" toast → `onSaved()` |
-| `tracking/Week` | `GET /api/days?from=&to=`, `GET/PUT /api/weeks/{monday}` | Mon–Sun grid, progress bar vs `WEEKLY_TARGET` (20), review form with `onTrack` toggle |
-| `tracking/StatsPage` | `GET /api/stats` | two bar charts: hours/week (last 12), hours by category (all time) |
+| `tracking/Week` | `GET /api/days?from=&to=`, `GET/PUT /api/weeks/{monday}` | Mon–Sun grid, `WeekTotals` header (study · work · total), review form with `onTrack` toggle |
+| `tracking/StatsPage` | — (receives `stats` + `scope` as props) | hours/week for the last 12 as split `Meter` bars with a target marker, plus hours by category for the current scope |
+| `todo/TodoPage` | `GET/POST /api/todos`, `PATCH`/`DELETE /api/todos/{id}` | all/work/personal filter, inline add with optional due date, optimistic checkbox, overdue + due-today styling |
 | `focus/FocusPage` | `GET/POST /api/focus/sessions` | Pomodoro timer (below) with a **study/work toggle** → `onLogged()`; a work session's minutes fold into `work_logs`, a study session's into `daily_logs` |
 | `plan/PlanPage` | `GET /api/plan`, `PATCH /api/plan/items/{id}`, `POST /api/plan/import` | progress header + type filters, year panels with collapsible quarter roadmap, 3-state status chip (cycles on click), per-item notes, plan.json upload (empty state + re-import box). `Reference.tsx` renders the read-only sheets from row-JSON. |
 | `work/WorkPage` | — | secondary tab bar over Day / Week / Skills (day-job tracking, separate from study) |
 | `work/WorkDay` | `GET/PUT /api/work/days/{date}` | hours, project, category chips, goals/did/blockers/learnings; try/catch save + load |
-| `work/WorkWeek` | `GET /api/work/days?from=&to=` | Mon–Sun grid, progress bar vs `WORK_WEEKLY_TARGET` (40) |
+| `work/WorkWeek` | `GET /api/work/days?from=&to=` | Mon–Sun grid with the same `WeekTotals` header as the study week |
 | `work/WorkSkills` | `GET/POST /api/work/skills`, `PATCH`/`DELETE /api/work/skills/{id}` | competency checklist: add, 3-state status chip (not_started/in_progress/proficient), per-skill notes, delete |
 
 ### FocusPage — a durable timer
@@ -178,7 +202,15 @@ Worth understanding because it's the trickiest screen:
   reload, tab switch, or laptop sleep can't drift the clock. A `setInterval(…, 500)` only drives
   re-render; a separate effect fires phase transitions when `Date.now() >= endsAt`.
 - Phases `idle → focus → break → … → done`; config = sessions (1–12), focus min (5–180), break
-  min (1–60).
+  min (1–60), and **`kind`** (study/work).
+- **`kind` lives in the persisted config, not component state.** That matters: the timer is built
+  to survive a reload mid-session, so a `kind` held in `useState` would reset to `study` on restore
+  and a finished work session would fold into `daily_logs` instead of `work_logs`. `decodeState`
+  defaults a missing `kind` rather than bumping the storage key, so a timer running across the
+  deploy that introduced it isn't discarded.
+- `onFocusSessionEnd` receives the session's own `kind`, read from the timer state at the moment it
+  ends — so the value logged is the one the session was *started* with, and both callbacks in
+  `FocusPage` stay referentially stable (the hook keys effects off them).
 - Each completed/ended-early session (≥1 min) is `POST`ed; the backend **atomically adds its
   minutes to that day's hours** (see [api.md](api.md)/[backend.md](backend.md)), then `onLogged()`
   refreshes the header so streak/heatmap update live.

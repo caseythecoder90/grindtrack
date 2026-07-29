@@ -7,12 +7,21 @@
  * laptop sleep can't lose or drift the timer.
  */
 
+import type { FocusKind } from "../../lib/types";
+
 export type Phase = "idle" | "focus" | "break" | "done";
 
 export interface TimerConfig {
   sessions: number;
   focusMin: number;
   breakMin: number;
+  /**
+   * What a finished session counts as: "study" folds its minutes into
+   * daily_logs, "work" into work_logs. Part of the persisted config (not
+   * component state) so a timer restored after a reload still logs as the
+   * kind it was started as.
+   */
+  kind: FocusKind;
 }
 
 export interface TimerState {
@@ -34,11 +43,18 @@ export function idleState(config: TimerConfig): TimerState {
   return { phase: "idle", sessionIndex: 0, endsAt: null, remainingMs: null, startedAt: null, config };
 }
 
-/** Parse a persisted TimerState; null for missing or corrupted input. */
+/**
+ * Parse a persisted TimerState; null for missing or corrupted input.
+ *
+ * `kind` is defaulted rather than versioned into a new storage key: states
+ * written before the study/work split have no `kind`, and bumping the key
+ * would discard a timer that was mid-session across the deploy.
+ */
 export function decodeState(raw: string | null): TimerState | null {
   if (!raw) return null;
   try {
-    return JSON.parse(raw) as TimerState;
+    const parsed = JSON.parse(raw) as TimerState;
+    return { ...parsed, config: { ...parsed.config, kind: parsed.config?.kind ?? "study" } };
   } catch {
     return null;
   }
