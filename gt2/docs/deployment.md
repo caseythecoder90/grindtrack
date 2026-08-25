@@ -1,6 +1,32 @@
-# Deployment (Hetzner VPS, behind the existing containerized nginx)
+# Deployment
 
-grindtrack runs on the same VPS as the personal-website stack and reuses its nginx +
+> ## ⚠️ SUPERSEDED — August 2026
+>
+> **grindtrack now deploys to a Kubernetes cluster running on Hetzner VPSs.** The single
+> shared VPS described below — the one that also ran the personal-website nginx/certbot
+> containers — has been deleted. All apps were migrated to the cluster and tested.
+>
+> - Cluster manifests, ingress and TLS live in the **`k8s-cluster-hetzner`** repo, not here.
+> - `.github/workflows/ci-cd.yml` builds the image to GHCR exactly as before, then rolls it out
+>   with `kubectl -n grindtrack set image deploy/grindtrack app=…:<short-sha>` and waits on
+>   `rollout status`. There is no SSH step and no `docker compose` on a server any more.
+> - The deploy job needs one repo secret, **`KUBE_CONFIG`** — a base64 kubeconfig for the
+>   least-privilege `ci-deployer` ServiceAccount, scoped to updating Deployment images in the
+>   `grindtrack` namespace. If it is unset the job skips rather than failing.
+> - `VPS_HOST`, `VPS_USER` and `VPS_SSH_KEY` are **stale** — they still exist as repo secrets
+>   but authenticate to the deleted host. Safe to delete.
+> - `gt2/docker-compose.prod.yml` is likewise unused in production. `gt2/docker-compose.yml`
+>   is still the local-development stack and is unaffected.
+>
+> Everything from here down is kept only as a record of the previous topology. **Do not follow
+> it** — sections 1, 3, 5 and 7 all reference a machine that no longer exists, including the
+> backup cron, which is no longer running anywhere described by this file.
+
+---
+
+## Historical: Hetzner VPS, behind the existing containerized nginx
+
+grindtrack ran on the same VPS as the personal-website stack and reused its nginx +
 certbot containers. The model matches personal-website: **CI builds the image and pushes
 it to GHCR; the VPS only pulls.** Nothing is compiled on the VPS.
 
