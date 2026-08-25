@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import Heatmap from "./components/Heatmap";
 import StatBar from "./components/StatBar";
 import Login from "./features/auth/Login";
+import FinancePage from "./features/finance/FinancePage";
 import FocusPage from "./features/focus/FocusPage";
 import Landing from "./features/landing/Landing";
 import PlanPage from "./features/plan/PlanPage";
@@ -14,9 +15,9 @@ import { api, AuthError } from "./lib/api";
 import type { Scope, Stats } from "./lib/types";
 
 type View = "landing" | "login" | "app";
-type Tab = "today" | "focus" | "todos" | "plan" | "work" | "week" | "stats";
+type Tab = "today" | "focus" | "todos" | "plan" | "work" | "money" | "week" | "stats";
 
-const TABS: Tab[] = ["today", "focus", "todos", "plan", "work", "week", "stats"];
+const TABS: Tab[] = ["today", "focus", "todos", "plan", "work", "money", "week", "stats"];
 
 const SCOPE_KEY = "gt-scope";
 
@@ -102,6 +103,7 @@ export default function App() {
           {tab === "todos" && <TodoPage />}
           {tab === "plan" && <PlanPage />}
           {tab === "work" && <WorkPage onSaved={refreshHeader} />}
+          {tab === "money" && <FinancePage />}
           {tab === "week" && <Week />}
           {tab === "stats" && stats && <StatsPage stats={stats} scope={scope} />}
         </>

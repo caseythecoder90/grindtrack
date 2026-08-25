@@ -160,6 +160,17 @@ Design notes worth remembering:
   if the model grows.
 - **State transitions in the entity.** `PlanItem.setStatus()` stamps/clears `completed_at` on
   entering/leaving `done`; `DailyLog.addHours(delta)` clamps at 24 (`MAX_DAY_HOURS`).
+- **Finance carries three invariants in the schema itself**, because retrofitting any of them
+  would mean rewriting historical rows:
+  - `finance_transactions.txn_type` separates real spending from money merely moving. A card
+    payment settles a purchase already counted as `SPEND`; counting both doubles every dollar.
+    In the first pass over real statements, 78 of 947 rows were transfers or payments.
+  - `fingerprint` (unique per account) makes re-importing an overlapping statement range a no-op.
+    Bank of America supplies a real reference number; everyone else gets a SHA-256 of
+    account + posted date + amount + normalized description.
+  - `category_source` (`UNCATEGORIZED`/`RULE`/`MANUAL`) means automation can never revert a
+    hand-corrected category. `Transaction.categorizeByRule()` returns `false` rather than
+    overwriting a `MANUAL` decision.
 
 ### Migrations
 
@@ -176,6 +187,8 @@ Schema **`grindtrack`**; Hibernate is `validate`-only, so Liquibase is the singl
   - `007-work.sql` — `work_logs` (CHECK hours 0–24), `work_skills` (status CHECK)
   - `008-focus-kind.sql` — add `kind` (study/work) to `focus_sessions` (CHECK)
   - `009-todos.sql` — `todos` (kind CHECK work/personal, `idx_todos_kind_done`)
+  - `010-finance.sql` — `finance_accounts`, `finance_transactions` (unique fingerprint per
+    account, three supporting indexes), `finance_savings_goals`
 - Every changeset has a `--rollback`. Time columns are `TIMESTAMPTZ DEFAULT now()`. **Add schema
   changes only as new changesets** — never edit an applied one.
 

@@ -24,6 +24,12 @@
   --green: var(--study);
   --purple: var(--work);
 
+  /* The third data series, added with the money tab. Dollars are a different domain
+     from hours, so reusing --study for a savings bar would overload a colour that
+     already means something. Amber is conventionally monetary and holds its own
+     against both --study green and --work purple in the dark band. */
+  --money: #e8b04b;
+
   /* Sequential ramps for the heatmap: one hue each, palest -> most saturated. */
   --s1: #1d5c38; --s2: #27804a; --s3: #35a852; --s4: #6fdc8c;
   --w1: #2f2a63; --w2: #4a3aa8; --w3: #7a5cff; --w4: #a894ff;
@@ -103,6 +109,10 @@ button.ghost:hover { color: var(--red); border-color: transparent; }
 .meter > i { display: block; height: 100%; border-radius: 3px; min-width: 2px; }
 .meter > i.study { background: var(--study); }
 .meter > i.work { background: var(--work); }
+/* Money is a third data domain, not a third mood: it gets its own token rather than
+   borrowing --study, which already means "study hours" everywhere else in the app.
+   Amber reads as currency and separates cleanly from both the green and the purple. */
+.meter > i.money { background: var(--money); }
 .meter .target { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--text); opacity: 0.5; border-radius: 1px; }
 
 .legend { display: flex; gap: 14px; font-family: var(--mono); font-size: var(--fs-label); color: var(--muted); }
@@ -264,3 +274,61 @@ tr.today-row td { background: rgba(127, 209, 255, 0.06); }
 .refpara.pre { white-space: pre-wrap; color: var(--muted); }
 .refsheet { margin-top: 14px; }
 .refscroll { overflow-x: auto; margin: 10px 0; }
+
+/* --- money tab -------------------------------------------------------------- */
+.finance { margin-top: 14px; }
+.finance section { margin-top: 18px; }
+.finance .section-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+.finance .section-head h3 { font-family: var(--mono); font-size: 13px; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--cyan); margin: 0; }
+.finance .section-head button { margin-left: auto; }
+
+.finance-top { display: flex; gap: 10px; flex-wrap: wrap; }
+.finance-top .stat { min-width: 130px; }
+.finance .negative { color: var(--red); }
+.finance .positive { color: var(--study); }
+.finance .small { font-size: 11px; }
+
+.goal-card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  padding: 14px 16px; margin-top: 14px; }
+.goal-head { display: flex; align-items: baseline; gap: 10px; }
+.goal-head h3 { margin: 0; font-size: var(--fs-body); }
+.goal-head .muted { margin-left: auto; font-family: var(--mono); font-size: 12px; }
+.goal-numbers { font-family: var(--mono); margin: 8px 0 10px; }
+.goal-numbers strong { font-size: var(--fs-hero); color: var(--money); line-height: 1.1; }
+.goal-meta { display: flex; gap: 10px; font-family: var(--mono); font-size: 12px; margin-top: 7px; }
+.goal-meta .goal-reached { color: var(--study); }
+.goal-meta > :last-child { margin-left: auto; }
+.goal-projection { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  font-family: var(--mono); font-size: 12px; margin-top: 10px;
+  padding-top: 10px; border-top: 1px solid var(--line2); }
+.goal-projection input { width: 84px; }
+.goal-projection strong { color: var(--money); }
+.goal-note { font-size: 12px; margin: 9px 0 0; line-height: 1.5; }
+
+.account-form { display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+  background: var(--panel2); border: 1px solid var(--line2); border-radius: 8px; padding: 10px; }
+.account-form input, .account-form select { min-width: 0; }
+.account-form input[placeholder="last 4"] { width: 72px; }
+.account-form label.inline { display: flex; align-items: center; gap: 5px;
+  font-family: var(--mono); font-size: 12px; color: var(--muted); }
+
+.account-table, .txn-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+.account-table td, .txn-table td { border-bottom: 1px solid var(--line2); padding: 8px 6px;
+  vertical-align: top; }
+.account-table td.num, .txn-table td.num { text-align: right; white-space: nowrap;
+  font-family: var(--mono); }
+.account-table tr.is-savings td:first-child { border-left: 2px solid var(--money); padding-left: 10px; }
+.account-table .linkish { text-align: right; padding: 0; font-size: var(--fs-body); color: var(--text); }
+.account-table .linkish:hover { color: var(--money); }
+.balance-edit { display: flex; gap: 6px; justify-content: flex-end; }
+.balance-edit input { width: 110px; text-align: right; }
+
+.txn-table .tag { font-family: var(--mono); font-size: 10px; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--muted); margin-left: 6px; }
+.txn-table .tag.cat { color: var(--cyan); }
+
+@media (max-width: 700px) {
+  .account-form { flex-direction: column; align-items: stretch; }
+  .goal-numbers strong { font-size: var(--fs-num); }
+}

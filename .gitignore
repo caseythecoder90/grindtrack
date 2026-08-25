@@ -13,6 +13,18 @@
 # Personal plan content — schema is in git, data is imported at runtime, never committed
 *.xlsx
 plan.json
+*.bak
+
+# Personal monthly focus notes — the file says it itself, and this repo is public
+focus.md
+
+# Financial data — never commit real bank/card statements or exports.
+# Test fixtures must be synthetic and live under src/test/resources.
+statements/
+*.csv
+*.ofx
+*.qfx
+!gt2/backend/src/test/resources/**/*.csv
 
 # Build output
 target/

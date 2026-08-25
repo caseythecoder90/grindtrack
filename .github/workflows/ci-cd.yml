@@ -73,7 +73,11 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
-  # --- Pull the new image on the VPS and restart -------------------------------
+  # --- Roll out the new image on the Kubernetes cluster ------------------------
+  # Cluster lives in the k8s-cluster-hetzner repo. KUBE_CONFIG is a base64
+  # kubeconfig for the least-privilege `ci-deployer` ServiceAccount in the
+  # grindtrack namespace — it can update Deployment images there and nothing
+  # else (no Secret access, no other namespaces).
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
@@ -82,43 +86,46 @@ jobs:
       group: deploy-production
       cancel-in-progress: false
     steps:
-      # Skip gracefully until the VPS secrets are configured, so merges to main
-      # don't show a red X before the first deployment is set up.
+      # Skip gracefully if the cluster secret isn't configured, so merges to
+      # main don't show a red X before deployment is set up.
       - name: Check deploy secrets
         id: check
         env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
         run: |
-          if [ -n "$VPS_HOST" ]; then
+          if [ -n "$KUBE_CONFIG" ]; then
             echo "configured=true" >> "$GITHUB_OUTPUT"
           else
             echo "configured=false" >> "$GITHUB_OUTPUT"
-            echo "VPS secrets not set — skipping deploy."
+            echo "KUBE_CONFIG not set — skipping deploy."
           fi
-      - name: Deploy to VPS over SSH
+
+      - name: Set up kubectl
         if: steps.check.outputs.configured == 'true'
-        uses: appleboy/ssh-action@v1
+        uses: azure/setup-kubectl@v4
         with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          script: |
-            set -e
-            cd /opt/grindtrack
-            git fetch origin main
-            git reset --hard origin/main       # pick up compose/config changes
-            cd gt2
-            docker compose -f docker-compose.prod.yml pull
-            docker compose -f docker-compose.prod.yml up -d
-            docker image prune -f
-            for i in $(seq 1 30); do
-              if docker compose -f docker-compose.prod.yml exec -T app \
-                   wget -qO- http://localhost:8080/api/public/stats > /dev/null 2>&1; then
-                echo "deploy healthy"
-                exit 0
-              fi
-              sleep 5
-            done
-            echo "health check failed after 150s"
-            docker compose -f docker-compose.prod.yml logs --tail 100 app
-            exit 1
+          version: v1.33.13          # matches the cluster
+
+      - name: Configure cluster access
+        if: steps.check.outputs.configured == 'true'
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Roll out the new image
+        if: steps.check.outputs.configured == 'true'
+        run: |
+          # short SHA matches docker/metadata-action's `type=sha,prefix=` tag
+          TAG=${GITHUB_SHA::7}
+          kubectl -n grindtrack set image deploy/grindtrack \
+            app=ghcr.io/caseythecoder90/grindtrack:$TAG
+          # readiness probe hits /api/public/stats, so a successful rollout
+          # already proves the app is healthy — no separate health loop needed
+          kubectl -n grindtrack rollout status deploy/grindtrack --timeout=300s
+
+      - name: Show pod state if the rollout failed
+        if: failure()
+        run: |
+          kubectl -n grindtrack get pods -l app=grindtrack
+          kubectl -n grindtrack logs -l app=grindtrack --tail=100 || true

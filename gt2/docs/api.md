@@ -77,3 +77,35 @@ and lives only in the database — nothing is seeded (the repo is public).
 | POST | `/api/work/skills` | Create: `{name, category?, detail?}` — name required; status defaults to `not_started` |
 | PATCH | `/api/work/skills/{id}` | Partial update `{name?, category?, detail?, status?, notes?, sortOrder?}`; status ∈ `not_started/in_progress/proficient`; 404 if missing |
 | DELETE | `/api/work/skills/{id}` | Remove a skill |
+
+## Finance (authenticated)
+
+Personal money tracking: accounts, transactions and savings goals. Like the Work tab, all content
+is user-entered and lives only in the database — nothing is seeded, and no statement file is ever
+committed (`statements/`, `*.csv`, `*.ofx`, `*.qfx` are gitignored).
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/finance/summary` | Dashboard payload: savings balance, net worth, goals with progress, accounts, uncategorized count |
+| GET | `/api/finance/accounts?includeInactive=false` | Accounts ordered by `sortOrder` then name |
+| POST | `/api/finance/accounts` | Create: `{name, institution, accountType, last4?, countsTowardSavings?, sortOrder?}` |
+| PUT | `/api/finance/accounts/{id}` | Full update, same body plus `active` |
+| PATCH | `/api/finance/accounts/{id}/balance` | `{balance, asOf?}` — sign is corrected server-side for cards and loans |
+| DELETE | `/api/finance/accounts/{id}` | Removes the account **and its transactions** (`ON DELETE CASCADE`) |
+| GET | `/api/finance/accounts/{id}/transactions` | Newest first |
+| GET | `/api/finance/transactions/uncategorized` | The review inbox; excludes transfers |
+| POST | `/api/finance/transactions` | Create: `{accountId, postedDate, transactionDate?, amount, description, txnType?, notes?}`. Omit `txnType` to let the server classify. Returns **409** if an identical row already exists. |
+| PATCH | `/api/finance/transactions/{id}/category` | `{category}` — sets `categorySource=MANUAL`, which automation may never overwrite |
+| PATCH | `/api/finance/transactions/{id}/type` | `{txnType}` ∈ `SPEND/INCOME/TRANSFER/PAYMENT` |
+| DELETE | `/api/finance/transactions/{id}` | Remove a transaction |
+| GET | `/api/finance/goals?includeInactive=false` | Goals with `currentAmount`, `remaining`, `progressPercent` |
+| POST | `/api/finance/goals` | Create: `{name, targetAmount, targetDate?, note?, sortOrder?}` |
+| PUT | `/api/finance/goals/{id}` | Full update, same body plus `active` |
+| DELETE | `/api/finance/goals/{id}` | Remove a goal |
+
+**Amount sign convention:** always signed, negative = money leaving the account, on every account
+type. Importers normalize into this from three different bank conventions.
+
+**Why `txnType` matters:** a credit-card payment is not an expense — the expense was the original
+purchase. `TRANSFER` and `PAYMENT` are excluded from every spend rollup, in the repository query
+rather than at the call site, so no future report can forget to do it.
