@@ -177,14 +177,103 @@ export interface Todo {
   sortOrder: number;
 }
 
+// --- finance ----------------------------------------------------------------
+
+export type Institution =
+  | "CAPITAL_ONE"
+  | "CHASE"
+  | "WELLS_FARGO"
+  | "BANK_OF_AMERICA"
+  | "AIDVANTAGE"
+  | "OTHER";
+
+export type AccountType = "CHECKING" | "SAVINGS" | "CREDIT_CARD" | "LOAN";
+
+/**
+ * SPEND and INCOME are real money movement. TRANSFER and PAYMENT are not — a card
+ * payment settles a purchase that was already counted, so including it would double
+ * count. The backend excludes both from every rollup.
+ */
+export type TxnType = "SPEND" | "INCOME" | "TRANSFER" | "PAYMENT";
+
+export type CategorySource = "UNCATEGORIZED" | "RULE" | "MANUAL";
+
+export interface FinanceAccount {
+  id: number;
+  name: string;
+  institution: Institution;
+  accountType: AccountType;
+  last4: string | null;
+  currentBalance: number;
+  balanceAsOf: string | null;
+  countsTowardSavings: boolean;
+  active: boolean;
+  sortOrder: number;
+  transactionCount: number;
+}
+
+export interface FinanceTransaction {
+  id: number;
+  accountId: number;
+  postedDate: string;
+  transactionDate: string | null;
+  amount: number;
+  description: string;
+  merchant: string | null;
+  txnType: TxnType;
+  category: string | null;
+  issuerCategory: string | null;
+  categorySource: CategorySource;
+  pending: boolean;
+  notes: string;
+}
+
+export interface SavingsGoal {
+  id: number;
+  name: string;
+  targetAmount: number;
+  targetDate: string | null;
+  note: string;
+  active: boolean;
+  sortOrder: number;
+  currentAmount: number;
+  remaining: number;
+  progressPercent: number;
+}
+
+export interface FinanceSummary {
+  savingsBalance: number;
+  netWorth: number;
+  goals: SavingsGoal[];
+  accounts: FinanceAccount[];
+  uncategorizedCount: number;
+}
+
+export const INSTITUTION_LABELS: Record<Institution, string> = {
+  CAPITAL_ONE: "Capital One",
+  CHASE: "Chase",
+  WELLS_FARGO: "Wells Fargo",
+  BANK_OF_AMERICA: "Bank of America",
+  AIDVANTAGE: "Aidvantage",
+  OTHER: "Other",
+};
+
+export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
+  CHECKING: "checking",
+  SAVINGS: "savings",
+  CREDIT_CARD: "credit card",
+  LOAN: "loan",
+};
+
 // --- app constants ----------------------------------------------------------
 
 export const CATEGORIES = [
   "Certs",
   "Protocols & security",
   "Distributed systems",
-  "Go",
   "Java",
+  "TypeScript & React",
+  "Linux",
   "Payments",
   "Projects",
   "Open source",

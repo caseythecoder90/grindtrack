@@ -77,5 +77,42 @@ entity "plan_reference" as plan_reference #FFF3D6 {
   sort_order : int
 }
 
+entity "finance_accounts" as finance_accounts #D6ECFF {
+  * id : bigint <<PK, identity>>
+  --
+  name / institution / account_type : text (CHECK)
+  last4 : text (leading zeros are real)
+  current_balance : numeric(12,2) (liabilities negative)
+  balance_as_of : date
+  counts_toward_savings / active : boolean
+  sort_order : int
+}
+entity "finance_transactions" as finance_transactions #D6ECFF {
+  * id : bigint <<PK, identity>>
+  --
+  * account_id : bigint <<FK, cascade>>
+  * posted_date : date
+  transaction_date : date
+  * amount : numeric(12,2) (signed, − = out)
+  raw_description : text (never edited)
+  merchant : text (normalized)
+  txn_type : SPEND/INCOME/TRANSFER/PAYMENT
+  category / issuer_category : text
+  category_source : UNCATEGORIZED/RULE/MANUAL
+  pending : boolean
+  * fingerprint : text <<UNIQUE per account>>
+}
+entity "finance_savings_goals" as finance_savings_goals #D6ECFF {
+  * id : bigint <<PK, identity>>
+  --
+  name : text
+  target_amount : numeric(12,2)
+  target_date : date
+  note : text (why this number)
+  active : boolean
+  sort_order : int
+}
+
 users ||--o{ refresh_tokens
+finance_accounts ||--o{ finance_transactions
 @enduml

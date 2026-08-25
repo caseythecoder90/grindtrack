@@ -17,3 +17,5 @@ databaseChangeLog:
       file: db/changelog/008-focus-kind.sql
   - include:
       file: db/changelog/009-todos.sql
+  - include:
+      file: db/changelog/010-finance.sql
