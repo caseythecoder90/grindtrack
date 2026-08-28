@@ -6,6 +6,7 @@ import FinancePage from "./features/finance/FinancePage";
 import FocusPage from "./features/focus/FocusPage";
 import Landing from "./features/landing/Landing";
 import PlanPage from "./features/plan/PlanPage";
+import RelationshipPage from "./features/relationship/RelationshipPage";
 import StatsPage from "./features/tracking/StatsPage";
 import Today from "./features/tracking/Today";
 import Week from "./features/tracking/Week";
@@ -15,9 +16,9 @@ import { api, AuthError } from "./lib/api";
 import type { Scope, Stats } from "./lib/types";
 
 type View = "landing" | "login" | "app";
-type Tab = "today" | "focus" | "todos" | "plan" | "work" | "money" | "week" | "stats";
+type Tab = "today" | "focus" | "todos" | "plan" | "work" | "money" | "us" | "week" | "stats";
 
-const TABS: Tab[] = ["today", "focus", "todos", "plan", "work", "money", "week", "stats"];
+const TABS: Tab[] = ["today", "focus", "todos", "plan", "work", "money", "us", "week", "stats"];
 
 const SCOPE_KEY = "gt-scope";
 
@@ -104,6 +105,7 @@ export default function App() {
           {tab === "plan" && <PlanPage />}
           {tab === "work" && <WorkPage onSaved={refreshHeader} />}
           {tab === "money" && <FinancePage />}
+          {tab === "us" && <RelationshipPage />}
           {tab === "week" && <Week />}
           {tab === "stats" && stats && <StatsPage stats={stats} scope={scope} />}
         </>

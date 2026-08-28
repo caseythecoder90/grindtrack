@@ -25,3 +25,7 @@ databaseChangeLog:
       file: db/changelog/012-finance-import-balance-snapshot.sql
   - include:
       file: db/changelog/013-finance-category-rules.sql
+  - include:
+      file: db/changelog/014-finance-budgets.sql
+  - include:
+      file: db/changelog/015-relationship.sql

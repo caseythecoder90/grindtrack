@@ -316,6 +316,112 @@ export interface SpendSummary {
   topMerchants: CategoryTotal[];
 }
 
+/** One month of totals, for comparing months against each other. `spend` is positive. */
+export interface MonthTotal {
+  month: string;
+  spend: number;
+  income: number;
+  net: number;
+  /** True for the month in progress, which is always short and must be labelled as such. */
+  partial: boolean;
+}
+
+/** A charge that comes back on a rhythm. */
+export interface Recurring {
+  merchant: string;
+  category: string | null;
+  cadence: "WEEKLY" | "FORTNIGHTLY" | "MONTHLY" | "QUARTERLY" | "YEARLY";
+  occurrences: number;
+  typicalAmount: number;
+  /** Cost per month once cadence is accounted for, so cadences can be added together. */
+  monthlyEquivalent: number;
+  lowest: number;
+  highest: number;
+  /** The amount moves around: a utility rather than a subscription. */
+  variable: boolean;
+  /** Nothing seen for a while. Cancelled, or about to reappear. */
+  lapsed: boolean;
+  firstSeen: string;
+  lastSeen: string;
+  nextExpected: string;
+}
+
+export interface RecurringReport {
+  monthlyCommitment: number;
+  liveCount: number;
+  lapsedCount: number;
+  items: Recurring[];
+}
+
+/** The recurring plan: what a category costs in a normal month. */
+export interface BudgetLine {
+  id: number;
+  category: string;
+  monthlyAmount: number;
+  note: string;
+  active: boolean;
+  sortOrder: number;
+}
+
+/**
+ * Something that only happens in one month. Negative is a one-off cost, positive is one-off money
+ * in. Tagging a category makes a cost raise that category for the month only.
+ */
+export interface BudgetExtra {
+  id: number;
+  month: string;
+  label: string;
+  amount: number;
+  category: string | null;
+  note: string;
+}
+
+export type BudgetPace = "UNDER" | "ON_TRACK" | "AHEAD_OF_PACE" | "EXCEEDED" | "WITHIN";
+
+/** Where one category stands this month. Every figure is positive. */
+export interface BudgetCategoryLine {
+  budgetId: number;
+  category: string;
+  budget: number;
+  extra: number;
+  planned: number;
+  spent: number;
+  /** Negative means over. Shown that way, because how far over is what changes behaviour. */
+  left: number;
+  percentUsed: number;
+  pace: BudgetPace;
+  extraLabels: string[];
+}
+
+export interface UnbudgetedLine {
+  category: string | null;
+  spent: number;
+  count: number;
+}
+
+/** One month, fully reconciled: the plan, the one-offs, and what actually happened. */
+export interface BudgetMonth {
+  month: string;
+  monthLabel: string;
+  dayOfMonth: number;
+  daysInMonth: number;
+  currentMonth: boolean;
+  expectedIncome: number;
+  /** True when income was inferred from a trailing average rather than declared. */
+  incomeIsEstimated: boolean;
+  incomeSoFar: number;
+  planned: number;
+  spent: number;
+  leftToSpend: number;
+  projectedNet: number;
+  expectedSpentByNow: number;
+  extraExpenses: number;
+  extraIncome: number;
+  categories: BudgetCategoryLine[];
+  unbudgeted: UnbudgetedLine[];
+  extras: BudgetExtra[];
+}
+
 export interface FinanceSummary {
   savingsBalance: number;
   netWorth: number;
@@ -359,3 +465,101 @@ export const CATEGORIES = [
 ];
 
 export const WEEKLY_TARGET = TARGETS.study;
+
+/* ---------------------------------------------------------------- the us tab */
+
+export type MomentKind =
+  | "DATE_NIGHT"
+  | "NOTE_LEFT"
+  | "GIFT_GIVEN"
+  | "INTIMACY"
+  | "CONVERSATION"
+  | "TRIP"
+  | "GESTURE";
+
+export type IdeaKind = "GIFT" | "DATE" | "GESTURE";
+export type IdeaStatus = "IDEA" | "PLANNED" | "DONE";
+export type Effort = "SMALL" | "MEDIUM" | "BIG";
+export type ReadingKind = "ARTICLE" | "BOOK" | "PODCAST";
+export type ReadingStatus = "TO_READ" | "READ";
+
+export interface Moment {
+  id: number;
+  occurredOn: string;
+  kind: MomentKind;
+  note: string;
+  /** Optional 1-3: how the week felt, to you. Never charted. */
+  feltClose: number | null;
+  /** True for kinds the discreet toggle hides. */
+  isPrivate: boolean;
+}
+
+/** When something last happened. `daysSince` is null for never, which must not look like zero. */
+export interface Recency {
+  kind: MomentKind;
+  lastOn: string | null;
+  daysSince: number | null;
+  note: string | null;
+}
+
+/**
+ * Deliberately three tones and no warning. There is no red state for this card and there must
+ * never be one — the whole feature exists to settle a question, not to grade an answer.
+ */
+export type PerspectiveTone = "CALM" | "NEUTRAL" | "SUGGEST";
+
+export interface Perspective {
+  headline: string;
+  detail: string;
+  tone: PerspectiveTone;
+}
+
+export interface Closeness {
+  /** The last few, as dates. This is the thing that actually answers the question. */
+  recentDates: string[];
+  daysSince: number | null;
+  lastThirtyDays: number;
+  /** Your own trailing average. The only baseline used anywhere. */
+  typicalPerMonth: number | null;
+  perspective: Perspective;
+}
+
+export interface Upcoming {
+  id: number;
+  label: string;
+  on: string;
+  daysAway: number;
+  years: number | null;
+  ideaCount: number;
+  note: string;
+}
+
+export interface Idea {
+  id: number;
+  kind: IdeaKind;
+  title: string;
+  detail: string;
+  occasion: string | null;
+  estCost: number | null;
+  effort: Effort | null;
+  status: IdeaStatus;
+}
+
+export interface ReadingItem {
+  id: number;
+  title: string;
+  url: string | null;
+  source: string | null;
+  kind: ReadingKind;
+  status: ReadingStatus;
+  takeaway: string;
+  readOn: string | null;
+}
+
+export interface RelationshipSummary {
+  recency: Recency[];
+  closeness: Closeness;
+  upcoming: Upcoming[];
+  readyIdeas: Idea[];
+  lately: Moment[];
+}
