@@ -1,5 +1,6 @@
 package dev.grindtrack.finance.domain;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
@@ -77,6 +78,27 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
           + "ORDER BY SUM(t.amount) ASC")
   List<CategoryTotal> spendByCategoryBetween(
       @Param("from") LocalDate from, @Param("to") LocalDate to);
+
+  /**
+   * Total spending over a window, negative, with the same exclusions as every other rollup.
+   *
+   * <p>Returns zero rather than null for an empty window, so callers never have to null-check a
+   * figure they are about to subtract from a budget.
+   */
+  @Query(
+      "SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t "
+          + "WHERE t.postedDate BETWEEN :from AND :to "
+          + "AND t.txnType = dev.grindtrack.finance.domain.TxnType.SPEND "
+          + "AND t.pending = false")
+  BigDecimal sumSpendBetween(@Param("from") LocalDate from, @Param("to") LocalDate to);
+
+  /** Total income over a window, positive. Drives the trailing average behind expected income. */
+  @Query(
+      "SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t "
+          + "WHERE t.postedDate BETWEEN :from AND :to "
+          + "AND t.txnType = dev.grindtrack.finance.domain.TxnType.INCOME "
+          + "AND t.pending = false")
+  BigDecimal sumIncomeBetween(@Param("from") LocalDate from, @Param("to") LocalDate to);
 
   /** Merchant totals inside one category, so a surprising category can be opened up. */
   @Query(

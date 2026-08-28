@@ -13,6 +13,8 @@ import dev.grindtrack.finance.domain.TxnType;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.YearMonth;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
@@ -267,6 +269,35 @@ public class FinanceService {
       int transactionCount,
       List<CategoryTotal> byCategory,
       List<CategoryTotal> topMerchants) {}
+
+  /**
+   * One month of totals, for comparing months against each other.
+   *
+   * @param spend positive, unlike the stored convention — a bar chart of negative numbers is a
+   *     needless puzzle, and this record exists only to be displayed
+   */
+  public record MonthTotal(
+      String month, BigDecimal spend, BigDecimal income, BigDecimal net, boolean partial) {}
+
+  /**
+   * The last {@code count} months, oldest first.
+   *
+   * <p>The current month is marked partial rather than omitted. Dropping it hides where you are
+   * right now, and including it unmarked makes every month look like a collapse in spending on the
+   * 3rd.
+   */
+  public List<MonthTotal> monthlyTotals(int count) {
+    YearMonth current = YearMonth.now();
+    List<MonthTotal> out = new ArrayList<>();
+    for (int i = count - 1; i >= 0; i--) {
+      YearMonth m = current.minusMonths(i);
+      BigDecimal spend = transactions.sumSpendBetween(m.atDay(1), m.atEndOfMonth()).abs();
+      BigDecimal income = transactions.sumIncomeBetween(m.atDay(1), m.atEndOfMonth());
+      out.add(
+          new MonthTotal(m.toString(), spend, income, income.subtract(spend), m.equals(current)));
+    }
+    return out;
+  }
 
   public SpendSummary spendBetween(LocalDate from, LocalDate to) {
     List<Transaction> countable = transactions.findCountableBetween(from, to);

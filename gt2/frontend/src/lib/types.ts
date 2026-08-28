@@ -316,6 +316,112 @@ export interface SpendSummary {
   topMerchants: CategoryTotal[];
 }
 
+/** One month of totals, for comparing months against each other. `spend` is positive. */
+export interface MonthTotal {
+  month: string;
+  spend: number;
+  income: number;
+  net: number;
+  /** True for the month in progress, which is always short and must be labelled as such. */
+  partial: boolean;
+}
+
+/** A charge that comes back on a rhythm. */
+export interface Recurring {
+  merchant: string;
+  category: string | null;
+  cadence: "WEEKLY" | "FORTNIGHTLY" | "MONTHLY" | "QUARTERLY" | "YEARLY";
+  occurrences: number;
+  typicalAmount: number;
+  /** Cost per month once cadence is accounted for, so cadences can be added together. */
+  monthlyEquivalent: number;
+  lowest: number;
+  highest: number;
+  /** The amount moves around: a utility rather than a subscription. */
+  variable: boolean;
+  /** Nothing seen for a while. Cancelled, or about to reappear. */
+  lapsed: boolean;
+  firstSeen: string;
+  lastSeen: string;
+  nextExpected: string;
+}
+
+export interface RecurringReport {
+  monthlyCommitment: number;
+  liveCount: number;
+  lapsedCount: number;
+  items: Recurring[];
+}
+
+/** The recurring plan: what a category costs in a normal month. */
+export interface BudgetLine {
+  id: number;
+  category: string;
+  monthlyAmount: number;
+  note: string;
+  active: boolean;
+  sortOrder: number;
+}
+
+/**
+ * Something that only happens in one month. Negative is a one-off cost, positive is one-off money
+ * in. Tagging a category makes a cost raise that category for the month only.
+ */
+export interface BudgetExtra {
+  id: number;
+  month: string;
+  label: string;
+  amount: number;
+  category: string | null;
+  note: string;
+}
+
+export type BudgetPace = "UNDER" | "ON_TRACK" | "AHEAD_OF_PACE" | "EXCEEDED" | "WITHIN";
+
+/** Where one category stands this month. Every figure is positive. */
+export interface BudgetCategoryLine {
+  budgetId: number;
+  category: string;
+  budget: number;
+  extra: number;
+  planned: number;
+  spent: number;
+  /** Negative means over. Shown that way, because how far over is what changes behaviour. */
+  left: number;
+  percentUsed: number;
+  pace: BudgetPace;
+  extraLabels: string[];
+}
+
+export interface UnbudgetedLine {
+  category: string | null;
+  spent: number;
+  count: number;
+}
+
+/** One month, fully reconciled: the plan, the one-offs, and what actually happened. */
+export interface BudgetMonth {
+  month: string;
+  monthLabel: string;
+  dayOfMonth: number;
+  daysInMonth: number;
+  currentMonth: boolean;
+  expectedIncome: number;
+  /** True when income was inferred from a trailing average rather than declared. */
+  incomeIsEstimated: boolean;
+  incomeSoFar: number;
+  planned: number;
+  spent: number;
+  leftToSpend: number;
+  projectedNet: number;
+  expectedSpentByNow: number;
+  extraExpenses: number;
+  extraIncome: number;
+  categories: BudgetCategoryLine[];
+  unbudgeted: UnbudgetedLine[];
+  extras: BudgetExtra[];
+}
+
 export interface FinanceSummary {
   savingsBalance: number;
   netWorth: number;
