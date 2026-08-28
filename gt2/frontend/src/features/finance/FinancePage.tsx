@@ -3,7 +3,11 @@ import { api, jsonInit } from "../../lib/api";
 import { todayISO } from "../../lib/dates";
 import type { FinanceSummary, FinanceTransaction, TxnType } from "../../lib/types";
 import AccountsPanel from "./AccountsPanel";
+import CategoryRulesPanel from "./CategoryRulesPanel";
+import ImportPanel from "./ImportPanel";
+import ReviewInbox from "./ReviewInbox";
 import SavingsGoalCard from "./SavingsGoalCard";
+import SpendingPanel from "./SpendingPanel";
 import { money, moneyWhole, signed } from "./money";
 
 const TXN_TYPES: TxnType[] = ["SPEND", "INCOME", "TRANSFER", "PAYMENT"];
@@ -11,10 +15,10 @@ const TXN_TYPES: TxnType[] = ["SPEND", "INCOME", "TRANSFER", "PAYMENT"];
 /**
  * The finance tab.
  *
- * <p>Phase 1: accounts, balances, hand-entered transactions and the savings goal. Statement
- * importing, category rules and the day/week/month/year rollups land in later phases — but the
- * data model underneath already carries transaction type, dedupe fingerprints and sticky
- * categorization, so none of that needs a migration to arrive.
+ * <p>Accounts and balances, the savings goal, statement import, the review list for rows no rule
+ * could place, category rules, and where the money went. Every spending figure on this page
+ * excludes transfers and card payments, which is the difference between a number worth acting on
+ * and one that is roughly twice the truth.
  */
 export default function FinancePage() {
   const [summary, setSummary] = useState<FinanceSummary | null>(null);
@@ -33,6 +37,9 @@ export default function FinancePage() {
   const [description, setDescription] = useState("");
   const [txnType, setTxnType] = useState<TxnType | "">("");
   const [recent, setRecent] = useState<FinanceTransaction[]>([]);
+  // Bumped whenever categorization changes, so the spending breakdown re-reads rather than
+  // showing totals that predate the rule the user just wrote.
+  const [revision, setRevision] = useState(0);
 
   const load = useCallback(async () => {
     setError("");
@@ -185,6 +192,34 @@ export default function FinancePage() {
       </section>
 
       <AccountsPanel accounts={summary.accounts} onChange={load} />
+
+      {summary.accounts.length > 0 && (
+        <ImportPanel
+          accounts={summary.accounts}
+          onImported={() => {
+            load();
+            setRevision((n) => n + 1);
+            if (typeof accountId === "number") loadRecent(accountId);
+          }}
+        />
+      )}
+
+      <SpendingPanel key={`spend-${revision}`} />
+
+      <ReviewInbox
+        key={`review-${revision}`}
+        onChange={() => {
+          load();
+          setRevision((n) => n + 1);
+        }}
+      />
+
+      <CategoryRulesPanel
+        onChange={() => {
+          load();
+          setRevision((n) => n + 1);
+        }}
+      />
 
       {summary.accounts.length > 0 && (
         <section>

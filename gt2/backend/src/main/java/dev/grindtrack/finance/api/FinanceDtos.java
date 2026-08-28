@@ -1,6 +1,7 @@
 package dev.grindtrack.finance.api;
 
 import dev.grindtrack.finance.domain.Account;
+import dev.grindtrack.finance.domain.CategoryRule;
 import dev.grindtrack.finance.domain.SavingsGoal;
 import dev.grindtrack.finance.domain.Transaction;
 import java.math.BigDecimal;
@@ -138,6 +139,37 @@ public final class FinanceDtos {
           current,
           remaining,
           percent);
+    }
+  }
+
+  // ------------------------------------------------------------------ rules
+
+  public record RuleRequest(
+      String pattern, String matchType, String category, Integer priority, Boolean active) {}
+
+  /** Applying a category by hand, optionally teaching the app to do it next time. */
+  public record CategorizeAndLearnRequest(String category, Boolean createRule) {}
+
+  public record RuleResponse(
+      Long id,
+      String pattern,
+      String matchType,
+      String category,
+      int priority,
+      boolean active,
+      int hitCount,
+      String lastApplied) {
+
+    public static RuleResponse from(CategoryRule r) {
+      return new RuleResponse(
+          r.getId(),
+          r.getPattern(),
+          r.getMatchType().name(),
+          r.getCategory(),
+          r.getPriority(),
+          r.isActive(),
+          r.getHitCount(),
+          r.getLastApplied() == null ? null : r.getLastApplied().toString());
     }
   }
 

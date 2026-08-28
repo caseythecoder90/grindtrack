@@ -66,6 +66,15 @@ public class Transaction {
   @Column(name = "category_source", nullable = false)
   private CategorySource categorySource = CategorySource.UNCATEGORIZED;
 
+  /**
+   * Reserved, and currently always false.
+   *
+   * <p>Wells Fargo is the only institution that exports unsettled rows, and its parser holds them
+   * back rather than importing them -- a pending amount changes when it settles, so the settled row
+   * would not match the pending row's fingerprint and the same purchase would land twice. Nothing
+   * therefore ever sets this true today. The column stays because the rollup queries already
+   * exclude on it, so importing pending rows later is a parser change rather than a schema change.
+   */
   @Column(nullable = false)
   private boolean pending = false;
 
@@ -74,6 +83,10 @@ public class Transaction {
 
   @Column(nullable = false)
   private String notes = "";
+
+  /** Null for rows entered by hand; set when a row came from an uploaded statement. */
+  @Column(name = "import_batch_id")
+  private Long importBatchId;
 
   @Column(name = "created_at", nullable = false)
   private OffsetDateTime createdAt = OffsetDateTime.now();
@@ -180,6 +193,15 @@ public class Transaction {
 
   public String getNotes() {
     return notes;
+  }
+
+  public Long getImportBatchId() {
+    return importBatchId;
+  }
+
+  /** Links this row to the upload it arrived in, so the whole batch can be undone together. */
+  public void attachToBatch(Long batchId) {
+    this.importBatchId = batchId;
   }
 
   /** Fields an importer owns. Never touches category — see {@link #categorizeByRule}. */

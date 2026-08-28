@@ -3,24 +3,31 @@ package dev.grindtrack.finance.api;
 import dev.grindtrack.finance.api.FinanceDtos.AccountRequest;
 import dev.grindtrack.finance.api.FinanceDtos.AccountResponse;
 import dev.grindtrack.finance.api.FinanceDtos.BalanceRequest;
+import dev.grindtrack.finance.api.FinanceDtos.CategorizeAndLearnRequest;
 import dev.grindtrack.finance.api.FinanceDtos.CategorizeRequest;
 import dev.grindtrack.finance.api.FinanceDtos.GoalRequest;
 import dev.grindtrack.finance.api.FinanceDtos.GoalResponse;
 import dev.grindtrack.finance.api.FinanceDtos.ReclassifyRequest;
+import dev.grindtrack.finance.api.FinanceDtos.RuleRequest;
+import dev.grindtrack.finance.api.FinanceDtos.RuleResponse;
 import dev.grindtrack.finance.api.FinanceDtos.SummaryResponse;
 import dev.grindtrack.finance.api.FinanceDtos.TransactionRequest;
 import dev.grindtrack.finance.api.FinanceDtos.TransactionResponse;
 import dev.grindtrack.finance.domain.Account;
 import dev.grindtrack.finance.domain.AccountType;
+import dev.grindtrack.finance.domain.CategoryRule;
 import dev.grindtrack.finance.domain.Institution;
+import dev.grindtrack.finance.domain.MatchType;
 import dev.grindtrack.finance.domain.SavingsGoal;
 import dev.grindtrack.finance.domain.Transaction;
 import dev.grindtrack.finance.domain.TransactionRepository;
 import dev.grindtrack.finance.domain.TxnType;
+import dev.grindtrack.finance.service.CategoryRuleService;
 import dev.grindtrack.finance.service.FinanceService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -54,10 +61,13 @@ public class FinanceController {
 
   private final FinanceService finance;
   private final TransactionRepository transactions;
+  private final CategoryRuleService rules;
 
-  public FinanceController(FinanceService finance, TransactionRepository transactions) {
+  public FinanceController(
+      FinanceService finance, TransactionRepository transactions, CategoryRuleService rules) {
     this.finance = finance;
     this.transactions = transactions;
+    this.rules = rules;
   }
 
   // ------------------------------------------------------------- dashboard
@@ -66,13 +76,83 @@ public class FinanceController {
   public SummaryResponse summary() {
     List<AccountResponse> accounts =
         finance.listAccounts(false).stream().map(this::toAccountResponse).toList();
-    List<GoalResponse> goals = finance.listGoals(false).stream().map(this::toGoalResponse).toList();
+    // Read the savings total once and hand it down: every goal needs it twice, and re-querying it
+    // per goal made the dashboard issue the same SUM four or five times per load.
+    BigDecimal savings = finance.savingsBalance();
+    List<GoalResponse> goals =
+        finance.listGoals(false).stream().map(g -> toGoalResponse(g, savings)).toList();
     return new SummaryResponse(
-        finance.savingsBalance(),
-        finance.netWorth(),
-        goals,
-        accounts,
-        finance.listUncategorized().size());
+        savings, finance.netWorth(), goals, accounts, finance.listUncategorized().size());
+  }
+
+  /**
+   * Where the money went, over a window.
+   *
+   * <p>Defaults to the last 30 days. Transfers and card payments are excluded by the query, so
+   * these totals are spending rather than movement.
+   */
+  @GetMapping("/spending")
+  public FinanceService.SpendSummary spending(
+      @RequestParam(required = false) String from, @RequestParam(required = false) String to) {
+    LocalDate end = from == null && to == null ? LocalDate.now() : optionalDate(to);
+    LocalDate start = optionalDate(from);
+    if (end == null) {
+      end = LocalDate.now();
+    }
+    if (start == null) {
+      start = end.minusDays(30);
+    }
+    if (start.isAfter(end)) {
+      throw new BadRequest("from must be on or before to");
+    }
+    return finance.spendBetween(start, end);
+  }
+
+  // ------------------------------------------------------------------ rules
+
+  @GetMapping("/rules")
+  public List<RuleResponse> listRules(
+      @RequestParam(defaultValue = "true") boolean includeInactive) {
+    return rules.list(includeInactive).stream().map(RuleResponse::from).toList();
+  }
+
+  @PostMapping("/rules")
+  public RuleResponse createRule(@RequestBody RuleRequest body) {
+    return RuleResponse.from(
+        rules.create(
+            body.pattern(),
+            matchType(body.matchType()),
+            body.category(),
+            body.priority() == null ? 100 : body.priority()));
+  }
+
+  @PutMapping("/rules/{id}")
+  public RuleResponse updateRule(@PathVariable Long id, @RequestBody RuleRequest body) {
+    return RuleResponse.from(
+        rules.update(
+            id,
+            body.pattern(),
+            matchType(body.matchType()),
+            body.category(),
+            body.priority() == null ? 100 : body.priority(),
+            body.active() == null || body.active()));
+  }
+
+  @DeleteMapping("/rules/{id}")
+  public ResponseEntity<?> deleteRule(@PathVariable Long id) {
+    rules.delete(id);
+    return ResponseEntity.ok(Map.of("deleted", id));
+  }
+
+  /**
+   * Re-runs every rule over the whole history.
+   *
+   * <p>The operation that makes writing a rule worth it: rows imported before the rule existed get
+   * filed by it too. Hand-corrected rows are never touched.
+   */
+  @PostMapping("/rules/apply")
+  public CategoryRuleService.ApplyResult applyRules() {
+    return rules.backfill();
   }
 
   // ---------------------------------------------------------------- accounts
@@ -174,6 +254,35 @@ public class FinanceController {
     return TransactionResponse.from(finance.categorize(id, body.category()));
   }
 
+  /**
+   * Categorizes a row and, optionally, teaches the app to do it next time.
+   *
+   * <p>This is the review inbox's whole reason to exist. Fixing one row is tedious; fixing one row
+   * and never being asked about that merchant again is a workflow. The rule is created from the
+   * normalized merchant, which is already stripped of the store number and city that would
+   * otherwise make it match exactly one purchase.
+   *
+   * @return the updated row, plus the rule if one was created and {@code ruleExisted} when a rule
+   *     for that merchant was already on file
+   */
+  @PostMapping("/transactions/{id}/categorize")
+  public Map<String, Object> categorizeAndLearn(
+      @PathVariable Long id, @RequestBody CategorizeAndLearnRequest body) {
+    if (body.category() == null || body.category().isBlank()) {
+      throw new BadRequest("a category is required");
+    }
+    Transaction saved = finance.categorize(id, body.category());
+    Map<String, Object> response = new LinkedHashMap<>();
+    response.put("transaction", TransactionResponse.from(saved));
+
+    if (Boolean.TRUE.equals(body.createRule())) {
+      Optional<CategoryRule> rule = rules.promote(id, body.category());
+      response.put("rule", rule.map(RuleResponse::from).orElse(null));
+      response.put("ruleExisted", rule.isEmpty());
+    }
+    return response;
+  }
+
   @PatchMapping("/transactions/{id}/type")
   public TransactionResponse reclassify(
       @PathVariable Long id, @RequestBody ReclassifyRequest body) {
@@ -235,7 +344,11 @@ public class FinanceController {
   }
 
   private GoalResponse toGoalResponse(SavingsGoal g) {
-    return GoalResponse.from(g, finance.savingsBalance(), finance.progressPercent(g));
+    return toGoalResponse(g, finance.savingsBalance());
+  }
+
+  private GoalResponse toGoalResponse(SavingsGoal g, BigDecimal savings) {
+    return GoalResponse.from(g, savings, finance.progressPercent(g, savings));
   }
 
   // ---------- validation ----------
@@ -281,6 +394,17 @@ public class FinanceController {
     }
   }
 
+  private static MatchType matchType(String value) {
+    if (value == null || value.isBlank()) {
+      return MatchType.CONTAINS;
+    }
+    try {
+      return MatchType.valueOf(value.trim().toUpperCase());
+    } catch (IllegalArgumentException e) {
+      throw new BadRequest("matchType must be CONTAINS, EQUALS or REGEX");
+    }
+  }
+
   private static TxnType optionalTxnType(String value) {
     if (value == null || value.isBlank()) {
       return null;
@@ -319,6 +443,15 @@ public class FinanceController {
   @ExceptionHandler(NoSuchElementException.class)
   ResponseEntity<Map<String, String>> onNotFound(NoSuchElementException e) {
     return ResponseEntity.status(404).body(Map.of("error", "not found: " + e.getMessage()));
+  }
+
+  /**
+   * Rule validation failures. The messages are written for the person who typed the rule -- a bad
+   * regex or a pattern another rule already claims -- so they reach the form rather than the log.
+   */
+  @ExceptionHandler(IllegalArgumentException.class)
+  ResponseEntity<Map<String, String>> onInvalid(IllegalArgumentException e) {
+    return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
   }
 
   private static final class BadRequest extends RuntimeException {
