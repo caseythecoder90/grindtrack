@@ -1,0 +1,14 @@
+# Normalize every text file to LF in the repository.
+#
+# Without this, a file authored on Windows can land in a commit with CRLF while every other file
+# has LF. That builds fine locally -- spotless resolves line endings platform-natively -- and then
+# fails only in CI on Linux, which is an expensive way to find out. BudgetService.java did exactly
+# that.
+* text=auto eol=lf
+
+# Binaries git must never touch.
+*.png binary
+*.jpg binary
+*.svg text eol=lf
+*.pdf binary
+*.ico binary
