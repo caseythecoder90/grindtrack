@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, jsonInit } from "../../lib/api";
+import { errorMessage } from "../../lib/api";
+import {
+  createBudgetExtra,
+  createBudgetLine,
+  deleteBudgetExtra,
+  deleteBudgetLine,
+  getBudgetMonth,
+  setExpectedIncome,
+} from "./financeApi";
 import type { BudgetCategoryLine, BudgetMonth, BudgetPace } from "../../lib/types";
 import { categoryOptions } from "./categories";
 import { money, moneyWhole } from "./money";
@@ -56,9 +64,9 @@ export default function BudgetPanel({ onChange }: { onChange: () => void }) {
   const load = useCallback(async (key: string) => {
     setError("");
     try {
-      setView(await api<BudgetMonth>(`/api/finance/budget/month?month=${key}`));
+      setView(await getBudgetMonth(key));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "could not load your budget");
+      setError(errorMessage(e, "could not load your budget"));
     }
   }, []);
 
@@ -71,22 +79,19 @@ export default function BudgetPanel({ onChange }: { onChange: () => void }) {
     setBusy(true);
     setError("");
     try {
-      await api(
-        "/api/finance/budget/lines",
-        jsonInit("POST", {
-          category: lineCategory,
-          monthlyAmount: Math.abs(Number(lineAmount)),
-          note: "",
-          sortOrder: view?.categories.length ?? 0,
-        }),
-      );
+      await createBudgetLine({
+        category: lineCategory,
+        monthlyAmount: Math.abs(Number(lineAmount)),
+        note: "",
+        sortOrder: view?.categories.length ?? 0,
+      });
       setLineCategory("");
       setLineAmount("");
       setAddingLine(false);
       load(month);
       onChange();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "could not save that budget line");
+      setError(errorMessage(e, "could not save that budget line"));
     } finally {
       setBusy(false);
     }
@@ -95,11 +100,11 @@ export default function BudgetPanel({ onChange }: { onChange: () => void }) {
   async function removeLine(line: BudgetCategoryLine) {
     setError("");
     try {
-      await api(`/api/finance/budget/lines/${line.budgetId}`, { method: "DELETE" });
+      await deleteBudgetLine(line.budgetId);
       load(month);
       onChange();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "could not remove that line");
+      setError(errorMessage(e, "could not remove that line"));
     }
   }
 
@@ -108,25 +113,22 @@ export default function BudgetPanel({ onChange }: { onChange: () => void }) {
     setBusy(true);
     setError("");
     try {
-      await api(
-        "/api/finance/budget/extras",
-        jsonInit("POST", {
-          month,
-          label: extraLabel,
-          // Typed as a plain number and treated as a cost, which is what an "extra" nearly always
-          // is. A refund is entered with a minus, and the form says so.
-          amount: -Math.abs(Number(extraAmount)),
-          category: extraCategory || null,
-          note: "",
-        }),
-      );
+      await createBudgetExtra({
+        month,
+        label: extraLabel,
+        // Typed as a plain number and treated as a cost, which is what an "extra" nearly always
+        // is. A refund is entered with a minus, and the form says so.
+        amount: -Math.abs(Number(extraAmount)),
+        category: extraCategory || null,
+        note: "",
+      });
       setExtraLabel("");
       setExtraAmount("");
       setExtraCategory("");
       setAddingExtra(false);
       load(month);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "could not add that item");
+      setError(errorMessage(e, "could not add that item"));
     } finally {
       setBusy(false);
     }
@@ -135,10 +137,10 @@ export default function BudgetPanel({ onChange }: { onChange: () => void }) {
   async function removeExtra(id: number) {
     setError("");
     try {
-      await api(`/api/finance/budget/extras/${id}`, { method: "DELETE" });
+      await deleteBudgetExtra(id);
       load(month);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "could not remove that item");
+      setError(errorMessage(e, "could not remove that item"));
     }
   }
 
@@ -146,16 +148,11 @@ export default function BudgetPanel({ onChange }: { onChange: () => void }) {
     setBusy(true);
     setError("");
     try {
-      await api(
-        "/api/finance/budget/income",
-        jsonInit("PUT", {
-          expectedMonthlyIncome: incomeDraft.trim() === "" ? null : Number(incomeDraft),
-        }),
-      );
+      await setExpectedIncome(incomeDraft.trim() === "" ? null : Number(incomeDraft));
       setEditingIncome(false);
       load(month);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "could not save that");
+      setError(errorMessage(e, "could not save that"));
     } finally {
       setBusy(false);
     }

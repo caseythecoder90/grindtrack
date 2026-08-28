@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, jsonInit } from "../../lib/api";
+import { errorMessage } from "../../lib/api";
+import { getSummary, logMoment } from "./relationshipApi";
 import { todayISO } from "../../lib/dates";
 import type { MomentKind, RelationshipSummary } from "../../lib/types";
 import ClosenessCard from "./ClosenessCard";
@@ -41,9 +42,9 @@ export default function RelationshipPage() {
   const load = useCallback(async () => {
     setError("");
     try {
-      setSummary(await api<RelationshipSummary>("/api/relationship/summary"));
+      setSummary(await getSummary());
     } catch (e) {
-      setError(e instanceof Error ? e.message : "could not load this tab");
+      setError(errorMessage(e, "could not load this tab"));
     }
   }, []);
 
@@ -67,15 +68,12 @@ export default function RelationshipPage() {
     setSaving(true);
     setError("");
     try {
-      await api(
-        "/api/relationship/moments",
-        jsonInit("POST", { occurredOn: date, kind, note, feltClose: null }),
-      );
+      await logMoment({ occurredOn: date, kind, note, feltClose: null });
       setNote("");
       setDate(todayISO());
       load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "could not log that");
+      setError(errorMessage(e, "could not log that"));
     } finally {
       setSaving(false);
     }

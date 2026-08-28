@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, jsonInit } from "../../lib/api";
+import { errorMessage } from "../../lib/api";
+import { completeIdea, createIdea, deleteIdea, getIdeas } from "./relationshipApi";
 import type { Effort, Idea, IdeaKind } from "../../lib/types";
 import { EFFORT_LABEL, IDEA_LABEL } from "./kinds";
 
@@ -26,9 +27,9 @@ export default function IdeasPanel({ onChange }: { onChange: () => void }) {
 
   const load = useCallback(async () => {
     try {
-      setIdeas(await api<Idea[]>("/api/relationship/ideas"));
+      setIdeas(await getIdeas());
     } catch (e) {
-      setError(e instanceof Error ? e.message : "could not load your ideas");
+      setError(errorMessage(e, "could not load your ideas"));
     }
   }, []);
 
@@ -40,45 +41,42 @@ export default function IdeasPanel({ onChange }: { onChange: () => void }) {
     if (!title.trim()) return;
     setError("");
     try {
-      await api(
-        "/api/relationship/ideas",
-        jsonInit("POST", {
-          kind,
-          title,
-          detail: "",
-          occasion: occasion || null,
-          estCost: cost ? Number(cost) : null,
-          effort,
-        }),
-      );
+      await createIdea({
+        kind,
+        title,
+        detail: "",
+        occasion: occasion || null,
+        estCost: cost ? Number(cost) : null,
+        effort,
+      });
       setTitle("");
       setOccasion("");
       setCost("");
       setAdding(false);
       load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "could not save that idea");
+      setError(errorMessage(e, "could not save that idea"));
     }
   }
 
   async function done(idea: Idea) {
     setError("");
     try {
-      await api(`/api/relationship/ideas/${idea.id}/done`, jsonInit("POST", { on: null }));
+      await completeIdea(idea.id);
       load();
       onChange();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "could not mark that done");
+      setError(errorMessage(e, "could not mark that done"));
     }
   }
 
   async function remove(idea: Idea) {
     setError("");
     try {
-      await api(`/api/relationship/ideas/${idea.id}`, { method: "DELETE" });
+      await deleteIdea(idea.id);
       load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "could not remove that");
+      setError(errorMessage(e, "could not remove that"));
     }
   }
 

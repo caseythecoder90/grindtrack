@@ -1,9 +1,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import WeekTotals from "../../components/WeekTotals";
-import { api, jsonInit } from "../../lib/api";
+import { getDays, getWeek, saveWeek } from "./trackingApi";
 import { addDays, mondayOf, todayISO } from "../../lib/dates";
-import type { DayLog, WeekReview } from "../../lib/types";
+import type {DayLog} from "../../lib/types";
 
 const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -20,8 +20,8 @@ export default function Week() {
 
   const load = useCallback(async () => {
     const end = addDays(weekStart, 6);
-    setDays(await api<DayLog[]>(`/api/days?from=${weekStart}&to=${end}`));
-    const review = await api<WeekReview | null>(`/api/weeks/${weekStart}`);
+    setDays(await getDays(weekStart, end));
+    const review = await getWeek(weekStart);
     setSummary(review?.summary ?? "");
     setWins(review?.wins ?? "");
     setBlockers(review?.blockers ?? "");
@@ -37,9 +37,7 @@ export default function Week() {
   const byDate = new Map(days.map((d) => [d.logDate, d]));
 
   async function save() {
-    await api(`/api/weeks/${weekStart}`, jsonInit("PUT", {
-      summary, wins, blockers, adjustments, nextFocus, onTrack,
-    }));
+    await saveWeek(weekStart, { summary, wins, blockers, adjustments, nextFocus, onTrack });
     setToast(true);
     setTimeout(() => setToast(false), 1600);
   }

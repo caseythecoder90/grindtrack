@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, jsonInit } from "../../lib/api";
+import { errorMessage } from "../../lib/api";
+import {
+  addReading,
+  deleteReading,
+  getReading,
+  markRead,
+  promoteTakeaway,
+} from "./relationshipApi";
 import type { ReadingItem, ReadingKind } from "../../lib/types";
 import { READING_LABEL } from "./kinds";
 
@@ -26,9 +33,9 @@ export default function ReadingPanel({ onChange }: { onChange: () => void }) {
 
   const load = useCallback(async () => {
     try {
-      setItems(await api<ReadingItem[]>("/api/relationship/reading"));
+      setItems(await getReading());
     } catch (e) {
-      setError(e instanceof Error ? e.message : "could not load your reading list");
+      setError(errorMessage(e, "could not load your reading list"));
     }
   }, []);
 
@@ -40,33 +47,23 @@ export default function ReadingPanel({ onChange }: { onChange: () => void }) {
     if (!title.trim()) return;
     setError("");
     try {
-      setItems(
-        await api<ReadingItem[]>(
-          "/api/relationship/reading",
-          jsonInit("POST", { title, url: url || null, source: null, kind }),
-        ),
-      );
+      setItems(await addReading({ title, url: url || null, source: null, kind }));
       setTitle("");
       setUrl("");
       setAdding(false);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "could not save that");
+      setError(errorMessage(e, "could not save that"));
     }
   }
 
   async function saveRead(item: ReadingItem) {
     setError("");
     try {
-      setItems(
-        await api<ReadingItem[]>(
-          `/api/relationship/reading/${item.id}/read`,
-          jsonInit("POST", { takeaway, readOn: null }),
-        ),
-      );
+      setItems(await markRead(item.id, takeaway));
       setReading(null);
       setTakeaway("");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "could not save that");
+      setError(errorMessage(e, "could not save that"));
     }
   }
 
@@ -74,21 +71,21 @@ export default function ReadingPanel({ onChange }: { onChange: () => void }) {
     setError("");
     setNote("");
     try {
-      await api(`/api/relationship/reading/${item.id}/promote`, jsonInit("POST", { effort: "SMALL" }));
+      await promoteTakeaway(item.id);
       setNote(`Added "${item.takeaway}" to your ideas.`);
       onChange();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "could not turn that into an idea");
+      setError(errorMessage(e, "could not turn that into an idea"));
     }
   }
 
   async function remove(item: ReadingItem) {
     setError("");
     try {
-      await api(`/api/relationship/reading/${item.id}`, { method: "DELETE" });
+      await deleteReading(item.id);
       load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "could not remove that");
+      setError(errorMessage(e, "could not remove that"));
     }
   }
 

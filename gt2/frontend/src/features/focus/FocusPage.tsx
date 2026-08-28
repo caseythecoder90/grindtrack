@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Segmented from "../../components/Segmented";
-import { api, jsonInit } from "../../lib/api";
+import { errorMessage } from "../../lib/api";
+import { getSessions, recordSession as postSession } from "./focusApi";
 import { todayISO } from "../../lib/dates";
 import type { FocusKind, FocusSession } from "../../lib/types";
 import { useFocusTimer } from "./useFocusTimer";
@@ -23,7 +24,7 @@ export default function FocusPage({ onLogged }: Props) {
   // they stay referentially stable — useFocusTimer keys effects off them.
   const loadSessions = useCallback(async (k: FocusKind) => {
     try {
-      setSessions(await api<FocusSession[]>(`/api/focus/sessions?date=${todayISO()}&kind=${k}`));
+      setSessions(await getSessions(todayISO(), k));
     } catch {
       /* list is cosmetic; auth errors surface via the app shell */
     }
@@ -33,21 +34,18 @@ export default function FocusPage({ onLogged }: Props) {
     async (startedAt: string, minutes: number, completed: boolean, k: FocusKind) => {
       if (minutes < 1) return;
       try {
-        await api(
-          "/api/focus/sessions",
-          jsonInit("POST", {
-            date: todayISO(),
-            startedAt,
-            durationMinutes: minutes,
-            completed,
-            kind: k,
-          }),
-        );
+        await postSession({
+          date: todayISO(),
+          startedAt,
+          durationMinutes: minutes,
+          completed,
+          kind: k,
+        });
         setError("");
         onLogged();
         loadSessions(k);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "could not save session");
+        setError(errorMessage(e, "could not save session"));
       }
     },
     [onLogged, loadSessions],

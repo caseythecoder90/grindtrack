@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { api, jsonInit } from "../../lib/api";
+import { errorMessage } from "../../lib/api";
+import { createAccount, recordBalance } from "./financeApi";
 import {
   ACCOUNT_TYPE_LABELS,
   INSTITUTION_LABELS,
@@ -40,39 +41,33 @@ export default function AccountsPanel({
     if (!name.trim()) return;
     setError("");
     try {
-      await api(
-        "/api/finance/accounts",
-        jsonInit("POST", {
-          name,
-          institution,
-          accountType,
-          last4: last4 || null,
-          countsTowardSavings: counts,
-          sortOrder: accounts.length,
-        }),
-      );
+      await createAccount({
+        name,
+        institution,
+        accountType,
+        last4: last4 || null,
+        countsTowardSavings: counts,
+        sortOrder: accounts.length,
+      });
       setName("");
       setLast4("");
       setCounts(false);
       setAdding(false);
       onChange();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "could not add that account");
+      setError(errorMessage(e, "could not add that account"));
     }
   }
 
   async function saveBalance(account: FinanceAccount) {
     setError("");
     try {
-      await api(
-        `/api/finance/accounts/${account.id}/balance`,
-        jsonInit("PATCH", { balance: Number(balance), asOf: null }),
-      );
+      await recordBalance(account.id, { balance: Number(balance), asOf: null });
       setEditing(null);
       setBalance("");
       onChange();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "could not save that balance");
+      setError(errorMessage(e, "could not save that balance"));
     }
   }
 

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, jsonInit } from "../../lib/api";
+import { errorMessage } from "../../lib/api";
+import { createBudgetLine, getRecurring } from "./financeApi";
 import type { Recurring, RecurringReport } from "../../lib/types";
 import { money, moneyWhole } from "./money";
 
@@ -28,9 +29,9 @@ export default function RecurringPanel({ onChange }: { onChange: () => void }) {
 
   const load = useCallback(async () => {
     try {
-      setReport(await api<RecurringReport>("/api/finance/recurring"));
+      setReport(await getRecurring());
     } catch (e) {
-      setError(e instanceof Error ? e.message : "could not look for recurring charges");
+      setError(errorMessage(e, "could not look for recurring charges"));
     }
   }, []);
 
@@ -56,19 +57,16 @@ export default function RecurringPanel({ onChange }: { onChange: () => void }) {
     setError("");
     setNote("");
     try {
-      await api(
-        "/api/finance/budget/lines",
-        jsonInit("POST", {
-          category,
-          monthlyAmount: suggested(item),
-          note: `From ${item.merchant}, ${CADENCE[item.cadence]}`,
-          sortOrder: 0,
-        }),
-      );
+      await createBudgetLine({
+        category,
+        monthlyAmount: suggested(item),
+        note: `From ${item.merchant}, ${CADENCE[item.cadence]}`,
+        sortOrder: 0,
+      });
       setNote(`${category} budgeted at ${money(suggested(item))} a month.`);
       onChange();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "could not create that budget line");
+      setError(errorMessage(e, "could not create that budget line"));
     } finally {
       setBusy(null);
     }

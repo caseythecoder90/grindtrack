@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Heatmap from "./components/Heatmap";
 import StatBar from "./components/StatBar";
+import { logout as endSession, me } from "./features/auth/authApi";
 import Login from "./features/auth/Login";
 import FinancePage from "./features/finance/FinancePage";
 import FocusPage from "./features/focus/FocusPage";
@@ -8,11 +9,12 @@ import Landing from "./features/landing/Landing";
 import PlanPage from "./features/plan/PlanPage";
 import RelationshipPage from "./features/relationship/RelationshipPage";
 import StatsPage from "./features/tracking/StatsPage";
+import { EXPORT_URL, getStats } from "./features/tracking/trackingApi";
 import Today from "./features/tracking/Today";
 import Week from "./features/tracking/Week";
 import TodoPage from "./features/todo/TodoPage";
 import WorkPage from "./features/work/WorkPage";
-import { api, AuthError } from "./lib/api";
+import { AuthError } from "./lib/api";
 import type { Scope, Stats } from "./lib/types";
 
 type View = "landing" | "login" | "app";
@@ -37,7 +39,7 @@ export default function App() {
   // so switching scope is local and the header no longer needs /api/public/stats.
   const refreshHeader = useCallback(async () => {
     try {
-      setStats(await api<Stats>("/api/stats"));
+      setStats(await getStats());
     } catch (e) {
       if (e instanceof AuthError) setView("landing");
     }
@@ -50,7 +52,7 @@ export default function App() {
 
   useEffect(() => {
     // If a valid session exists (cookie), land directly in the app.
-    api<{ username: string }>("/api/auth/me")
+    me()
       .then(() => {
         setView("app");
         refreshHeader();
@@ -59,7 +61,7 @@ export default function App() {
   }, [refreshHeader]);
 
   async function logout() {
-    await fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" });
+    await endSession();
     setView("landing");
   }
 
@@ -71,7 +73,7 @@ export default function App() {
         <div className="spacer" />
         {view === "app" && (
           <>
-            <button onClick={() => (window.location.href = "/api/export")}>Export JSON</button>
+            <button onClick={() => (window.location.href = EXPORT_URL)}>Export JSON</button>
             <button onClick={logout}>Log out</button>
           </>
         )}

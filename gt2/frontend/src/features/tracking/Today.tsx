@@ -1,8 +1,8 @@
 
 import { useEffect, useState } from "react";
-import { api, jsonInit } from "../../lib/api";
+import { getDay, saveDay } from "./trackingApi";
 import { todayISO } from "../../lib/dates";
-import { CATEGORIES, type DayLog } from "../../lib/types";
+import { CATEGORIES } from "../../lib/types";
 
 interface Props {
   onSaved: () => void;
@@ -20,7 +20,7 @@ export default function Today({ onSaved }: Props) {
   const [toast, setToast] = useState(false);
 
   useEffect(() => {
-    api<DayLog | null>(`/api/days/${date}`).then((d) => {
+    getDay(date).then((d) => {
       setHours(String(d?.hours ?? 0));
       setCats(new Set(d?.categories ?? []));
       setEnergy(d?.energy ?? null);
@@ -38,9 +38,15 @@ export default function Today({ onSaved }: Props) {
   }
 
   async function save() {
-    await api(`/api/days/${date}`, jsonInit("PUT", {
-      hours: Number(hours), categories: [...cats], focus, did, wins, blockers, energy,
-    }));
+    await saveDay(date, {
+      hours: Number(hours),
+      categories: [...cats],
+      focus,
+      did,
+      wins,
+      blockers,
+      energy,
+    });
     setToast(true);
     setTimeout(() => setToast(false), 1600);
     onSaved();

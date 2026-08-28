@@ -1,7 +1,7 @@
 
 import { useEffect, useState } from "react";
 import Heatmap from "../../components/Heatmap";
-import { api } from "../../lib/api";
+import { getPublicStats } from "../tracking/trackingApi";
 import type { PublicStats } from "../../lib/types";
 
 interface Props {
@@ -13,7 +13,7 @@ export default function Landing({ onLoginClick }: Props) {
   const [stats, setStats] = useState<PublicStats | null>(null);
 
   useEffect(() => {
-    api<PublicStats>("/api/public/stats").then(setStats).catch(() => setStats(null));
+    getPublicStats().then(setStats).catch(() => setStats(null));
   }, []);
 
   return (

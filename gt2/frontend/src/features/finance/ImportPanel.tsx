@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api } from "../../lib/api";
+import { errorMessage } from "../../lib/api";
+import { getImportHistory, undoImport, uploadStatement } from "./financeApi";
 import type { FinanceAccount, ImportBatch, ImportResult } from "../../lib/types";
 
 /**
@@ -26,7 +27,7 @@ export default function ImportPanel({
 
   const loadHistory = useCallback(async () => {
     try {
-      setHistory(await api<ImportBatch[]>("/api/finance/imports"));
+      setHistory(await getImportHistory());
     } catch {
       /* history is a nicety; a failure here shouldn't block importing */
     }
@@ -44,13 +45,7 @@ export default function ImportPanel({
     setError("");
     setResult(null);
     try {
-      const form = new FormData();
-      form.append("file", file);
-      // No Content-Type header: the browser has to set the multipart boundary itself.
-      const res = await api<ImportResult>(
-        `/api/finance/imports?accountId=${accountId}&dryRun=${dryRun}`,
-        { method: "POST", body: form },
-      );
+      const res = await uploadStatement(accountId, dryRun, file);
       setResult(res);
       if (!dryRun) {
         if (fileRef.current) fileRef.current.value = "";
@@ -58,7 +53,7 @@ export default function ImportPanel({
         onImported();
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "could not read that file");
+      setError(errorMessage(e, "could not read that file"));
     } finally {
       setBusy(false);
     }
@@ -67,11 +62,11 @@ export default function ImportPanel({
   async function undo(batch: ImportBatch) {
     setError("");
     try {
-      await api(`/api/finance/imports/${batch.id}`, { method: "DELETE" });
+      await undoImport(batch.id);
       loadHistory();
       onImported();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "could not undo that import");
+      setError(errorMessage(e, "could not undo that import"));
     }
   }
 

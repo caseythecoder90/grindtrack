@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, jsonInit } from "../../lib/api";
+import { errorMessage } from "../../lib/api";
+import {
+  createWorkSkill,
+  deleteWorkSkill,
+  getWorkSkills,
+  updateWorkSkill,
+} from "./workApi";
 import type { WorkSkill, WorkSkillStatus } from "../../lib/types";
 
 const NEXT: Record<WorkSkillStatus, WorkSkillStatus> = {
@@ -28,9 +34,9 @@ export default function WorkSkills() {
 
   const load = useCallback(async () => {
     try {
-      setSkills(await api<WorkSkill[]>("/api/work/skills"));
+      setSkills(await getWorkSkills());
     } catch (e) {
-      setError(e instanceof Error ? e.message : "could not load skills");
+      setError(errorMessage(e, "could not load skills"));
     }
   }, []);
 
@@ -46,28 +52,25 @@ export default function WorkSkills() {
     if (!name.trim()) return;
     setError("");
     try {
-      const created = await api<WorkSkill>(
-        "/api/work/skills",
-        jsonInit("POST", { name: name.trim(), category: category.trim() }),
-      );
+      const created = (await createWorkSkill({
+        name: name.trim(),
+        category: category.trim(),
+      })) as WorkSkill;
       setSkills((list) => [...list, created]);
       setName("");
       setCategory("");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "could not add the skill");
+      setError(errorMessage(e, "could not add the skill"));
     }
   }
 
   async function cycle(skill: WorkSkill) {
     try {
       replace(
-        await api<WorkSkill>(
-          `/api/work/skills/${skill.id}`,
-          jsonInit("PATCH", { status: NEXT[skill.status] }),
-        ),
+        await updateWorkSkill(skill.id, { status: NEXT[skill.status] }),
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : "update failed");
+      setError(errorMessage(e, "update failed"));
     }
   }
 
@@ -75,19 +78,19 @@ export default function WorkSkills() {
     if (notes === skill.notes) return;
     try {
       replace(
-        await api<WorkSkill>(`/api/work/skills/${skill.id}`, jsonInit("PATCH", { notes })),
+        await updateWorkSkill(skill.id, { notes }),
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : "saving notes failed");
+      setError(errorMessage(e, "saving notes failed"));
     }
   }
 
   async function remove(skill: WorkSkill) {
     try {
-      await api(`/api/work/skills/${skill.id}`, { method: "DELETE" });
+      await deleteWorkSkill(skill.id);
       setSkills((list) => list.filter((s) => s.id !== skill.id));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "delete failed");
+      setError(errorMessage(e, "delete failed"));
     }
   }
 

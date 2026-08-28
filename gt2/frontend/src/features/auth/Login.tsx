@@ -1,6 +1,7 @@
 
 import { useState } from "react";
-import { api, jsonInit } from "../../lib/api";
+import { errorMessage } from "../../lib/api";
+import { login } from "./authApi";
 
 interface Props {
   onSuccess: (username: string) => void;
@@ -18,13 +19,10 @@ export default function Login({ onSuccess, onBack }: Props) {
     setBusy(true);
     setError("");
     try {
-      const res = await api<{ username: string }>(
-        "/api/auth/login",
-        jsonInit("POST", { username, password, otp }),
-      );
+      const res = await login(username, password, otp);
       onSuccess(res.username);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Login failed");
+      setError(errorMessage(e, "Login failed"));
     } finally {
       setBusy(false);
     }

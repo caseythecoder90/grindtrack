@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, jsonInit } from "../../lib/api";
-import type { CategoryRule, RuleApplyResult } from "../../lib/types";
+import { errorMessage } from "../../lib/api";
+import { applyRules, createRule, deleteRule, getRules } from "./financeApi";
+import type { CategoryRule } from "../../lib/types";
 import { categoryOptions } from "./categories";
 
 const MATCH_TYPES: CategoryRule["matchType"][] = ["CONTAINS", "EQUALS", "REGEX"];
@@ -26,9 +27,9 @@ export default function CategoryRulesPanel({ onChange }: { onChange: () => void 
 
   const load = useCallback(async () => {
     try {
-      setRules(await api<CategoryRule[]>("/api/finance/rules"));
+      setRules(await getRules());
     } catch (e) {
-      setError(e instanceof Error ? e.message : "could not load your rules");
+      setError(errorMessage(e, "could not load your rules"));
     }
   }, []);
 
@@ -42,20 +43,17 @@ export default function CategoryRulesPanel({ onChange }: { onChange: () => void 
     setError("");
     setNote("");
     try {
-      await api(
-        "/api/finance/rules",
-        jsonInit("POST", {
-          pattern,
-          matchType,
-          category,
-          priority: Number(priority) || 100,
-        }),
-      );
+      await createRule({
+        pattern,
+        matchType,
+        category,
+        priority: Number(priority) || 100,
+      });
       setPattern("");
       setCategory("");
       load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "could not save that rule");
+      setError(errorMessage(e, "could not save that rule"));
     } finally {
       setBusy(false);
     }
@@ -64,10 +62,10 @@ export default function CategoryRulesPanel({ onChange }: { onChange: () => void 
   async function remove(rule: CategoryRule) {
     setError("");
     try {
-      await api(`/api/finance/rules/${rule.id}`, { method: "DELETE" });
+      await deleteRule(rule.id);
       load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "could not delete that rule");
+      setError(errorMessage(e, "could not delete that rule"));
     }
   }
 
@@ -76,7 +74,7 @@ export default function CategoryRulesPanel({ onChange }: { onChange: () => void 
     setError("");
     setNote("");
     try {
-      const result = await api<RuleApplyResult>("/api/finance/rules/apply", { method: "POST" });
+      const result = await applyRules();
       setNote(
         `Filed ${result.categorized} of ${result.examined} rows. ` +
           (result.stillUncategorized > 0
@@ -86,7 +84,7 @@ export default function CategoryRulesPanel({ onChange }: { onChange: () => void 
       load();
       onChange();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "could not apply the rules");
+      setError(errorMessage(e, "could not apply the rules"));
     } finally {
       setBusy(false);
     }

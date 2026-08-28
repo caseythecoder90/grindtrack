@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, jsonInit } from "../../lib/api";
+import { errorMessage } from "../../lib/api";
+import { getPlan, importPlan, updatePlanItem } from "./planApi";
 import type { PlanData, PlanItem, PlanItemType } from "../../lib/types";
 import ImportControl from "./ImportControl";
 import ItemRow from "./ItemRow";
@@ -23,9 +24,9 @@ export default function PlanPage() {
 
   const load = useCallback(async () => {
     try {
-      setData(await api<PlanData>("/api/plan"));
+      setData(await getPlan());
     } catch (e) {
-      setError(e instanceof Error ? e.message : "could not load plan");
+      setError(errorMessage(e, "could not load plan"));
     }
   }, []);
 
@@ -42,13 +43,10 @@ export default function PlanPage() {
   async function cycleStatus(item: PlanItem) {
     try {
       applyUpdate(
-        await api<PlanItem>(
-          `/api/plan/items/${item.id}`,
-          jsonInit("PATCH", { status: NEXT_STATUS[item.status] }),
-        ),
+        await updatePlanItem(item.id, { status: NEXT_STATUS[item.status] }),
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : "update failed");
+      setError(errorMessage(e, "update failed"));
     }
   }
 
@@ -56,10 +54,10 @@ export default function PlanPage() {
     if (notes === item.notes) return;
     try {
       applyUpdate(
-        await api<PlanItem>(`/api/plan/items/${item.id}`, jsonInit("PATCH", { notes })),
+        await updatePlanItem(item.id, { notes }),
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : "saving notes failed");
+      setError(errorMessage(e, "saving notes failed"));
     }
   }
 
@@ -73,10 +71,10 @@ export default function PlanPage() {
       return;
     }
     try {
-      await api("/api/plan/import", jsonInit("POST", parsed));
+      await importPlan(parsed);
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "import failed");
+      setError(errorMessage(e, "import failed"));
     }
   }
 

@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, jsonInit } from "../../lib/api";
+import { errorMessage } from "../../lib/api";
+import {
+  addTransaction as postTransaction,
+  createGoal,
+  getAccountTransactions,
+  getSummary,
+} from "./financeApi";
 import { todayISO } from "../../lib/dates";
 import type { FinanceSummary, FinanceTransaction, TxnType } from "../../lib/types";
 import AccountsPanel from "./AccountsPanel";
@@ -46,13 +52,13 @@ export default function FinancePage() {
   const load = useCallback(async () => {
     setError("");
     try {
-      const data = await api<FinanceSummary>("/api/finance/summary");
+      const data = await getSummary();
       setSummary(data);
       if (data.accounts.length > 0) {
         setAccountId((current) => (current === "" ? data.accounts[0].id : current));
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "could not load your finances");
+      setError(errorMessage(e, "could not load your finances"));
     }
   }, []);
 
@@ -62,7 +68,7 @@ export default function FinancePage() {
 
   const loadRecent = useCallback(async (id: number) => {
     try {
-      setRecent(await api<FinanceTransaction[]>(`/api/finance/accounts/${id}/transactions`));
+      setRecent(await getAccountTransactions(id));
     } catch {
       setRecent([]);
     }
@@ -76,23 +82,20 @@ export default function FinancePage() {
     if (!goalName.trim() || !goalTarget) return;
     setError("");
     try {
-      await api(
-        "/api/finance/goals",
-        jsonInit("POST", {
-          name: goalName,
-          targetAmount: Number(goalTarget),
-          targetDate: null,
-          note: goalNote,
-          sortOrder: summary?.goals.length ?? 0,
-        }),
-      );
+      await createGoal({
+        name: goalName,
+        targetAmount: Number(goalTarget),
+        targetDate: null,
+        note: goalNote,
+        sortOrder: summary?.goals.length ?? 0,
+      });
       setGoalName("");
       setGoalTarget("");
       setGoalNote("");
       setAddingGoal(false);
       load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "could not add that goal");
+      setError(errorMessage(e, "could not add that goal"));
     }
   }
 
@@ -100,26 +103,23 @@ export default function FinancePage() {
     if (typeof accountId !== "number" || !amount || !description.trim()) return;
     setError("");
     try {
-      await api(
-        "/api/finance/transactions",
-        jsonInit("POST", {
-          accountId,
-          postedDate: date,
-          transactionDate: null,
-          amount: Number(amount),
-          description,
-          // Blank lets the server classify it — the same logic the importers will use.
-          txnType: txnType || null,
-          notes: "",
-        }),
-      );
+      await postTransaction({
+        accountId,
+        postedDate: date,
+        transactionDate: null,
+        amount: Number(amount),
+        description,
+        // Blank lets the server classify it — the same logic the importers will use.
+        txnType: txnType || null,
+        notes: "",
+      });
       setAmount("");
       setDescription("");
       setTxnType("");
       loadRecent(accountId);
       load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "could not add that transaction");
+      setError(errorMessage(e, "could not add that transaction"));
     }
   }
 

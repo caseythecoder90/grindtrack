@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, jsonInit } from "../../lib/api";
+import { errorMessage } from "../../lib/api";
+import { createOccasion, deleteOccasion, getOccasions } from "./relationshipApi";
 import type { Upcoming } from "../../lib/types";
 import { inDays } from "./kinds";
 
@@ -20,9 +21,9 @@ export default function OccasionsPanel() {
 
   const load = useCallback(async () => {
     try {
-      setOccasions(await api<Upcoming[]>("/api/relationship/occasions"));
+      setOccasions(await getOccasions());
     } catch (e) {
-      setError(e instanceof Error ? e.message : "could not load your dates");
+      setError(errorMessage(e, "could not load your dates"));
     }
   }, []);
 
@@ -35,32 +36,29 @@ export default function OccasionsPanel() {
     setError("");
     try {
       setOccasions(
-        await api<Upcoming[]>(
-          "/api/relationship/occasions",
-          jsonInit("POST", {
-            label,
-            date,
-            recurring: true,
-            leadDays: Number(leadDays) || 21,
-            note: "",
-          }),
-        ),
+        await createOccasion({
+          label,
+          date,
+          recurring: true,
+          leadDays: Number(leadDays) || 21,
+          note: "",
+        }),
       );
       setLabel("");
       setDate("");
       setAdding(false);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "could not save that");
+      setError(errorMessage(e, "could not save that"));
     }
   }
 
   async function remove(id: number) {
     setError("");
     try {
-      await api(`/api/relationship/occasions/${id}`, { method: "DELETE" });
+      await deleteOccasion(id);
       load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "could not remove that");
+      setError(errorMessage(e, "could not remove that"));
     }
   }
 

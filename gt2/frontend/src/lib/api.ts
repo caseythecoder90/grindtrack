@@ -54,3 +54,14 @@ export function jsonInit(method: string, body: unknown): RequestInit {
     body: JSON.stringify(body),
   };
 }
+
+/**
+ * The message to show a user when a request failed.
+ *
+ * <p>This exact ternary appeared fifty-two times across nineteen components, each with its own
+ * fallback string. The fallback is the argument because it is the only part that legitimately
+ * differs -- "could not load your budget" is more use than "something went wrong".
+ */
+export function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
