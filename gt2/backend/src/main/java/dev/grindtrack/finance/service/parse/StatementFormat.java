@@ -29,4 +29,23 @@ public enum StatementFormat {
   public String label() {
     return label;
   }
+
+  /**
+   * The display label for a stored format name.
+   *
+   * <p>Batches persist {@link #name()} because an enum constant is stable across releases in a way
+   * a prose label is not. Screens want the label. This is the one place that converts, so the two
+   * can never drift into showing "WELLS_FARGO" on one panel and "Wells Fargo card" on the next.
+   *
+   * @return the label, or the name unchanged if it does not resolve — a format retired in a later
+   *     release should still render its old batches rather than blowing up the history screen
+   */
+  public static String labelOf(String name) {
+    for (StatementFormat format : values()) {
+      if (format.name().equals(name)) {
+        return format.label;
+      }
+    }
+    return name;
+  }
 }

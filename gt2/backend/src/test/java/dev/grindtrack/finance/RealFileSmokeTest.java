@@ -17,7 +17,18 @@ import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 
-/** THROWAWAY — runs the real gitignored statements through the parsers. Never committed. */
+/**
+ * Runs the real, gitignored statements in {@code statements/} through the parsers.
+ *
+ * <p>Committed on purpose, and safe to commit: it reads a directory that is gitignored and prints
+ * only counts and dates, never a merchant or an amount. When the directory is absent -- CI, a fresh
+ * clone, anyone else's machine -- it skips.
+ *
+ * <p>Worth keeping because it is the only test that exercises the actual export files. Synthetic
+ * fixtures prove the parsers handle the shapes we thought of; this proves they handle the shapes
+ * the banks actually send, which is how the Aidvantage doctype and the quoted thousands separators
+ * were found in the first place.
+ */
 class RealFileSmokeTest {
 
   private static final List<StatementParser> PARSERS =

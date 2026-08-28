@@ -3,6 +3,7 @@ package dev.grindtrack.finance.service;
 import dev.grindtrack.finance.domain.Account;
 import dev.grindtrack.finance.domain.AccountRepository;
 import dev.grindtrack.finance.domain.AccountType;
+import dev.grindtrack.finance.domain.CategoryTotal;
 import dev.grindtrack.finance.domain.Institution;
 import dev.grindtrack.finance.domain.SavingsGoal;
 import dev.grindtrack.finance.domain.SavingsGoalRepository;
@@ -27,18 +28,21 @@ public class FinanceService {
   private final SavingsGoalRepository goals;
   private final MerchantNormalizer merchantNormalizer;
   private final TxnTypeClassifier classifier;
+  private final CategoryRuleService categoryRules;
 
   public FinanceService(
       AccountRepository accounts,
       TransactionRepository transactions,
       SavingsGoalRepository goals,
       MerchantNormalizer merchantNormalizer,
-      TxnTypeClassifier classifier) {
+      TxnTypeClassifier classifier,
+      CategoryRuleService categoryRules) {
     this.accounts = accounts;
     this.transactions = transactions;
     this.goals = goals;
     this.merchantNormalizer = merchantNormalizer;
     this.classifier = classifier;
+    this.categoryRules = categoryRules;
   }
 
   // ---------------------------------------------------------------- accounts
@@ -139,6 +143,9 @@ public class FinanceService {
             : classifier.classify(rawDescription, amount, account.getAccountType());
     txn.applyImportedDetail(
         transactionDate, merchantNormalizer.normalize(rawDescription), null, type, false);
+    // A row typed in by hand goes through the same rules an imported one does, so the two are
+    // genuinely indistinguishable afterwards rather than only nearly so.
+    categoryRules.applyTo(List.of(txn));
     if (notes != null && !notes.isBlank()) {
       txn.update(
           postedDate,
@@ -223,11 +230,66 @@ public class FinanceService {
 
   /** Percent of a goal reached, 0-100, rounded to one decimal. */
   public BigDecimal progressPercent(SavingsGoal goal) {
+    return progressPercent(goal, savingsBalance());
+  }
+
+  /**
+   * @param current the savings balance, passed in when the caller already has it. Rendering a list
+   *     of goals otherwise re-queries the same sum twice per goal.
+   */
+  public BigDecimal progressPercent(SavingsGoal goal, BigDecimal current) {
     if (goal.getTargetAmount() == null || goal.getTargetAmount().signum() <= 0) {
       return BigDecimal.ZERO;
     }
-    return savingsBalance()
+    return current
         .multiply(BigDecimal.valueOf(100))
         .divide(goal.getTargetAmount(), 1, RoundingMode.HALF_UP);
+  }
+
+  // --------------------------------------------------------------- rollups
+
+  /**
+   * Where the money went over a window.
+   *
+   * <p>Every figure here excludes transfers, card payments and unsettled rows, so the totals mean
+   * what they say. That exclusion is the difference between this being useful and it being a number
+   * roughly twice the truth — in the first pass over real statements, 78 of 947 rows were money
+   * moving between accounts rather than leaving.
+   *
+   * @param totalSpend negative, keeping the app's convention that money out is negative
+   */
+  public record SpendSummary(
+      String from,
+      String to,
+      BigDecimal totalSpend,
+      BigDecimal totalIncome,
+      BigDecimal net,
+      int transactionCount,
+      List<CategoryTotal> byCategory,
+      List<CategoryTotal> topMerchants) {}
+
+  public SpendSummary spendBetween(LocalDate from, LocalDate to) {
+    List<Transaction> countable = transactions.findCountableBetween(from, to);
+
+    BigDecimal spend = BigDecimal.ZERO;
+    BigDecimal income = BigDecimal.ZERO;
+    for (Transaction t : countable) {
+      if (t.getTxnType() == TxnType.SPEND) {
+        spend = spend.add(t.getAmount());
+      } else if (t.getTxnType() == TxnType.INCOME) {
+        income = income.add(t.getAmount());
+      }
+    }
+
+    List<CategoryTotal> merchants = transactions.spendByMerchantBetween(from, to);
+    return new SpendSummary(
+        from.toString(),
+        to.toString(),
+        spend,
+        income,
+        spend.add(income),
+        countable.size(),
+        transactions.spendByCategoryBetween(from, to),
+        merchants.size() > 15 ? List.copyOf(merchants.subList(0, 15)) : merchants);
   }
 }

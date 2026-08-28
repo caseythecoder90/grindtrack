@@ -21,3 +21,7 @@ databaseChangeLog:
       file: db/changelog/010-finance.sql
   - include:
       file: db/changelog/011-finance-imports.sql
+  - include:
+      file: db/changelog/012-finance-import-balance-snapshot.sql
+  - include:
+      file: db/changelog/013-finance-category-rules.sql

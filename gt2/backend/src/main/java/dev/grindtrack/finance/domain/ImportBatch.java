@@ -6,6 +6,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 
@@ -58,6 +59,22 @@ public class ImportBatch {
   @Column(name = "period_end")
   private LocalDate periodEnd;
 
+  /**
+   * What the account balance was before this import overwrote it, so undo can put it back.
+   *
+   * <p>{@code balanceOverwritten} carries the distinction the two nullable columns cannot: an
+   * import that never touched the balance versus one that set it from a statement which itself had
+   * no date.
+   */
+  @Column(name = "previous_balance")
+  private BigDecimal previousBalance;
+
+  @Column(name = "previous_balance_as_of")
+  private LocalDate previousBalanceAsOf;
+
+  @Column(name = "balance_overwritten", nullable = false)
+  private boolean balanceOverwritten = false;
+
   @Column(name = "imported_at", nullable = false)
   private OffsetDateTime importedAt = OffsetDateTime.now();
 
@@ -80,6 +97,25 @@ public class ImportBatch {
   public void recordPeriod(LocalDate start, LocalDate end) {
     this.periodStart = start;
     this.periodEnd = end;
+  }
+
+  /** Captures the balance about to be overwritten. Call before applying the statement's figure. */
+  public void snapshotBalance(BigDecimal balance, LocalDate asOf) {
+    this.previousBalance = balance;
+    this.previousBalanceAsOf = asOf;
+    this.balanceOverwritten = true;
+  }
+
+  public boolean isBalanceOverwritten() {
+    return balanceOverwritten;
+  }
+
+  public BigDecimal getPreviousBalance() {
+    return previousBalance;
+  }
+
+  public LocalDate getPreviousBalanceAsOf() {
+    return previousBalanceAsOf;
   }
 
   public Long getId() {

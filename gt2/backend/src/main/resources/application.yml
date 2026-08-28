@@ -14,6 +14,12 @@ spring:
     properties:
       hibernate:
         default_schema: grindtrack
+  servlet:
+    multipart:
+      # Must not be below the limit StatementImportController enforces, or files between the two
+      # sizes fail with a raw container error instead of the message written for them.
+      max-file-size: 5MB
+      max-request-size: 6MB
   liquibase:
     change-log: classpath:db/changelog/db.changelog-master.yaml
     default-schema: grindtrack

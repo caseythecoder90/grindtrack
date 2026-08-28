@@ -51,11 +51,14 @@ public class CapitalOneCreditParser implements StatementParser {
 
     List<ParsedRow> parsed = new ArrayList<>();
     Set<String> cards = new LinkedHashSet<>();
+    List<List<String>> data = rows.subList(1, rows.size());
+    int unreadable = 0;
 
-    for (List<String> row : rows.subList(1, rows.size())) {
+    for (List<String> row : data) {
       var posted = Amounts.date(Csv.at(row, cPosted));
       String description = Csv.at(row, cDesc);
       if (posted == null || description.isEmpty()) {
+        unreadable++;
         continue;
       }
 
@@ -64,6 +67,8 @@ public class CapitalOneCreditParser implements StatementParser {
       BigDecimal amount =
           debit != null ? Amounts.outflow(debit) : (credit != null ? Amounts.inflow(credit) : null);
       if (amount == null) {
+        // Neither column held a number — the row says nothing about money and must be counted.
+        unreadable++;
         continue;
       }
 
@@ -81,6 +86,6 @@ public class CapitalOneCreditParser implements StatementParser {
     if (parsed.isEmpty()) {
       throw new StatementParseException("No readable transactions in this file.");
     }
-    return new ParsedStatement(format(), parsed, null, null, List.copyOf(cards), 0);
+    return ParsedStatement.of(format(), parsed, data.size(), unreadable).withCardNumbers(cards);
   }
 }

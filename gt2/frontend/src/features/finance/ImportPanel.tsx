@@ -131,9 +131,19 @@ export default function ImportPanel({
                 <b>{result.duplicates}</b> already present
               </li>
             )}
+            {result.categorized > 0 && (
+              <li className="muted">
+                <b>{result.categorized}</b> filed automatically by your rules
+              </li>
+            )}
             {result.pending > 0 && (
               <li className="muted">
                 <b>{result.pending}</b> still pending at the bank — they'll come in once they post
+              </li>
+            )}
+            {result.skipped > 0 && (
+              <li className="skipped">
+                <b>{result.skipped}</b> could not be read
               </li>
             )}
             <li className="muted">{result.rowsInFile} rows in the file</li>

@@ -46,14 +46,24 @@ public class CapitalOneDepositParser implements StatementParser {
     }
 
     List<ParsedRow> parsed = new ArrayList<>();
+    List<List<String>> data = rows.subList(1, rows.size());
+    int unreadable = 0;
+
+    // Running balances are only meaningful in file order: the balance on the newest row is the
+    // account total *after* that row. When several rows share the newest date, the one that
+    // settles last is the one to believe, and which end of the tie that is depends on whether the
+    // export runs newest-first (Capital One's own ordering) or oldest-first. Rather than assume,
+    // read the ordering off the file and take the correct end.
     LocalDate newest = null;
     BigDecimal newestBalance = null;
+    boolean oldestFirst = isOldestFirst(data, cDate);
 
-    for (List<String> row : rows.subList(1, rows.size())) {
+    for (List<String> row : data) {
       LocalDate date = Amounts.date(Csv.at(row, cDate));
       BigDecimal magnitude = Amounts.money(Csv.at(row, cAmount));
       String description = Csv.at(row, cDesc);
       if (date == null || magnitude == null || description.isEmpty()) {
+        unreadable++;
         continue;
       }
 
@@ -61,9 +71,13 @@ public class CapitalOneDepositParser implements StatementParser {
       BigDecimal amount = credit ? Amounts.inflow(magnitude) : Amounts.outflow(magnitude);
       parsed.add(ParsedRow.of(date, amount, description));
 
-      // Rows arrive newest-first in practice, but the file is not contractually ordered, so
-      // pick the balance belonging to the latest date rather than the first line.
-      if (cBalance >= 0 && (newest == null || date.isAfter(newest))) {
+      if (cBalance < 0) {
+        continue;
+      }
+      // Newest-first: the first row at the newest date wins. Oldest-first: the last one does.
+      boolean better =
+          newest == null || date.isAfter(newest) || (oldestFirst && date.isEqual(newest));
+      if (better) {
         BigDecimal balance = Amounts.money(Csv.at(row, cBalance));
         if (balance != null) {
           newest = date;
@@ -75,6 +89,29 @@ public class CapitalOneDepositParser implements StatementParser {
     if (parsed.isEmpty()) {
       throw new StatementParseException("No readable transactions in this file.");
     }
-    return new ParsedStatement(format(), parsed, newestBalance, newest, List.of(), 0);
+    return ParsedStatement.of(format(), parsed, data.size(), unreadable)
+        .withBalance(newestBalance, newest);
+  }
+
+  /**
+   * Reads the file's ordering from its first and last readable dates.
+   *
+   * <p>Ties and single-row files report false, which lands on Capital One's actual newest-first
+   * ordering — the safe default when the file does not say.
+   */
+  private static boolean isOldestFirst(List<List<String>> data, int cDate) {
+    LocalDate first = null;
+    LocalDate last = null;
+    for (List<String> row : data) {
+      LocalDate date = Amounts.date(Csv.at(row, cDate));
+      if (date == null) {
+        continue;
+      }
+      if (first == null) {
+        first = date;
+      }
+      last = date;
+    }
+    return first != null && last != null && last.isAfter(first);
   }
 }

@@ -3,6 +3,7 @@ package dev.grindtrack.finance.api;
 import dev.grindtrack.finance.domain.ImportBatch;
 import dev.grindtrack.finance.service.StatementImportService;
 import dev.grindtrack.finance.service.StatementImportService.ImportResult;
+import dev.grindtrack.finance.service.parse.StatementFormat;
 import dev.grindtrack.finance.service.parse.StatementParseException;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -60,7 +61,7 @@ public class StatementImportController {
           b.getId(),
           b.getAccountId(),
           b.getFilename(),
-          b.getSourceFormat(),
+          StatementFormat.labelOf(b.getSourceFormat()),
           b.getRowsInFile(),
           b.getRowsImported(),
           b.getRowsDuplicate(),

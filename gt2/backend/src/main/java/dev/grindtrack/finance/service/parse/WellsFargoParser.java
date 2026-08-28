@@ -48,13 +48,16 @@ public class WellsFargoParser implements StatementParser {
     }
 
     List<ParsedRow> parsed = new ArrayList<>();
+    List<List<String>> data = rows.subList(1, rows.size());
     int pending = 0;
+    int unreadable = 0;
 
-    for (List<String> row : rows.subList(1, rows.size())) {
+    for (List<String> row : data) {
       var date = Amounts.date(Csv.at(row, cDate));
       BigDecimal amount = Amounts.money(Csv.at(row, cAmount));
       String description = Csv.at(row, cDesc);
       if (date == null || amount == null || description.isEmpty()) {
+        unreadable++;
         continue;
       }
       if (cStatus >= 0 && Csv.at(row, cStatus).toLowerCase().contains(PENDING)) {
@@ -67,6 +70,7 @@ public class WellsFargoParser implements StatementParser {
     if (parsed.isEmpty() && pending == 0) {
       throw new StatementParseException("No readable transactions in this file.");
     }
-    return new ParsedStatement(format(), parsed, null, null, List.of(), pending);
+    return ParsedStatement.of(format(), parsed, data.size(), unreadable)
+        .withPendingSkipped(pending);
   }
 }

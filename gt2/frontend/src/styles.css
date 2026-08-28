@@ -346,3 +346,30 @@ tr.today-row td { background: rgba(127, 209, 255, 0.06); }
 .import-counts li { margin: 3px 0; }
 .import-counts b { color: var(--text); font-size: var(--fs-body); }
 .warn { font-family: var(--mono); font-size: 12px; color: var(--yellow); margin: 8px 0 0; line-height: 1.5; }
+
+/* --- review, rules and spending ---------------------------------------------- */
+.import-counts li.skipped { color: var(--yellow); }
+.import-counts li.skipped b { color: var(--yellow); }
+
+.review-inbox .remember { font-family: var(--mono); font-size: 11px; color: var(--muted);
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.review-inbox .raw { margin-top: 2px; opacity: 0.75; }
+.review-inbox .file-cell { display: flex; gap: 6px; align-items: center; justify-content: flex-end; }
+.review-inbox .file-cell input { width: 150px; }
+
+.rules-table .mono { font-family: var(--mono); }
+.rules-table tr.inactive { opacity: 0.45; }
+.section-head > div { display: flex; gap: 8px; }
+
+/* One bar per category, scaled against the largest, so proportion reads without a chart. */
+.cat-table .bar-cell { width: 40%; padding-right: 12px; }
+.cat-table .meter { display: block; width: 100%; height: 6px; background: var(--cell-empty);
+  border-radius: 3px; overflow: hidden; }
+.cat-table .meter > i { display: block; height: 100%; background: var(--money); border-radius: 3px; }
+
+.spending .seg { display: flex; }
+@media (max-width: 620px) {
+  .cat-table .bar-cell { display: none; }
+  .review-inbox .file-cell { flex-direction: column; align-items: stretch; }
+  .review-inbox .file-cell input { width: 100%; }
+}

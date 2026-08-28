@@ -249,7 +249,10 @@ export interface ImportResult {
   imported: number;
   duplicates: number;
   pending: number;
+  /** Rows the parser could not read. A run of these means a bank changed its export layout. */
   skipped: number;
+  /** How many of the imported rows a category rule was able to file automatically. */
+  categorized: number;
   periodStart: string | null;
   periodEnd: string | null;
   /** Present when the statement asserts a balance (Capital One deposits, Aidvantage). */
@@ -270,6 +273,47 @@ export interface ImportBatch {
   periodStart: string | null;
   periodEnd: string | null;
   importedAt: string;
+}
+
+/** One pattern, one category. Rules run in priority order and the first match wins. */
+export interface CategoryRule {
+  id: number;
+  pattern: string;
+  matchType: "CONTAINS" | "EQUALS" | "REGEX";
+  category: string;
+  priority: number;
+  active: boolean;
+  hitCount: number;
+  lastApplied: string | null;
+}
+
+/** Result of re-running every rule over the whole history. */
+export interface RuleApplyResult {
+  examined: number;
+  categorized: number;
+  stillUncategorized: number;
+}
+
+/** One row of a spending rollup. `label` is null for uncategorized, which must stay visible. */
+export interface CategoryTotal {
+  label: string | null;
+  total: number;
+  count: number;
+}
+
+/**
+ * Where the money went over a window. Every figure excludes transfers, card payments and
+ * unsettled rows, so `totalSpend` is spending rather than movement.
+ */
+export interface SpendSummary {
+  from: string;
+  to: string;
+  totalSpend: number;
+  totalIncome: number;
+  net: number;
+  transactionCount: number;
+  byCategory: CategoryTotal[];
+  topMerchants: CategoryTotal[];
 }
 
 export interface FinanceSummary {

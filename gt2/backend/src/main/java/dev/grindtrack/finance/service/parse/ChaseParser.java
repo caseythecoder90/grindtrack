@@ -41,11 +41,15 @@ public class ChaseParser implements StatementParser {
     }
 
     List<ParsedRow> parsed = new ArrayList<>();
-    for (List<String> row : rows.subList(1, rows.size())) {
+    List<List<String>> data = rows.subList(1, rows.size());
+    int unreadable = 0;
+
+    for (List<String> row : data) {
       var posted = Amounts.date(Csv.at(row, cPosted));
       BigDecimal amount = Amounts.money(Csv.at(row, cAmount));
       String description = Csv.at(row, cDesc);
       if (posted == null || amount == null || description.isEmpty()) {
+        unreadable++;
         continue;
       }
       parsed.add(
@@ -57,6 +61,6 @@ public class ChaseParser implements StatementParser {
     if (parsed.isEmpty()) {
       throw new StatementParseException("No readable transactions in this file.");
     }
-    return new ParsedStatement(format(), parsed, null, null, List.of(), 0);
+    return ParsedStatement.of(format(), parsed, data.size(), unreadable);
   }
 }

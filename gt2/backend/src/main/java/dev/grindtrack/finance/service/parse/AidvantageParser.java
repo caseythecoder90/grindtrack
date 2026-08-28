@@ -54,12 +54,15 @@ public class AidvantageParser implements StatementParser {
     // Latest row per loan wins; that row's unpaid principal is the current balance.
     Map<String, LocalDate> latestDate = new HashMap<>();
     Map<String, BigDecimal> latestBalance = new HashMap<>();
+    List<List<String>> data = rows.subList(1, rows.size());
+    int unreadable = 0;
 
-    for (List<String> row : rows.subList(1, rows.size())) {
+    for (List<String> row : data) {
       LocalDate date = Amounts.date(Csv.at(row, cDate));
       String loan = Csv.at(row, cLoan);
       BigDecimal unpaid = Amounts.money(Csv.at(row, cUnpaid));
       if (date == null || loan.isEmpty() || unpaid == null) {
+        unreadable++;
         continue;
       }
       LocalDate seen = latestDate.get(loan);
@@ -76,7 +79,15 @@ public class AidvantageParser implements StatementParser {
     BigDecimal owed = latestBalance.values().stream().reduce(BigDecimal.ZERO, BigDecimal::add);
     LocalDate asOf = latestDate.values().stream().max(LocalDate::compareTo).orElse(null);
 
-    // No transactions on purpose — see the class comment.
-    return new ParsedStatement(format(), List.of(), owed, asOf, List.of(), 0);
+    // No transactions on purpose — see the class comment. The note says so on screen, because an
+    // import that reports "0 added" from a 296-row file otherwise looks exactly like a failure.
+    return ParsedStatement.of(format(), List.of(), data.size(), unreadable)
+        .withBalance(owed, asOf)
+        .withNote(
+            "No transactions imported, and that is correct: this file splits one monthly payment"
+                + " across "
+                + latestBalance.size()
+                + " loans, and that payment is already recorded as a single ADVS ED SERV debit on"
+                + " your checking account. The file was used to update the loan balance.");
   }
 }
