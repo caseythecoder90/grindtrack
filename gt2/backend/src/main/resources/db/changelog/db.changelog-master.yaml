@@ -19,3 +19,5 @@ databaseChangeLog:
       file: db/changelog/009-todos.sql
   - include:
       file: db/changelog/010-finance.sql
+  - include:
+      file: db/changelog/011-finance-imports.sql

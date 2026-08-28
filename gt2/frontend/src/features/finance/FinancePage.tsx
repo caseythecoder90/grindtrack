@@ -3,6 +3,7 @@ import { api, jsonInit } from "../../lib/api";
 import { todayISO } from "../../lib/dates";
 import type { FinanceSummary, FinanceTransaction, TxnType } from "../../lib/types";
 import AccountsPanel from "./AccountsPanel";
+import ImportPanel from "./ImportPanel";
 import SavingsGoalCard from "./SavingsGoalCard";
 import { money, moneyWhole, signed } from "./money";
 
@@ -185,6 +186,16 @@ export default function FinancePage() {
       </section>
 
       <AccountsPanel accounts={summary.accounts} onChange={load} />
+
+      {summary.accounts.length > 0 && (
+        <ImportPanel
+          accounts={summary.accounts}
+          onImported={() => {
+            load();
+            if (typeof accountId === "number") loadRecent(accountId);
+          }}
+        />
+      )}
 
       {summary.accounts.length > 0 && (
         <section>

@@ -41,4 +41,13 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
   List<Transaction> findUncategorized();
 
   long countByAccountId(Long accountId);
+
+  /**
+   * Undoing an import removes only the rows it created. Hand-entered rows have a null batch and are
+   * never touched, and a row the user has since re-categorized still belongs to the batch — undoing
+   * means "this file should not have been imported", which includes those edits.
+   */
+  long deleteByImportBatchId(Long importBatchId);
+
+  long countByImportBatchId(Long importBatchId);
 }

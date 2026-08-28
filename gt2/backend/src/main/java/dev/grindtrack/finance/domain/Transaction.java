@@ -75,6 +75,10 @@ public class Transaction {
   @Column(nullable = false)
   private String notes = "";
 
+  /** Null for rows entered by hand; set when a row came from an uploaded statement. */
+  @Column(name = "import_batch_id")
+  private Long importBatchId;
+
   @Column(name = "created_at", nullable = false)
   private OffsetDateTime createdAt = OffsetDateTime.now();
 
@@ -180,6 +184,15 @@ public class Transaction {
 
   public String getNotes() {
     return notes;
+  }
+
+  public Long getImportBatchId() {
+    return importBatchId;
+  }
+
+  /** Links this row to the upload it arrived in, so the whole batch can be undone together. */
+  public void attachToBatch(Long batchId) {
+    this.importBatchId = batchId;
   }
 
   /** Fields an importer owns. Never touches category — see {@link #categorizeByRule}. */

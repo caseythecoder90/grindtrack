@@ -241,6 +241,37 @@ export interface SavingsGoal {
   progressPercent: number;
 }
 
+/** Result of parsing an upload — identical shape whether or not it was committed. */
+export interface ImportResult {
+  batchId: number | null;
+  format: string;
+  rowsInFile: number;
+  imported: number;
+  duplicates: number;
+  pending: number;
+  skipped: number;
+  periodStart: string | null;
+  periodEnd: string | null;
+  /** Present when the statement asserts a balance (Capital One deposits, Aidvantage). */
+  balanceUpdate: string | null;
+  warnings: string[];
+  dryRun: boolean;
+}
+
+export interface ImportBatch {
+  id: number;
+  accountId: number;
+  filename: string;
+  sourceFormat: string;
+  rowsInFile: number;
+  rowsImported: number;
+  rowsDuplicate: number;
+  rowsPending: number;
+  periodStart: string | null;
+  periodEnd: string | null;
+  importedAt: string;
+}
+
 export interface FinanceSummary {
   savingsBalance: number;
   netWorth: number;
