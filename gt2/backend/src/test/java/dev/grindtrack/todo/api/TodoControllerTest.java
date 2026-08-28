@@ -14,6 +14,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import dev.grindtrack.todo.domain.Todo;
 import dev.grindtrack.todo.domain.TodoRepository;
+import dev.grindtrack.todo.service.TodoService;
+import dev.grindtrack.web.ApiExceptionHandler;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -34,7 +36,10 @@ class TodoControllerTest {
   void setUp() {
     todos = mock(TodoRepository.class);
     when(todos.save(any())).thenAnswer(inv -> inv.getArgument(0));
-    mvc = MockMvcBuilders.standaloneSetup(new TodoController(todos)).build();
+    mvc =
+        MockMvcBuilders.standaloneSetup(new TodoController(new TodoService(todos)))
+            .setControllerAdvice(new ApiExceptionHandler())
+            .build();
   }
 
   private static Todo todo(String title, String kind) {

@@ -20,22 +20,20 @@ import dev.grindtrack.finance.domain.Institution;
 import dev.grindtrack.finance.domain.MatchType;
 import dev.grindtrack.finance.domain.SavingsGoal;
 import dev.grindtrack.finance.domain.Transaction;
-import dev.grindtrack.finance.domain.TransactionRepository;
 import dev.grindtrack.finance.domain.TxnType;
 import dev.grindtrack.finance.service.CategoryRuleService;
 import dev.grindtrack.finance.service.FinanceService;
 import dev.grindtrack.finance.service.RecurringDetector;
+import dev.grindtrack.web.BadRequestException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.Optional;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -61,17 +59,12 @@ public class FinanceController {
   private static final int MAX_DESCRIPTION_CHARS = 500;
 
   private final FinanceService finance;
-  private final TransactionRepository transactions;
   private final CategoryRuleService rules;
   private final RecurringDetector recurringDetector;
 
   public FinanceController(
-      FinanceService finance,
-      TransactionRepository transactions,
-      CategoryRuleService rules,
-      RecurringDetector recurringDetector) {
+      FinanceService finance, CategoryRuleService rules, RecurringDetector recurringDetector) {
     this.finance = finance;
-    this.transactions = transactions;
     this.rules = rules;
     this.recurringDetector = recurringDetector;
   }
@@ -109,7 +102,7 @@ public class FinanceController {
       start = end.minusDays(30);
     }
     if (start.isAfter(end)) {
-      throw new BadRequest("from must be on or before to");
+      throw new BadRequestException("from must be on or before to");
     }
     return finance.spendBetween(start, end);
   }
@@ -123,7 +116,7 @@ public class FinanceController {
   @GetMapping("/spending/monthly")
   public List<FinanceService.MonthTotal> monthly(@RequestParam(defaultValue = "6") int months) {
     if (months < 1 || months > 36) {
-      throw new BadRequest("months must be between 1 and 36");
+      throw new BadRequestException("months must be between 1 and 36");
     }
     return finance.monthlyTotals(months);
   }
@@ -226,7 +219,7 @@ public class FinanceController {
   @PatchMapping("/accounts/{id}/balance")
   public AccountResponse recordBalance(@PathVariable Long id, @RequestBody BalanceRequest body) {
     if (body.balance() == null) {
-      throw new BadRequest("balance is required");
+      throw new BadRequestException("balance is required");
     }
     return toAccountResponse(finance.recordBalance(id, body.balance(), optionalDate(body.asOf())));
   }
@@ -253,10 +246,10 @@ public class FinanceController {
   @PostMapping("/transactions")
   public ResponseEntity<?> addTransaction(@RequestBody TransactionRequest body) {
     if (body.accountId() == null) {
-      throw new BadRequest("accountId is required");
+      throw new BadRequestException("accountId is required");
     }
     if (body.amount() == null || body.amount().signum() == 0) {
-      throw new BadRequest("amount is required and cannot be zero");
+      throw new BadRequestException("amount is required and cannot be zero");
     }
     String description = requireDescription(body.description());
     LocalDate posted = requireDate(body.postedDate(), "postedDate");
@@ -300,7 +293,7 @@ public class FinanceController {
   public Map<String, Object> categorizeAndLearn(
       @PathVariable Long id, @RequestBody CategorizeAndLearnRequest body) {
     if (body.category() == null || body.category().isBlank()) {
-      throw new BadRequest("a category is required");
+      throw new BadRequestException("a category is required");
     }
     Transaction saved = finance.categorize(id, body.category());
     Map<String, Object> response = new LinkedHashMap<>();
@@ -319,7 +312,7 @@ public class FinanceController {
       @PathVariable Long id, @RequestBody ReclassifyRequest body) {
     TxnType type = optionalTxnType(body.txnType());
     if (type == null) {
-      throw new BadRequest("txnType must be SPEND, INCOME, TRANSFER or PAYMENT");
+      throw new BadRequestException("txnType must be SPEND, INCOME, TRANSFER or PAYMENT");
     }
     return TransactionResponse.from(finance.reclassify(id, type));
   }
@@ -371,7 +364,7 @@ public class FinanceController {
   // ---------- mapping ----------
 
   private AccountResponse toAccountResponse(Account a) {
-    return AccountResponse.from(a, transactions.countByAccountId(a.getId()));
+    return AccountResponse.from(a, finance.transactionCount(a.getId()));
   }
 
   private GoalResponse toGoalResponse(SavingsGoal g) {
@@ -387,7 +380,7 @@ public class FinanceController {
   private static String requireName(String value) {
     String name = value == null ? "" : value.trim();
     if (name.isBlank() || name.length() > MAX_NAME_CHARS) {
-      throw new BadRequest("a name is required (max " + MAX_NAME_CHARS + " chars)");
+      throw new BadRequestException("a name is required (max " + MAX_NAME_CHARS + " chars)");
     }
     return name;
   }
@@ -395,14 +388,15 @@ public class FinanceController {
   private static String requireDescription(String value) {
     String description = value == null ? "" : value.trim();
     if (description.isBlank() || description.length() > MAX_DESCRIPTION_CHARS) {
-      throw new BadRequest("a description is required (max " + MAX_DESCRIPTION_CHARS + " chars)");
+      throw new BadRequestException(
+          "a description is required (max " + MAX_DESCRIPTION_CHARS + " chars)");
     }
     return description;
   }
 
   private static BigDecimal requireTarget(BigDecimal value) {
     if (value == null || value.signum() <= 0) {
-      throw new BadRequest("targetAmount must be greater than zero");
+      throw new BadRequestException("targetAmount must be greater than zero");
     }
     return value;
   }
@@ -411,7 +405,7 @@ public class FinanceController {
     try {
       return Institution.valueOf(value == null ? "" : value.trim().toUpperCase());
     } catch (IllegalArgumentException e) {
-      throw new BadRequest(
+      throw new BadRequestException(
           "institution must be one of CAPITAL_ONE, CHASE, WELLS_FARGO, "
               + "BANK_OF_AMERICA, AIDVANTAGE, OTHER");
     }
@@ -421,7 +415,7 @@ public class FinanceController {
     try {
       return AccountType.valueOf(value == null ? "" : value.trim().toUpperCase());
     } catch (IllegalArgumentException e) {
-      throw new BadRequest("accountType must be CHECKING, SAVINGS, CREDIT_CARD or LOAN");
+      throw new BadRequestException("accountType must be CHECKING, SAVINGS, CREDIT_CARD or LOAN");
     }
   }
 
@@ -432,7 +426,7 @@ public class FinanceController {
     try {
       return MatchType.valueOf(value.trim().toUpperCase());
     } catch (IllegalArgumentException e) {
-      throw new BadRequest("matchType must be CONTAINS, EQUALS or REGEX");
+      throw new BadRequestException("matchType must be CONTAINS, EQUALS or REGEX");
     }
   }
 
@@ -443,14 +437,14 @@ public class FinanceController {
     try {
       return TxnType.valueOf(value.trim().toUpperCase());
     } catch (IllegalArgumentException e) {
-      throw new BadRequest("txnType must be SPEND, INCOME, TRANSFER or PAYMENT");
+      throw new BadRequestException("txnType must be SPEND, INCOME, TRANSFER or PAYMENT");
     }
   }
 
   private static LocalDate requireDate(String value, String field) {
     LocalDate parsed = optionalDate(value);
     if (parsed == null) {
-      throw new BadRequest(field + " is required as YYYY-MM-DD");
+      throw new BadRequestException(field + " is required as YYYY-MM-DD");
     }
     return parsed;
   }
@@ -462,32 +456,7 @@ public class FinanceController {
     try {
       return LocalDate.parse(value.trim());
     } catch (DateTimeParseException e) {
-      throw new BadRequest("dates must be YYYY-MM-DD");
-    }
-  }
-
-  @ExceptionHandler(BadRequest.class)
-  ResponseEntity<Map<String, String>> onBadRequest(BadRequest e) {
-    return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-  }
-
-  @ExceptionHandler(NoSuchElementException.class)
-  ResponseEntity<Map<String, String>> onNotFound(NoSuchElementException e) {
-    return ResponseEntity.status(404).body(Map.of("error", "not found: " + e.getMessage()));
-  }
-
-  /**
-   * Rule validation failures. The messages are written for the person who typed the rule -- a bad
-   * regex or a pattern another rule already claims -- so they reach the form rather than the log.
-   */
-  @ExceptionHandler(IllegalArgumentException.class)
-  ResponseEntity<Map<String, String>> onInvalid(IllegalArgumentException e) {
-    return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-  }
-
-  private static final class BadRequest extends RuntimeException {
-    BadRequest(String message) {
-      super(message);
+      throw new BadRequestException("dates must be YYYY-MM-DD");
     }
   }
 }

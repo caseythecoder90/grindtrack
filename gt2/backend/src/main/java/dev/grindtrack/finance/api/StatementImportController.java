@@ -9,7 +9,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -111,10 +110,5 @@ public class StatementImportController {
   @ExceptionHandler(StatementParseException.class)
   ResponseEntity<Map<String, String>> onParseFailure(StatementParseException e) {
     return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-  }
-
-  @ExceptionHandler(NoSuchElementException.class)
-  ResponseEntity<Map<String, String>> onNotFound(NoSuchElementException e) {
-    return ResponseEntity.status(404).body(Map.of("error", "not found: " + e.getMessage()));
   }
 }

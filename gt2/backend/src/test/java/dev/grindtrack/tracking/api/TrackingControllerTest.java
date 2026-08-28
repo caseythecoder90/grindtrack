@@ -14,6 +14,8 @@ import dev.grindtrack.tracking.domain.DailyLogRepository;
 import dev.grindtrack.tracking.domain.WeeklyReview;
 import dev.grindtrack.tracking.domain.WeeklyReviewRepository;
 import dev.grindtrack.tracking.service.StatsService;
+import dev.grindtrack.tracking.service.TrackingService;
+import dev.grindtrack.web.ApiExceptionHandler;
 import java.time.LocalDate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,7 +36,9 @@ class TrackingControllerTest {
     weeklyReviews = mock(WeeklyReviewRepository.class);
     mvc =
         MockMvcBuilders.standaloneSetup(
-                new TrackingController(dailyLogs, weeklyReviews, mock(StatsService.class)))
+                new TrackingController(
+                    new TrackingService(dailyLogs, weeklyReviews), mock(StatsService.class)))
+            .setControllerAdvice(new ApiExceptionHandler())
             .build();
   }
 

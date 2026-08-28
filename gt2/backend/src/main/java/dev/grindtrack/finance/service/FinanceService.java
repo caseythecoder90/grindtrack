@@ -107,6 +107,17 @@ public class FinanceService {
 
   // ------------------------------------------------------------ transactions
 
+  /**
+   * How many transactions an account holds.
+   *
+   * <p>Here rather than in the controller: FinanceController used to inject TransactionRepository
+   * solely for this one call, which meant "how do you count an account's rows" had two answers
+   * depending on which file you opened.
+   */
+  public long transactionCount(Long accountId) {
+    return transactions.countByAccountId(accountId);
+  }
+
   public List<Transaction> listByAccount(Long accountId) {
     return transactions.findByAccountIdOrderByPostedDateDesc(accountId);
   }

@@ -12,10 +12,12 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import dev.grindtrack.web.ApiExceptionHandler;
 import dev.grindtrack.work.domain.WorkLog;
 import dev.grindtrack.work.domain.WorkLogRepository;
 import dev.grindtrack.work.domain.WorkSkill;
 import dev.grindtrack.work.domain.WorkSkillRepository;
+import dev.grindtrack.work.service.WorkService;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,7 +36,10 @@ class WorkControllerTest {
   void setUp() {
     workLogs = mock(WorkLogRepository.class);
     workSkills = mock(WorkSkillRepository.class);
-    mvc = MockMvcBuilders.standaloneSetup(new WorkController(workLogs, workSkills)).build();
+    mvc =
+        MockMvcBuilders.standaloneSetup(new WorkController(new WorkService(workLogs, workSkills)))
+            .setControllerAdvice(new ApiExceptionHandler())
+            .build();
   }
 
   @Test

@@ -13,6 +13,7 @@ import dev.grindtrack.plan.domain.PlanItem;
 import dev.grindtrack.plan.domain.PlanQuarter;
 import dev.grindtrack.plan.domain.PlanReference;
 import dev.grindtrack.plan.service.PlanService;
+import dev.grindtrack.web.BadRequestException;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
@@ -20,7 +21,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -55,10 +55,10 @@ public class PlanController {
   @PatchMapping("/items/{id}")
   public ResponseEntity<?> update(@PathVariable Long id, @RequestBody UpdateItemRequest body) {
     if (body.status() != null && !STATUSES.contains(body.status())) {
-      throw new BadRequest("status must be one of " + STATUSES);
+      throw new BadRequestException("status must be one of " + STATUSES);
     }
     if (body.notes() != null && body.notes().length() > MAX_NOTES_CHARS) {
-      throw new BadRequest("notes are limited to " + MAX_NOTES_CHARS + " characters");
+      throw new BadRequestException("notes are limited to " + MAX_NOTES_CHARS + " characters");
     }
     return planService
         .update(id, body.status(), body.notes())
@@ -80,27 +80,27 @@ public class PlanController {
 
   private static List<PlanItem> toItems(List<ImportItem> items) {
     if (items == null || items.isEmpty()) {
-      throw new BadRequest("items must not be empty");
+      throw new BadRequestException("items must not be empty");
     }
     return items.stream().map(PlanController::toItem).toList();
   }
 
   private static PlanItem toItem(ImportItem in) {
     if (in.type() == null || !ITEM_TYPES.contains(in.type())) {
-      throw new BadRequest("item type must be one of " + ITEM_TYPES + ": " + in.title());
+      throw new BadRequestException("item type must be one of " + ITEM_TYPES + ": " + in.title());
     }
     if (in.title() == null || in.title().isBlank() || in.title().length() > 300) {
-      throw new BadRequest("every item needs a title (max 300 chars)");
+      throw new BadRequestException("every item needs a title (max 300 chars)");
     }
     String status = in.status() == null ? "not_started" : in.status();
     if (!STATUSES.contains(status)) {
-      throw new BadRequest("bad status '" + status + "' on: " + in.title());
+      throw new BadRequestException("bad status '" + status + "' on: " + in.title());
     }
     LocalDate targetDate;
     try {
       targetDate = in.targetDate() == null ? null : LocalDate.parse(in.targetDate());
     } catch (DateTimeParseException e) {
-      throw new BadRequest("bad targetDate on: " + in.title());
+      throw new BadRequestException("bad targetDate on: " + in.title());
     }
     return new PlanItem(
         in.type(),
@@ -123,7 +123,7 @@ public class PlanController {
     List<PlanQuarter> result = new ArrayList<>();
     for (ImportQuarter q : quarters) {
       if (q.qtr() == null || q.qtr() < 1 || q.qtr() > 16 || q.windowLabel() == null) {
-        throw new BadRequest("quarters need qtr 1-16 and a windowLabel");
+        throw new BadRequestException("quarters need qtr 1-16 and a windowLabel");
       }
       result.add(
           new PlanQuarter(
@@ -146,23 +146,12 @@ public class PlanController {
     for (int i = 0; i < references.size(); i++) {
       ImportReference r = references.get(i);
       if (r.sheet() == null || r.title() == null || r.contentJson() == null) {
-        throw new BadRequest("reference sheets need sheet, title, and contentJson");
+        throw new BadRequestException("reference sheets need sheet, title, and contentJson");
       }
       result.add(
           new PlanReference(
               r.sheet(), r.title(), r.contentJson(), r.sortOrder() == null ? i : r.sortOrder()));
     }
     return result;
-  }
-
-  @ExceptionHandler(BadRequest.class)
-  ResponseEntity<Map<String, String>> onBadRequest(BadRequest e) {
-    return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-  }
-
-  private static final class BadRequest extends RuntimeException {
-    BadRequest(String message) {
-      super(message);
-    }
   }
 }

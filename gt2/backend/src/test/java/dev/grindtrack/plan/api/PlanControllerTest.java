@@ -15,6 +15,7 @@ import dev.grindtrack.plan.domain.PlanItem;
 import dev.grindtrack.plan.domain.PlanQuarter;
 import dev.grindtrack.plan.domain.PlanReference;
 import dev.grindtrack.plan.service.PlanService;
+import dev.grindtrack.web.ApiExceptionHandler;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,7 +35,10 @@ class PlanControllerTest {
   @BeforeEach
   void setUp() {
     planService = mock(PlanService.class);
-    mvc = MockMvcBuilders.standaloneSetup(new PlanController(planService)).build();
+    mvc =
+        MockMvcBuilders.standaloneSetup(new PlanController(planService))
+            .setControllerAdvice(new ApiExceptionHandler())
+            .build();
   }
 
   private ResultActions postImport(String json) throws Exception {
