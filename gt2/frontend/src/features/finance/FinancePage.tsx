@@ -3,8 +3,10 @@ import { api, jsonInit } from "../../lib/api";
 import { todayISO } from "../../lib/dates";
 import type { FinanceSummary, FinanceTransaction, TxnType } from "../../lib/types";
 import AccountsPanel from "./AccountsPanel";
+import BudgetPanel from "./BudgetPanel";
 import CategoryRulesPanel from "./CategoryRulesPanel";
 import ImportPanel from "./ImportPanel";
+import RecurringPanel from "./RecurringPanel";
 import ReviewInbox from "./ReviewInbox";
 import SavingsGoalCard from "./SavingsGoalCard";
 import SpendingPanel from "./SpendingPanel";
@@ -203,6 +205,16 @@ export default function FinancePage() {
           }}
         />
       )}
+
+      <BudgetPanel
+        key={`budget-${revision}`}
+        onChange={() => setRevision((n) => n + 1)}
+      />
+
+      <RecurringPanel
+        key={`recurring-${revision}`}
+        onChange={() => setRevision((n) => n + 1)}
+      />
 
       <SpendingPanel key={`spend-${revision}`} />
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../lib/api";
-import type { SpendSummary } from "../../lib/types";
+import type { MonthTotal, SpendSummary } from "../../lib/types";
 import { money, moneyWhole } from "./money";
 
 type Window = { label: string; days: number };
@@ -31,6 +31,7 @@ function isoDaysAgo(days: number): string {
 export default function SpendingPanel() {
   const [window, setWindow] = useState<Window>(WINDOWS[0]);
   const [data, setData] = useState<SpendSummary | null>(null);
+  const [months, setMonths] = useState<MonthTotal[]>([]);
   const [error, setError] = useState("");
 
   const load = useCallback(async (days: number) => {
@@ -49,6 +50,12 @@ export default function SpendingPanel() {
   useEffect(() => {
     load(window.days);
   }, [load, window]);
+
+  useEffect(() => {
+    api<MonthTotal[]>("/api/finance/spending/monthly?months=6")
+      .then(setMonths)
+      .catch(() => setMonths([]));
+  }, []);
 
   if (error) {
     return (
@@ -109,6 +116,30 @@ export default function SpendingPanel() {
           <span className="v">{moneyWhole((spend / window.days) * 30.4)}</span>
         </div>
       </div>
+
+      {months.length > 1 && (
+        <>
+          <div className="section-head">
+            <h4>month by month</h4>
+          </div>
+          <div className="months">
+            {months.map((m) => {
+              const peak = Math.max(...months.map((x) => x.spend), 1);
+              return (
+                <div key={m.month} className={`month${m.partial ? " partial" : ""}`}>
+                  <span className="bar" style={{ height: `${(m.spend / peak) * 100}%` }} />
+                  <span className="amt">{moneyWhole(m.spend)}</span>
+                  <span className="lbl">{m.month.slice(5)}</span>
+                </div>
+              );
+            })}
+          </div>
+          <p className="muted small">
+            A single window tells you what you spent; a run of months tells you whether that is
+            normal. The last bar is the month in progress, so it is short by design.
+          </p>
+        </>
+      )}
 
       {uncategorized && Math.abs(uncategorized.total) > spend * 0.15 && (
         <p className="warn">

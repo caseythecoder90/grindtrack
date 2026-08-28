@@ -24,6 +24,7 @@ import dev.grindtrack.finance.domain.TransactionRepository;
 import dev.grindtrack.finance.domain.TxnType;
 import dev.grindtrack.finance.service.CategoryRuleService;
 import dev.grindtrack.finance.service.FinanceService;
+import dev.grindtrack.finance.service.RecurringDetector;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
@@ -62,12 +63,17 @@ public class FinanceController {
   private final FinanceService finance;
   private final TransactionRepository transactions;
   private final CategoryRuleService rules;
+  private final RecurringDetector recurringDetector;
 
   public FinanceController(
-      FinanceService finance, TransactionRepository transactions, CategoryRuleService rules) {
+      FinanceService finance,
+      TransactionRepository transactions,
+      CategoryRuleService rules,
+      RecurringDetector recurringDetector) {
     this.finance = finance;
     this.transactions = transactions;
     this.rules = rules;
+    this.recurringDetector = recurringDetector;
   }
 
   // ------------------------------------------------------------- dashboard
@@ -106,6 +112,31 @@ public class FinanceController {
       throw new BadRequest("from must be on or before to");
     }
     return finance.spendBetween(start, end);
+  }
+
+  /**
+   * The last few months side by side.
+   *
+   * <p>A single window tells you what you spent; a run of months tells you whether that is normal,
+   * which is the question you actually have.
+   */
+  @GetMapping("/spending/monthly")
+  public List<FinanceService.MonthTotal> monthly(@RequestParam(defaultValue = "6") int months) {
+    if (months < 1 || months > 36) {
+      throw new BadRequest("months must be between 1 and 36");
+    }
+    return finance.monthlyTotals(months);
+  }
+
+  /**
+   * The charges that come back every month.
+   *
+   * <p>Two jobs: it is the fastest way to build a budget that is right the first time, and it is
+   * the subscription audit nobody gets round to doing.
+   */
+  @GetMapping("/recurring")
+  public RecurringDetector.RecurringReport recurring() {
+    return recurringDetector.detect();
   }
 
   // ------------------------------------------------------------------ rules

@@ -373,3 +373,42 @@ tr.today-row td { background: rgba(127, 209, 255, 0.06); }
   .review-inbox .file-cell { flex-direction: column; align-items: stretch; }
   .review-inbox .file-cell input { width: 100%; }
 }
+
+/* --- budget and recurring ---------------------------------------------------- */
+h4 { font-size: var(--fs-small); font-weight: 600; color: var(--muted); margin: 0;
+  text-transform: lowercase; letter-spacing: 0.04em; }
+
+.budget-table .bar-cell { width: 26%; padding-right: 12px; }
+.budget-table .meter { position: relative; }
+.budget-table .meter > i.over { background: var(--red); }
+/* Where an evenly-paced month would be today. A limit alone cannot tell you whether
+   60% used is early or late -- this mark is what makes the bar readable mid-month. */
+.budget-table .pace-mark { position: absolute; top: -2px; width: 1px; height: 10px;
+  background: var(--text); opacity: 0.55; }
+
+.pace { font-family: var(--mono); font-size: 10px; letter-spacing: 0.05em; }
+.pace-under { color: var(--muted); }
+.pace-on_track { color: var(--study); }
+.pace-ahead_of_pace { color: var(--yellow); }
+.pace-exceeded { color: var(--red); }
+.pace-within { color: var(--muted); }
+
+.income-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.income-line input { width: 130px; }
+
+.recurring-table tr.inactive { opacity: 0.5; }
+
+/* Six months of spending, tallest scaled to full height. */
+.months { display: flex; align-items: flex-end; gap: 10px; height: 96px; margin: 14px 0 4px; }
+.months .month { flex: 1; display: flex; flex-direction: column; justify-content: flex-end;
+  align-items: center; height: 100%; position: relative; }
+.months .bar { display: block; width: 100%; background: var(--money); border-radius: 3px 3px 0 0;
+  min-height: 2px; }
+.months .month.partial .bar { opacity: 0.45; }
+.months .amt { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-top: 4px; }
+.months .lbl { font-family: var(--mono); font-size: 10px; color: var(--muted); opacity: 0.7; }
+
+@media (max-width: 620px) {
+  .budget-table .bar-cell { display: none; }
+  .months .amt { display: none; }
+}
