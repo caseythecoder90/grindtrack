@@ -1,13 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { errorMessage } from "../../lib/api";
-import {
-  applyRules,
-  createRule,
-  deleteRule,
-  getRules,
-  reclassifyAll,
-  updateRule,
-} from "./financeApi";
+import { applyRules, createRule, deleteRule, getRules, updateRule } from "./financeApi";
 import type { CategoryRule } from "../../lib/types";
 import { categoryOptions } from "./categories";
 
@@ -98,24 +91,6 @@ export default function CategoryRulesPanel({ onChange }: { onChange: () => void 
     }
   }
 
-  async function runReclassify() {
-    setBusy(true);
-    setError("");
-    setNote("");
-    try {
-      const r = await reclassifyAll();
-      setNote(
-        `Re-checked ${r.examined} transactions; ${r.changed} changed type. ` +
-          "Card payments are excluded from spending, loan payments are not.",
-      );
-      onChange();
-    } catch (e) {
-      setError(errorMessage(e, "could not re-classify"));
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function runAll() {
     setBusy(true);
     setError("");
@@ -144,14 +119,6 @@ export default function CategoryRulesPanel({ onChange }: { onChange: () => void 
       <div className="section-head">
         <h3>category rules</h3>
         <div>
-          <button
-            type="button"
-            disabled={busy}
-            title="Re-decides spend vs payment vs transfer for every row, using the current rules"
-            onClick={runReclassify}
-          >
-            re-check types
-          </button>
           {rules.length > 0 && (
             <button type="button" disabled={busy} onClick={runAll}>
               {busy ? "running…" : "re-run on everything"}

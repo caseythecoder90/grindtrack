@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { errorMessage } from "../../lib/api";
-import { categorizeAndLearn, getRules, getUncategorized } from "./financeApi";
+import { categorizeAndLearn, getRules, getUncategorized, reclassifyAll } from "./financeApi";
 import type { FinanceTransaction } from "../../lib/types";
 import { categoryOptions } from "./categories";
 import { signed } from "./money";
@@ -22,6 +22,7 @@ export default function ReviewInbox({ onChange }: { onChange: () => void }) {
   // clears one -- so the order that empties this list fastest is by amount, not by date.
   const [sort, setSort] = useState<"amount" | "date">("amount");
   const [page, setPage] = useState(0);
+  const [rechecking, setRechecking] = useState(false);
   const [busy, setBusy] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
@@ -39,6 +40,33 @@ export default function ReviewInbox({ onChange }: { onChange: () => void }) {
   useEffect(() => {
     load();
   }, [load]);
+
+  /**
+   * Re-decides spend / payment / transfer for every row.
+   *
+   * <p>Lives at the top of this tab rather than beside the rules, because the thing it fixes shows
+   * up somewhere else entirely: a loan payment filed as a card payment is missing from the budget,
+   * and nothing on the budget page hints that the cause is a transaction type.
+   */
+  async function recheckTypes() {
+    setRechecking(true);
+    setError("");
+    setNote("");
+    try {
+      const r = await reclassifyAll();
+      setNote(
+        r.changed === 0
+          ? `Re-checked ${r.examined} transactions; nothing needed changing.`
+          : `Re-checked ${r.examined} transactions and re-typed ${r.changed}. Card payments are out of spending; loan payments are now in it.`,
+      );
+      await load();
+      onChange();
+    } catch (e) {
+      setError(errorMessage(e, "could not re-check types"));
+    } finally {
+      setRechecking(false);
+    }
+  }
 
   async function file(txn: FinanceTransaction) {
     const category = (draft[txn.id] ?? "").trim();
@@ -117,6 +145,14 @@ export default function ReviewInbox({ onChange }: { onChange: () => void }) {
               newest
             </button>
           </div>
+          <button
+            type="button"
+            disabled={rechecking}
+            title="Re-decides spend vs payment vs transfer for every transaction. Run this after a classification fix — it is what moves loan payments back into spending."
+            onClick={recheckTypes}
+          >
+            {rechecking ? "checking…" : "re-check types"}
+          </button>
           <label className="remember">
             <input
               type="checkbox"
