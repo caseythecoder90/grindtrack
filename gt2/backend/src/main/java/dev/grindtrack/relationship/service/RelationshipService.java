@@ -14,6 +14,10 @@ import dev.grindtrack.relationship.domain.Reading;
 import dev.grindtrack.relationship.domain.ReadingKind;
 import dev.grindtrack.relationship.domain.ReadingRepository;
 import dev.grindtrack.relationship.domain.ReadingStatus;
+import dev.grindtrack.relationship.service.RelationshipSummary.Closeness;
+import dev.grindtrack.relationship.service.RelationshipSummary.Perspective;
+import dev.grindtrack.relationship.service.RelationshipSummary.Recency;
+import dev.grindtrack.relationship.service.RelationshipSummary.Upcoming;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
@@ -62,6 +66,12 @@ public class RelationshipService {
   /** How close to your own baseline still counts as a normal stretch rather than a quiet one. */
   private static final double NORMAL_BAND = 0.75;
 
+  /** Enough to pick from on an evening without turning the summary into the full list. */
+  private static final int READY_IDEAS = 8;
+
+  /** A fortnight or so of activity — the summary previews the timeline, it does not replace it. */
+  private static final int TIMELINE_PREVIEW = 12;
+
   private final MomentRepository moments;
   private final IdeaRepository ideas;
   private final OccasionRepository occasions;
@@ -78,69 +88,7 @@ public class RelationshipService {
     this.reading = reading;
   }
 
-  // ------------------------------------------------------------------ views
-
-  /**
-   * @param daysSince null when nothing of this kind has ever been logged, which is a blank rather
-   *     than a zero — "never" and "today" must not look alike
-   */
-  public record Recency(String kind, String lastOn, Long daysSince, String note) {}
-
-  /**
-   * @param tone CALM, NEUTRAL or SUGGEST. Never a warning, and never a failure — the frontend has
-   *     no red state for this and must not acquire one
-   */
-  public record Perspective(String headline, String detail, String tone) {}
-
-  /**
-   * What the intimacy card shows: the literal recent dates, a count against your own baseline, and
-   * a sentence.
-   *
-   * @param recentDates the last few, as dates rather than as a rate. This is the thing that
-   *     actually settles the question, so it comes first
-   * @param typicalPerMonth your own trailing average, the only baseline used anywhere
-   */
-  public record Closeness(
-      List<String> recentDates,
-      Long daysSince,
-      long lastThirtyDays,
-      Integer typicalPerMonth,
-      Perspective perspective) {}
-
-  public record Upcoming(
-      Long id, String label, String on, long daysAway, Integer years, int ideaCount, String note) {}
-
-  public record Summary(
-      List<Recency> recency,
-      Closeness closeness,
-      List<Upcoming> upcoming,
-      List<IdeaView> readyIdeas,
-      List<MomentView> lately) {}
-
-  public record MomentView(
-      Long id, String occurredOn, String kind, String note, Short feltClose, boolean isPrivate) {}
-
-  public record IdeaView(
-      Long id,
-      String kind,
-      String title,
-      String detail,
-      String occasion,
-      BigDecimal estCost,
-      String effort,
-      String status) {}
-
-  public record ReadingView(
-      Long id,
-      String title,
-      String url,
-      String source,
-      String kind,
-      String status,
-      String takeaway,
-      String readOn) {}
-
-  public Summary summary() {
+  public RelationshipSummary summary() {
     LocalDate today = LocalDate.now();
 
     List<Recency> recency = new ArrayList<>();
@@ -154,24 +102,20 @@ public class RelationshipService {
               last.map(Moment::getNote).orElse(null)));
     }
 
-    List<IdeaView> ready =
+    List<Idea> ready =
         ideas.findByStatusNotOrderByIdDesc(IdeaStatus.DONE).stream()
             // Least effort first: on an ordinary evening the deciding factor is how much
             // something takes, not how good the idea is.
             .sorted(Comparator.comparingInt(RelationshipService::effortRank))
-            .limit(8)
-            .map(RelationshipService::toIdeaView)
+            .limit(READY_IDEAS)
             .toList();
 
-    return new Summary(
+    return new RelationshipSummary(
         recency,
         closeness(today),
         upcoming(today),
         ready,
-        moments.findAllByOrderByOccurredOnDescIdDesc().stream()
-            .limit(12)
-            .map(RelationshipService::toMomentView)
-            .toList());
+        moments.findAllByOrderByOccurredOnDescIdDesc().stream().limit(TIMELINE_PREVIEW).toList());
   }
 
   /**
@@ -360,10 +304,9 @@ public class RelationshipService {
 
   // --------------------------------------------------------------- moments
 
-  public List<MomentView> timeline(int limit) {
+  public List<Moment> timeline(int limit) {
     return moments.findAllByOrderByOccurredOnDescIdDesc().stream()
         .limit(Math.max(1, limit))
-        .map(RelationshipService::toMomentView)
         .toList();
   }
 
@@ -397,15 +340,12 @@ public class RelationshipService {
 
   // ----------------------------------------------------------------- ideas
 
-  public List<IdeaView> listIdeas(boolean includeDone) {
+  public List<Idea> listIdeas(boolean includeDone) {
     List<Idea> found =
         includeDone
             ? ideas.findAllByOrderByIdDesc()
             : ideas.findByStatusNotOrderByIdDesc(IdeaStatus.DONE);
-    return found.stream()
-        .sorted(Comparator.comparingInt(RelationshipService::effortRank))
-        .map(RelationshipService::toIdeaView)
-        .toList();
+    return found.stream().sorted(Comparator.comparingInt(RelationshipService::effortRank)).toList();
   }
 
   @Transactional
@@ -512,10 +452,8 @@ public class RelationshipService {
 
   // --------------------------------------------------------------- reading
 
-  public List<ReadingView> listReading() {
-    return reading.findAllByOrderByStatusAscIdDesc().stream()
-        .map(RelationshipService::toReadingView)
-        .toList();
+  public List<Reading> listReading() {
+    return reading.findAllByOrderByStatusAscIdDesc();
   }
 
   @Transactional
@@ -559,48 +497,8 @@ public class RelationshipService {
     reading.deleteById(id);
   }
 
-  // ---------------------------------------------------------------- mapping
-
-  private static MomentView toMomentView(Moment m) {
-    return new MomentView(
-        m.getId(),
-        m.getOccurredOn().toString(),
-        m.getKind().name(),
-        m.getNote(),
-        m.getFeltClose(),
-        m.getKind().isPrivate());
-  }
-
-  private static IdeaView toIdeaView(Idea i) {
-    return new IdeaView(
-        i.getId(),
-        i.getKind().name(),
-        i.getTitle(),
-        i.getDetail(),
-        i.getOccasion(),
-        i.getEstCost(),
-        i.getEffort() == null ? null : i.getEffort().name(),
-        i.getStatus().name());
-  }
-
-  private static ReadingView toReadingView(Reading r) {
-    return new ReadingView(
-        r.getId(),
-        r.getTitle(),
-        r.getUrl(),
-        r.getSource(),
-        r.getKind().name(),
-        r.getStatus().name(),
-        r.getTakeaway(),
-        r.getReadOn() == null ? null : r.getReadOn().toString());
-  }
-
-  /** Exposed for the controller so a blank status is a filter rather than an error. */
-  public List<ReadingView> listReading(ReadingStatus status) {
-    return status == null
-        ? listReading()
-        : reading.findByStatusOrderByIdDesc(status).stream()
-            .map(RelationshipService::toReadingView)
-            .toList();
+  /** A blank status is a filter that matches everything rather than an error. */
+  public List<Reading> listReading(ReadingStatus status) {
+    return status == null ? listReading() : reading.findByStatusOrderByIdDesc(status);
   }
 }

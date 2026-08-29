@@ -1,6 +1,8 @@
 package dev.grindtrack.work.api;
 
 import dev.grindtrack.web.Requests;
+import dev.grindtrack.web.Responses.Deleted;
+import dev.grindtrack.web.Responses.Saved;
 import dev.grindtrack.work.api.WorkDtos.WorkDayRequest;
 import dev.grindtrack.work.api.WorkDtos.WorkDayResponse;
 import dev.grindtrack.work.api.WorkDtos.WorkSkillCreateRequest;
@@ -9,8 +11,7 @@ import dev.grindtrack.work.api.WorkDtos.WorkSkillUpdateRequest;
 import dev.grindtrack.work.service.WorkService;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Map;
-import org.springframework.http.ResponseEntity;
+import java.util.NoSuchElementException;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -61,16 +62,16 @@ public class WorkController {
         .toList();
   }
 
+  /** Null — an empty 200 body — for a day with nothing logged yet; that is not a 404. */
   @GetMapping("/days/{date}")
-  public ResponseEntity<?> day(@PathVariable String date) {
-    return ResponseEntity.ok(
-        work.day(Requests.requireDate(date, "invalid date"))
-            .map(WorkDayResponse::from)
-            .orElse(null));
+  public WorkDayResponse day(@PathVariable String date) {
+    return work.day(Requests.requireDate(date, "invalid date"))
+        .map(WorkDayResponse::from)
+        .orElse(null);
   }
 
   @PutMapping("/days/{date}")
-  public ResponseEntity<?> upsertDay(@PathVariable String date, @RequestBody WorkDayRequest body) {
+  public Saved upsertDay(@PathVariable String date, @RequestBody WorkDayRequest body) {
     LocalDate parsed = Requests.requireDate(date, "invalid date");
     Requests.requireWithin(
         MAX_TEXT_CHARS, TEXT_TOO_LONG, body.goals(), body.did(), body.blockers(), body.learnings());
@@ -88,14 +89,14 @@ public class WorkController {
         body.did(),
         body.blockers(),
         body.learnings());
-    return ResponseEntity.ok(Map.of("saved", parsed.toString()));
+    return Saved.of(parsed);
   }
 
   @DeleteMapping("/days/{date}")
-  public ResponseEntity<?> deleteDay(@PathVariable String date) {
+  public Deleted deleteDay(@PathVariable String date) {
     LocalDate parsed = Requests.requireDate(date, "invalid date");
     work.deleteDay(parsed);
-    return ResponseEntity.ok(Map.of("deleted", parsed.toString()));
+    return Deleted.of(parsed);
   }
 
   // ---------- skills / competencies ----------
@@ -119,7 +120,7 @@ public class WorkController {
   }
 
   @PatchMapping("/skills/{id}")
-  public ResponseEntity<?> updateSkill(
+  public WorkSkillResponse updateSkill(
       @PathVariable Long id, @RequestBody WorkSkillUpdateRequest body) {
     if (body.name() != null) {
       Requests.requireText(body.name(), "skill needs a name", MAX_NAME_CHARS);
@@ -138,13 +139,13 @@ public class WorkController {
             body.status(),
             body.notes(),
             body.sortOrder())
-        .<ResponseEntity<?>>map(skill -> ResponseEntity.ok(WorkSkillResponse.from(skill)))
-        .orElseGet(() -> ResponseEntity.status(404).body(Map.of("error", "no such skill")));
+        .map(WorkSkillResponse::from)
+        .orElseThrow(() -> new NoSuchElementException("skill " + id));
   }
 
   @DeleteMapping("/skills/{id}")
-  public ResponseEntity<?> deleteSkill(@PathVariable Long id) {
+  public Deleted deleteSkill(@PathVariable Long id) {
     work.deleteSkill(id);
-    return ResponseEntity.ok(Map.of("deleted", id));
+    return Deleted.of(id);
   }
 }

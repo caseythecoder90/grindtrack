@@ -15,6 +15,7 @@ import dev.grindtrack.finance.service.parse.ParsedStatement;
 import dev.grindtrack.finance.service.parse.StatementFormat;
 import dev.grindtrack.finance.service.parse.StatementParseException;
 import dev.grindtrack.finance.service.parse.StatementParser;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -366,7 +367,7 @@ public class StatementImportService {
     }
   }
 
-  private static String str(java.time.LocalDate date) {
+  private static String str(LocalDate date) {
     return date == null ? null : date.toString();
   }
 }

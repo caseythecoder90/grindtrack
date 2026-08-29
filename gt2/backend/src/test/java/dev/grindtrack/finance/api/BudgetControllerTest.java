@@ -18,8 +18,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import dev.grindtrack.finance.domain.Budget;
 import dev.grindtrack.finance.domain.BudgetExtra;
 import dev.grindtrack.finance.domain.BudgetSettings;
+import dev.grindtrack.finance.service.BudgetMonth;
 import dev.grindtrack.finance.service.BudgetService;
-import dev.grindtrack.finance.service.BudgetService.MonthView;
 import dev.grindtrack.web.ApiExceptionHandler;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -49,8 +49,8 @@ class BudgetControllerTest {
     when(budget.list(anyBoolean())).thenReturn(List.of());
   }
 
-  private static MonthView view() {
-    return new MonthView(
+  private static BudgetMonth view() {
+    return new BudgetMonth(
         "2026-09",
         "September 2026",
         1,

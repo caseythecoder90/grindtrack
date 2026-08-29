@@ -3,6 +3,22 @@
 All request/response bodies are JSON. Authenticated endpoints require the `gt_access` cookie
 (set by login/refresh); unauthenticated calls receive `401` with no body.
 
+## Errors
+
+One envelope, `{"error": "<a sentence you can act on>"}`, produced by a single
+`@RestControllerAdvice`:
+
+| Status | When |
+|---|---|
+| 400 | Malformed shape — an unparseable date, an unknown enum constant, a string over its column length. Also a domain rule the service enforces (a duplicate budget category, an uncompilable regex, a moment dated in the future). |
+| 404 | No such row. The message names it: `not found: account 5`. |
+| 409 | Well-formed but inapplicable — currently only an identical transaction that already exists. |
+| 500 | Anything unanticipated, with its stack trace kept in the log. There is deliberately no handler that catches `Exception`. |
+
+Deletes answer `{"deleted": <id>}` and day-keyed upserts `{"saved": "<date>"}`. Reads of a day or
+week with nothing recorded answer **200 with an empty body**, not 404 — "not logged yet" is not an
+error.
+
 ## Public
 
 | Method | Path | Description |
@@ -37,6 +53,9 @@ All request/response bodies are JSON. Authenticated endpoints require the `gt_ac
 |---|---|---|
 | POST | `/api/focus/sessions` | `{date, startedAt, durationMinutes, completed, kind}`. Records a pomodoro session and **atomically adds its minutes to that day's hours** (rounded to 0.1 h, day capped at 24). `kind` is `study` (default → `daily_logs.hours`) or `work` (→ `work_logs.hours`). `completed=false` marks an ended-early session; its partial minutes still count. |
 | GET | `/api/focus/sessions?date=YYYY-MM-DD[&kind=study\|work]` | That day's sessions, ordered by start time; optional `kind` filters to study or work |
+
+An absent `kind` on POST means `study`; anything that is not `study` or `work` is a 400. It used to
+be coerced to `study`, so a typo filed work hours as study time.
 
 ## Plan (authenticated)
 
@@ -102,6 +121,45 @@ committed (`statements/`, `*.csv`, `*.ofx`, `*.qfx` are gitignored).
 | POST | `/api/finance/goals` | Create: `{name, targetAmount, targetDate?, note?, sortOrder?}` |
 | PUT | `/api/finance/goals/{id}` | Full update, same body plus `active` |
 | DELETE | `/api/finance/goals/{id}` | Remove a goal |
+| GET | `/api/finance/transactions` | Paged browse: `accountId, txnType, uncategorizedOnly, sort=date\|amount, page, size` (≤200). Answers `{items[], page, size, totalElements, totalPages}` |
+| POST | `/api/finance/transactions/{id}/categorize` | `{category, createRule?}` — files the row and, with `createRule`, writes a rule from the normalized merchant. Answers `{transaction, rule, ruleExisted}`; `rule` is null when none was asked for or one already existed |
+| POST | `/api/finance/transactions/reclassify` | Re-run the type classifier over every row |
+
+### Category rules
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/finance/rules?includeInactive=true` | Ordered by priority |
+| POST | `/api/finance/rules` | `{pattern, matchType?, category, priority?}` — `matchType` ∈ `CONTAINS/EQUALS/REGEX`, default `CONTAINS`; an uncompilable regex is a 400 |
+| PUT/DELETE | `/api/finance/rules/{id}` | Update / remove |
+| POST | `/api/finance/rules/apply` | Re-run every rule over the whole history. Hand-corrected rows are never touched. |
+
+### Spending
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/finance/spending?from=&to=` | Rollup over a window, default the last 30 days. `from` after `to` is a 400 |
+| GET | `/api/finance/spending/monthly?months=6` | Months side by side, 1–36 |
+| GET | `/api/finance/recurring` | The charges that come back every month |
+
+### Budget
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/finance/budget/month?month=yyyy-MM` | The plan, what happened, and the gap, per category. Defaults to this month |
+| GET/POST | `/api/finance/budget/lines` | The recurring plan |
+| PUT/DELETE | `/api/finance/budget/lines/{id}` | |
+| GET/POST | `/api/finance/budget/extras?from=yyyy-MM` | One-off costs and windfalls for a single month |
+| PUT/DELETE | `/api/finance/budget/extras/{id}` | |
+| PUT | `/api/finance/budget/income` | `{expectedMonthlyIncome}`; null or zero reverts to the trailing average of real deposits. Answers `{expectedMonthlyIncome, estimated}` |
+
+### Statement import
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/finance/imports` | Upload history |
+| POST | `/api/finance/imports?accountId=&dryRun=false` | Multipart `file`, ≤5 MB. Read into memory and never written to disk. `dryRun` parses and reports without writing — worth doing the first time each bank's export is tried, since the counts alone reveal a wrong-account upload |
+| DELETE | `/api/finance/imports/{id}` | Undo a batch; answers `{undone, transactionsRemoved}` |
 
 **Amount sign convention:** always signed, negative = money leaving the account, on every account
 type. Importers normalize into this from three different bank conventions.
@@ -109,3 +167,23 @@ type. Importers normalize into this from three different bank conventions.
 **Why `txnType` matters:** a credit-card payment is not an expense — the expense was the original
 purchase. `TRANSFER` and `PAYMENT` are excluded from every spend rollup, in the repository query
 rather than at the call site, so no future report can forget to do it.
+
+## Relationship (authenticated)
+
+Deliberately absent from `/api/public/**`. Nothing here has a public shape.
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/relationship/summary` | `{recency[], closeness, upcoming[], readyIdeas[], lately[]}` |
+| GET/POST | `/api/relationship/moments` | Timeline (`?limit=60`) / log one `{occurredOn?, kind, note?, feltClose?}`; a future date is a 400 |
+| PUT/DELETE | `/api/relationship/moments/{id}` | |
+| GET/POST | `/api/relationship/ideas` | List (`?includeDone`) / create; least effort first |
+| PUT/DELETE | `/api/relationship/ideas/{id}` | |
+| POST | `/api/relationship/ideas/{id}/done` | `{on?}` — logs the idea as a moment and takes it off the list |
+| GET | `/api/relationship/occasions` | Every occasion with its next date and how many ideas are waiting |
+| POST/PUT | `/api/relationship/occasions[/{id}]` | Answers with the whole list: every next date shifts together |
+| DELETE | `/api/relationship/occasions/{id}` | |
+| GET/POST | `/api/relationship/reading[?status=TO_READ\|READ]` | |
+| POST | `/api/relationship/reading/{id}/read` | `{takeaway, readOn?}` |
+| POST | `/api/relationship/reading/{id}/promote` | Turns a takeaway into a gesture idea — the reason the takeaway field exists |
+| DELETE | `/api/relationship/reading/{id}` | |

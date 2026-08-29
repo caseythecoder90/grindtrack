@@ -7,6 +7,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 
@@ -85,6 +86,30 @@ public class SavingsGoal {
 
   public int getSortOrder() {
     return sortOrder;
+  }
+
+  /**
+   * How far along this goal is, 0-100 to one decimal.
+   *
+   * <p>Arithmetic over the goal's own target, so it lives on the goal. It sat on {@code
+   * FinanceService} in two overloads, one of which nothing called — which is what happens to a
+   * calculation parked in a service: it grows a convenience variant instead of a caller.
+   *
+   * @param savingsBalance the summed balance of the accounts that count toward savings; passed in
+   *     because rendering a list of goals otherwise re-queries the same sum once per goal
+   */
+  public BigDecimal progressPercent(BigDecimal savingsBalance) {
+    if (targetAmount == null || targetAmount.signum() <= 0) {
+      return BigDecimal.ZERO;
+    }
+    return savingsBalance
+        .multiply(BigDecimal.valueOf(100))
+        .divide(targetAmount, 1, RoundingMode.HALF_UP);
+  }
+
+  /** What is still to be found. Never negative: a goal met is met, not over-met. */
+  public BigDecimal remaining(BigDecimal savingsBalance) {
+    return targetAmount.subtract(savingsBalance).max(BigDecimal.ZERO);
   }
 
   public void update(

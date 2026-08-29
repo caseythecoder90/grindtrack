@@ -1,4 +1,5 @@
 import type { Closeness } from "../../lib/types";
+import { daysSince } from "../../lib/dates";
 import { daysAgo } from "./kinds";
 
 /**
@@ -55,7 +56,7 @@ export default function ClosenessCard({
           {recentDates.slice(0, 4).map((d, i) => (
             <span key={d + i}>
               {i > 0 && " · "}
-              {daysAgo(daysBetween(d))}
+              {daysAgo(daysSince(d))}
             </span>
           ))}
         </p>
@@ -68,13 +69,4 @@ export default function ClosenessCard({
       )}
     </div>
   );
-}
-
-/** Whole days between a yyyy-MM-dd and today, computed in local time. */
-function daysBetween(iso: string): number {
-  const [y, m, d] = iso.split("-").map(Number);
-  const then = new Date(y, m - 1, d);
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  return Math.round((today.getTime() - then.getTime()) / 86_400_000);
 }

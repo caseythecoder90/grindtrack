@@ -14,8 +14,7 @@ import dev.grindtrack.finance.domain.BudgetSettings;
 import dev.grindtrack.finance.domain.BudgetSettingsRepository;
 import dev.grindtrack.finance.domain.CategoryTotal;
 import dev.grindtrack.finance.domain.TransactionRepository;
-import dev.grindtrack.finance.service.BudgetService.CategoryLine;
-import dev.grindtrack.finance.service.BudgetService.MonthView;
+import dev.grindtrack.finance.service.BudgetMonth.CategoryLine;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;
@@ -72,7 +71,7 @@ class BudgetServiceTest {
         .thenReturn(List.of(new CategoryTotal(category, new BigDecimal(amount), 1)));
   }
 
-  private static CategoryLine find(MonthView view, String category) {
+  private static CategoryLine find(BudgetMonth view, String category) {
     return view.categories().stream()
         .filter(c -> c.category().equals(category))
         .findFirst()
@@ -103,7 +102,7 @@ class BudgetServiceTest {
     givenSpend("Dining", "-260");
     when(transactions.sumSpendBetween(any(), any())).thenReturn(new BigDecimal("-260"));
 
-    MonthView view = service.month(PAST);
+    BudgetMonth view = service.month(PAST);
 
     assertThat(find(view, "Dining").left()).isEqualByComparingTo("-60");
     assertThat(find(view, "Dining").pace()).isEqualTo("EXCEEDED");
@@ -140,7 +139,7 @@ class BudgetServiceTest {
     when(extras.findByMonthOrderByIdAsc(PAST.atDay(1)))
         .thenReturn(List.of(extra("New brakes", "-450", null)));
 
-    MonthView view = service.month(PAST);
+    BudgetMonth view = service.month(PAST);
 
     assertThat(view.planned()).isEqualByComparingTo("1050");
     assertThat(view.extraExpenses()).isEqualByComparingTo("450");
@@ -159,7 +158,7 @@ class BudgetServiceTest {
                 extra("Wedding gift", "-150", null),
                 extra("Extra groceries for guests", "-100", "Groceries")));
 
-    MonthView view = service.month(PAST);
+    BudgetMonth view = service.month(PAST);
 
     // 600 recurring + 300 + 150 + 100 of one-offs, each counted once.
     assertThat(view.planned()).isEqualByComparingTo("1150");
@@ -176,7 +175,7 @@ class BudgetServiceTest {
         .thenReturn(List.of(extra("Half of the trip, paid back", "600", "Travel")));
     when(transactions.sumIncomeBetween(any(), any())).thenReturn(new BigDecimal("5000"));
 
-    MonthView view = service.month(PAST);
+    BudgetMonth view = service.month(PAST);
 
     assertThat(view.extraIncome()).isEqualByComparingTo("600");
     assertThat(find(view, "Travel").planned()).isEqualByComparingTo("400");
@@ -196,7 +195,7 @@ class BudgetServiceTest {
                 new CategoryTotal("Shopping", new BigDecimal("-320"), 9),
                 new CategoryTotal(null, new BigDecimal("-88"), 3)));
 
-    MonthView view = service.month(PAST);
+    BudgetMonth view = service.month(PAST);
 
     assertThat(view.unbudgeted()).hasSize(2);
     assertThat(view.unbudgeted().get(0).category()).isEqualTo("Shopping");
@@ -238,7 +237,7 @@ class BudgetServiceTest {
     when(extras.findByMonthOrderByIdAsc(PAST.atDay(1)))
         .thenReturn(List.of(extra("Vacation", "-1200", null)));
 
-    MonthView view = service.month(PAST);
+    BudgetMonth view = service.month(PAST);
 
     assertThat(view.planned()).isEqualByComparingTo("4525");
     assertThat(view.projectedNet()).isEqualByComparingTo("3475");
@@ -252,7 +251,7 @@ class BudgetServiceTest {
         .thenReturn(List.of(line("Groceries", "600")));
     givenSpend("Groceries", "-100");
 
-    MonthView view = service.month(PAST);
+    BudgetMonth view = service.month(PAST);
 
     assertThat(view.currentMonth()).isFalse();
     assertThat(find(view, "Groceries").pace()).isEqualTo("WITHIN");
@@ -266,7 +265,7 @@ class BudgetServiceTest {
         .thenReturn(List.of(line("Groceries", "600")));
     YearMonth current = YearMonth.now();
 
-    MonthView view = service.month(current);
+    BudgetMonth view = service.month(current);
 
     assertThat(view.currentMonth()).isTrue();
     assertThat(view.dayOfMonth()).isEqualTo(LocalDate.now().getDayOfMonth());

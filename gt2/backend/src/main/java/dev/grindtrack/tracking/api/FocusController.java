@@ -1,12 +1,12 @@
 package dev.grindtrack.tracking.api;
 
-import dev.grindtrack.tracking.api.Dtos.FocusSessionResponse;
+import dev.grindtrack.tracking.api.TrackingDtos.FocusSessionRequest;
+import dev.grindtrack.tracking.api.TrackingDtos.FocusSessionResponse;
+import dev.grindtrack.tracking.domain.FocusKind;
 import dev.grindtrack.tracking.service.FocusService;
-import java.time.LocalDate;
-import java.time.OffsetDateTime;
-import java.time.format.DateTimeParseException;
-import java.util.Map;
-import org.springframework.http.ResponseEntity;
+import dev.grindtrack.web.BadRequestException;
+import dev.grindtrack.web.Requests;
+import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -14,9 +14,24 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * The pomodoro timer's record of what it ran.
+ *
+ * <p>Everything validated here is shape — a parseable date, a duration inside a day, a known kind.
+ * That the minutes then land on the right log is {@link FocusService}'s rule, and it holds whether
+ * the session arrives over HTTP or not.
+ */
 @RestController
 @RequestMapping("/api/focus")
 public class FocusController {
+
+  /**
+   * A session longer than a day is a bug in the caller, not a heroic study stretch. The lower bound
+   * is 1 because a zero-minute session would add nothing and still show up in the day's list.
+   */
+  private static final int MIN_MINUTES = 1;
+
+  private static final int MAX_MINUTES = 24 * 60;
 
   private final FocusService focusService;
 
@@ -26,64 +41,32 @@ public class FocusController {
 
   /** Records a finished (or ended-early) session; the day's hours are updated atomically. */
   @PostMapping("/sessions")
-  public ResponseEntity<?> record(@RequestBody SessionRequest body) {
-    LocalDate date = parseDate(body.date());
-    if (date == null) {
-      return badRequest("date must be YYYY-MM-DD");
-    }
-    OffsetDateTime startedAt = parseInstant(body.startedAt());
-    if (startedAt == null) {
-      return badRequest("startedAt must be an ISO-8601 timestamp");
-    }
-    if (body.durationMinutes() == null
-        || body.durationMinutes() < 1
-        || body.durationMinutes() > 1440) {
-      return badRequest("durationMinutes must be 1-1440");
-    }
-    boolean completed = Boolean.TRUE.equals(body.completed());
-    String kind = body.kind() == null ? "study" : body.kind();
-    if (!kind.equals("study") && !kind.equals("work")) {
-      return badRequest("kind must be study or work");
-    }
-    return ResponseEntity.ok(
-        FocusSessionResponse.from(
-            focusService.record(date, startedAt, body.durationMinutes(), completed, kind)));
+  public FocusSessionResponse record(@RequestBody FocusSessionRequest body) {
+    return FocusSessionResponse.from(
+        focusService.record(
+            Requests.requireDate(body.date(), "date must be YYYY-MM-DD"),
+            Requests.requireInstant(body.startedAt(), "startedAt must be an ISO-8601 timestamp"),
+            requireDuration(body.durationMinutes()),
+            Boolean.TRUE.equals(body.completed()),
+            Requests.enumValue(FocusKind.class, body.kind(), "kind", FocusKind.STUDY)));
   }
 
   @GetMapping("/sessions")
-  public ResponseEntity<?> list(
+  public List<FocusSessionResponse> list(
       @RequestParam String date, @RequestParam(required = false) String kind) {
-    LocalDate parsed = parseDate(date);
-    if (parsed == null) {
-      return badRequest("date must be YYYY-MM-DD");
-    }
-    if (kind != null && !kind.equals("study") && !kind.equals("work")) {
-      return badRequest("kind must be study or work");
-    }
-    return ResponseEntity.ok(
-        focusService.sessionsOn(parsed, kind).stream().map(FocusSessionResponse::from).toList());
+    return focusService
+        .sessionsOn(
+            Requests.requireDate(date, "date must be YYYY-MM-DD"),
+            Requests.optionalEnum(FocusKind.class, kind, "kind"))
+        .stream()
+        .map(FocusSessionResponse::from)
+        .toList();
   }
 
-  private static LocalDate parseDate(String value) {
-    try {
-      return value == null ? null : LocalDate.parse(value);
-    } catch (DateTimeParseException e) {
-      return null;
+  private static int requireDuration(Integer minutes) {
+    if (minutes == null || minutes < MIN_MINUTES || minutes > MAX_MINUTES) {
+      throw new BadRequestException("durationMinutes must be " + MIN_MINUTES + "-" + MAX_MINUTES);
     }
+    return minutes;
   }
-
-  private static OffsetDateTime parseInstant(String value) {
-    try {
-      return value == null ? null : OffsetDateTime.parse(value);
-    } catch (DateTimeParseException e) {
-      return null;
-    }
-  }
-
-  private static ResponseEntity<Map<String, String>> badRequest(String message) {
-    return ResponseEntity.badRequest().body(Map.of("error", message));
-  }
-
-  public record SessionRequest(
-      String date, String startedAt, Integer durationMinutes, Boolean completed, String kind) {}
 }

@@ -1,5 +1,16 @@
 package dev.grindtrack.relationship.api;
 
+import dev.grindtrack.relationship.api.RelationshipDtos.DoneRequest;
+import dev.grindtrack.relationship.api.RelationshipDtos.IdeaRequest;
+import dev.grindtrack.relationship.api.RelationshipDtos.IdeaResponse;
+import dev.grindtrack.relationship.api.RelationshipDtos.MarkReadRequest;
+import dev.grindtrack.relationship.api.RelationshipDtos.MomentRequest;
+import dev.grindtrack.relationship.api.RelationshipDtos.MomentResponse;
+import dev.grindtrack.relationship.api.RelationshipDtos.OccasionRequest;
+import dev.grindtrack.relationship.api.RelationshipDtos.PromoteRequest;
+import dev.grindtrack.relationship.api.RelationshipDtos.ReadingRequest;
+import dev.grindtrack.relationship.api.RelationshipDtos.ReadingResponse;
+import dev.grindtrack.relationship.api.RelationshipDtos.SummaryResponse;
 import dev.grindtrack.relationship.domain.Effort;
 import dev.grindtrack.relationship.domain.IdeaKind;
 import dev.grindtrack.relationship.domain.IdeaStatus;
@@ -7,17 +18,11 @@ import dev.grindtrack.relationship.domain.MomentKind;
 import dev.grindtrack.relationship.domain.ReadingKind;
 import dev.grindtrack.relationship.domain.ReadingStatus;
 import dev.grindtrack.relationship.service.RelationshipService;
-import dev.grindtrack.relationship.service.RelationshipService.IdeaView;
-import dev.grindtrack.relationship.service.RelationshipService.MomentView;
-import dev.grindtrack.relationship.service.RelationshipService.ReadingView;
-import dev.grindtrack.relationship.service.RelationshipService.Summary;
-import dev.grindtrack.relationship.service.RelationshipService.Upcoming;
-import java.math.BigDecimal;
+import dev.grindtrack.relationship.service.RelationshipSummary.Upcoming;
+import dev.grindtrack.web.Requests;
+import dev.grindtrack.web.Responses.Deleted;
 import java.time.LocalDate;
-import java.time.format.DateTimeParseException;
 import java.util.List;
-import java.util.Map;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -33,10 +38,19 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>Behind the same authentication as everything else, and deliberately absent from {@code
  * /api/public/**} — none of this has a public shape and none of it ever should.
+ *
+ * <p>Everything validated here is shape: a parseable date, a known enum constant. The rules about
+ * what may be recorded — a moment cannot be dated in the future, an idea needs a title — are {@link
+ * RelationshipService}'s, because they hold however the call arrives.
  */
 @RestController
 @RequestMapping("/api/relationship")
 public class RelationshipController {
+
+  /** The recurring-occasion default: three weeks is enough notice to order something. */
+  private static final int DEFAULT_LEAD_DAYS = 21;
+
+  private static final int DEFAULT_TIMELINE_LIMIT = 60;
 
   private final RelationshipService relationship;
 
@@ -44,113 +58,93 @@ public class RelationshipController {
     this.relationship = relationship;
   }
 
-  public record MomentRequest(String occurredOn, String kind, String note, Short feltClose) {}
-
-  public record IdeaRequest(
-      String kind,
-      String title,
-      String detail,
-      String occasion,
-      BigDecimal estCost,
-      String effort,
-      String status) {}
-
-  public record OccasionRequest(
-      String label, String date, Boolean recurring, Integer leadDays, String note) {}
-
-  public record ReadingRequest(String title, String url, String source, String kind) {}
-
-  public record MarkReadRequest(String takeaway, String readOn) {}
-
-  public record PromoteRequest(String title, String effort) {}
-
-  public record DoneRequest(String on) {}
-
   // --------------------------------------------------------------- summary
 
   @GetMapping("/summary")
-  public Summary summary() {
-    return relationship.summary();
+  public SummaryResponse summary() {
+    return SummaryResponse.from(relationship.summary());
   }
 
   // --------------------------------------------------------------- moments
 
   @GetMapping("/moments")
-  public List<MomentView> moments(@RequestParam(defaultValue = "60") int limit) {
-    return relationship.timeline(limit);
+  public List<MomentResponse> moments(
+      @RequestParam(defaultValue = "" + DEFAULT_TIMELINE_LIMIT) int limit) {
+    return relationship.timeline(limit).stream().map(MomentResponse::from).toList();
   }
 
   @PostMapping("/moments")
-  public MomentView log(@RequestBody MomentRequest body) {
-    return view(
+  public MomentResponse log(@RequestBody MomentRequest body) {
+    return MomentResponse.from(
         relationship.log(
-            optionalDate(body.occurredOn()),
-            momentKind(body.kind()),
+            Requests.optionalDate(body.occurredOn()),
+            Requests.enumValue(MomentKind.class, body.kind(), "kind"),
             body.note(),
             body.feltClose()));
   }
 
   @PutMapping("/moments/{id}")
-  public MomentView updateMoment(@PathVariable Long id, @RequestBody MomentRequest body) {
-    return view(
+  public MomentResponse updateMoment(@PathVariable Long id, @RequestBody MomentRequest body) {
+    return MomentResponse.from(
         relationship.updateMoment(
             id,
-            optionalDate(body.occurredOn()),
-            momentKind(body.kind()),
+            Requests.optionalDate(body.occurredOn()),
+            Requests.enumValue(MomentKind.class, body.kind(), "kind"),
             body.note(),
             body.feltClose()));
   }
 
   @DeleteMapping("/moments/{id}")
-  public ResponseEntity<?> deleteMoment(@PathVariable Long id) {
+  public Deleted deleteMoment(@PathVariable Long id) {
     relationship.deleteMoment(id);
-    return ResponseEntity.ok(Map.of("deleted", id));
+    return Deleted.of(id);
   }
 
   // ----------------------------------------------------------------- ideas
 
   @GetMapping("/ideas")
-  public List<IdeaView> ideas(@RequestParam(defaultValue = "false") boolean includeDone) {
-    return relationship.listIdeas(includeDone);
+  public List<IdeaResponse> ideas(@RequestParam(defaultValue = "false") boolean includeDone) {
+    return relationship.listIdeas(includeDone).stream().map(IdeaResponse::from).toList();
   }
 
   @PostMapping("/ideas")
-  public IdeaView createIdea(@RequestBody IdeaRequest body) {
-    return toView(
+  public IdeaResponse createIdea(@RequestBody IdeaRequest body) {
+    return IdeaResponse.from(
         relationship.createIdea(
-            ideaKind(body.kind()),
+            Requests.enumValue(IdeaKind.class, body.kind(), "kind", IdeaKind.GIFT),
             body.title(),
             body.detail(),
             body.occasion(),
             body.estCost(),
-            effort(body.effort())));
+            Requests.optionalEnum(Effort.class, body.effort(), "effort")));
   }
 
   @PutMapping("/ideas/{id}")
-  public IdeaView updateIdea(@PathVariable Long id, @RequestBody IdeaRequest body) {
-    return toView(
+  public IdeaResponse updateIdea(@PathVariable Long id, @RequestBody IdeaRequest body) {
+    return IdeaResponse.from(
         relationship.updateIdea(
             id,
-            ideaKind(body.kind()),
+            Requests.enumValue(IdeaKind.class, body.kind(), "kind", IdeaKind.GIFT),
             body.title(),
             body.detail(),
             body.occasion(),
             body.estCost(),
-            effort(body.effort()),
-            ideaStatus(body.status())));
+            Requests.optionalEnum(Effort.class, body.effort(), "effort"),
+            Requests.enumValue(IdeaStatus.class, body.status(), "status", IdeaStatus.IDEA)));
   }
 
   /** Acting on an idea logs it as a moment and takes it off the list. */
   @PostMapping("/ideas/{id}/done")
-  public MomentView completeIdea(
+  public MomentResponse completeIdea(
       @PathVariable Long id, @RequestBody(required = false) DoneRequest body) {
-    return view(relationship.completeIdea(id, body == null ? null : optionalDate(body.on())));
+    return MomentResponse.from(
+        relationship.completeIdea(id, body == null ? null : Requests.optionalDate(body.on())));
   }
 
   @DeleteMapping("/ideas/{id}")
-  public ResponseEntity<?> deleteIdea(@PathVariable Long id) {
+  public Deleted deleteIdea(@PathVariable Long id) {
     relationship.deleteIdea(id);
-    return ResponseEntity.ok(Map.of("deleted", id));
+    return Deleted.of(id);
   }
 
   // ------------------------------------------------------------- occasions
@@ -160,177 +154,81 @@ public class RelationshipController {
     return relationship.allOccasions(LocalDate.now());
   }
 
+  /** Returns the whole list rather than the one row, because the next dates all shift with it. */
   @PostMapping("/occasions")
-  public ResponseEntity<?> createOccasion(@RequestBody OccasionRequest body) {
+  public List<Upcoming> createOccasion(@RequestBody OccasionRequest body) {
     relationship.createOccasion(
         body.label(),
-        requireDate(body.date()),
+        Requests.requireDate(body.date(), "an occasion needs a date as YYYY-MM-DD"),
         body.recurring() == null || body.recurring(),
-        body.leadDays() == null ? 21 : body.leadDays(),
+        body.leadDays() == null ? DEFAULT_LEAD_DAYS : body.leadDays(),
         body.note());
-    return ResponseEntity.ok(relationship.allOccasions(LocalDate.now()));
+    return relationship.allOccasions(LocalDate.now());
   }
 
   @PutMapping("/occasions/{id}")
-  public ResponseEntity<?> updateOccasion(
-      @PathVariable Long id, @RequestBody OccasionRequest body) {
+  public List<Upcoming> updateOccasion(@PathVariable Long id, @RequestBody OccasionRequest body) {
     relationship.updateOccasion(
         id,
         body.label(),
-        requireDate(body.date()),
+        Requests.requireDate(body.date(), "an occasion needs a date as YYYY-MM-DD"),
         body.recurring() == null || body.recurring(),
-        body.leadDays() == null ? 21 : body.leadDays(),
+        body.leadDays() == null ? DEFAULT_LEAD_DAYS : body.leadDays(),
         body.note());
-    return ResponseEntity.ok(relationship.allOccasions(LocalDate.now()));
+    return relationship.allOccasions(LocalDate.now());
   }
 
   @DeleteMapping("/occasions/{id}")
-  public ResponseEntity<?> deleteOccasion(@PathVariable Long id) {
+  public Deleted deleteOccasion(@PathVariable Long id) {
     relationship.deleteOccasion(id);
-    return ResponseEntity.ok(Map.of("deleted", id));
+    return Deleted.of(id);
   }
 
   // --------------------------------------------------------------- reading
 
   @GetMapping("/reading")
-  public List<ReadingView> reading(@RequestParam(required = false) String status) {
-    return relationship.listReading(readingStatus(status));
+  public List<ReadingResponse> reading(@RequestParam(required = false) String status) {
+    return relationship
+        .listReading(Requests.optionalEnum(ReadingStatus.class, status, "status"))
+        .stream()
+        .map(ReadingResponse::from)
+        .toList();
   }
 
   @PostMapping("/reading")
-  public ResponseEntity<?> addReading(@RequestBody ReadingRequest body) {
-    relationship.addReading(body.title(), body.url(), body.source(), readingKind(body.kind()));
-    return ResponseEntity.ok(relationship.listReading());
+  public List<ReadingResponse> addReading(@RequestBody ReadingRequest body) {
+    relationship.addReading(
+        body.title(),
+        body.url(),
+        body.source(),
+        Requests.enumValue(ReadingKind.class, body.kind(), "kind", ReadingKind.ARTICLE));
+    return allReading();
   }
 
   @PostMapping("/reading/{id}/read")
-  public ResponseEntity<?> markRead(@PathVariable Long id, @RequestBody MarkReadRequest body) {
-    relationship.markRead(id, body.takeaway(), optionalDate(body.readOn()));
-    return ResponseEntity.ok(relationship.listReading());
+  public List<ReadingResponse> markRead(@PathVariable Long id, @RequestBody MarkReadRequest body) {
+    relationship.markRead(id, body.takeaway(), Requests.optionalDate(body.readOn()));
+    return allReading();
   }
 
   /** Turns a takeaway into a gesture idea, which is the point of having written it down. */
   @PostMapping("/reading/{id}/promote")
-  public IdeaView promote(
+  public IdeaResponse promote(
       @PathVariable Long id, @RequestBody(required = false) PromoteRequest body) {
-    return toView(
+    return IdeaResponse.from(
         relationship.promoteTakeaway(
-            id, body == null ? null : body.title(), body == null ? null : effort(body.effort())));
+            id,
+            body == null ? null : body.title(),
+            body == null ? null : Requests.optionalEnum(Effort.class, body.effort(), "effort")));
   }
 
   @DeleteMapping("/reading/{id}")
-  public ResponseEntity<?> deleteReading(@PathVariable Long id) {
+  public Deleted deleteReading(@PathVariable Long id) {
     relationship.deleteReading(id);
-    return ResponseEntity.ok(Map.of("deleted", id));
+    return Deleted.of(id);
   }
 
-  // ---------------------------------------------------------------- mapping
-
-  private static MomentView view(dev.grindtrack.relationship.domain.Moment m) {
-    return new MomentView(
-        m.getId(),
-        m.getOccurredOn().toString(),
-        m.getKind().name(),
-        m.getNote(),
-        m.getFeltClose(),
-        m.getKind().isPrivate());
-  }
-
-  private static IdeaView toView(dev.grindtrack.relationship.domain.Idea i) {
-    return new IdeaView(
-        i.getId(),
-        i.getKind().name(),
-        i.getTitle(),
-        i.getDetail(),
-        i.getOccasion(),
-        i.getEstCost(),
-        i.getEffort() == null ? null : i.getEffort().name(),
-        i.getStatus().name());
-  }
-
-  // ------------------------------------------------------------- parsing
-
-  private static MomentKind momentKind(String value) {
-    try {
-      return MomentKind.valueOf(value == null ? "" : value.trim().toUpperCase());
-    } catch (IllegalArgumentException e) {
-      throw new IllegalArgumentException(
-          "kind must be one of DATE_NIGHT, NOTE_LEFT, GIFT_GIVEN, INTIMACY, CONVERSATION, TRIP,"
-              + " GESTURE");
-    }
-  }
-
-  private static IdeaKind ideaKind(String value) {
-    if (value == null || value.isBlank()) {
-      return IdeaKind.GIFT;
-    }
-    try {
-      return IdeaKind.valueOf(value.trim().toUpperCase());
-    } catch (IllegalArgumentException e) {
-      throw new IllegalArgumentException("kind must be GIFT, DATE or GESTURE");
-    }
-  }
-
-  private static IdeaStatus ideaStatus(String value) {
-    if (value == null || value.isBlank()) {
-      return IdeaStatus.IDEA;
-    }
-    try {
-      return IdeaStatus.valueOf(value.trim().toUpperCase());
-    } catch (IllegalArgumentException e) {
-      throw new IllegalArgumentException("status must be IDEA, PLANNED or DONE");
-    }
-  }
-
-  private static Effort effort(String value) {
-    if (value == null || value.isBlank()) {
-      return null;
-    }
-    try {
-      return Effort.valueOf(value.trim().toUpperCase());
-    } catch (IllegalArgumentException e) {
-      throw new IllegalArgumentException("effort must be SMALL, MEDIUM or BIG");
-    }
-  }
-
-  private static ReadingKind readingKind(String value) {
-    if (value == null || value.isBlank()) {
-      return ReadingKind.ARTICLE;
-    }
-    try {
-      return ReadingKind.valueOf(value.trim().toUpperCase());
-    } catch (IllegalArgumentException e) {
-      throw new IllegalArgumentException("kind must be ARTICLE, BOOK or PODCAST");
-    }
-  }
-
-  private static ReadingStatus readingStatus(String value) {
-    if (value == null || value.isBlank()) {
-      return null;
-    }
-    try {
-      return ReadingStatus.valueOf(value.trim().toUpperCase());
-    } catch (IllegalArgumentException e) {
-      throw new IllegalArgumentException("status must be TO_READ or READ");
-    }
-  }
-
-  private static LocalDate requireDate(String value) {
-    LocalDate parsed = optionalDate(value);
-    if (parsed == null) {
-      throw new IllegalArgumentException("a date is required as YYYY-MM-DD");
-    }
-    return parsed;
-  }
-
-  private static LocalDate optionalDate(String value) {
-    if (value == null || value.isBlank()) {
-      return null;
-    }
-    try {
-      return LocalDate.parse(value.trim());
-    } catch (DateTimeParseException e) {
-      throw new IllegalArgumentException("dates must be YYYY-MM-DD");
-    }
+  private List<ReadingResponse> allReading() {
+    return relationship.listReading().stream().map(ReadingResponse::from).toList();
   }
 }

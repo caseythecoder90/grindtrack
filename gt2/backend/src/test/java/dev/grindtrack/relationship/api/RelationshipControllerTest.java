@@ -19,9 +19,9 @@ import dev.grindtrack.relationship.domain.IdeaKind;
 import dev.grindtrack.relationship.domain.Moment;
 import dev.grindtrack.relationship.domain.MomentKind;
 import dev.grindtrack.relationship.service.RelationshipService;
-import dev.grindtrack.relationship.service.RelationshipService.Closeness;
-import dev.grindtrack.relationship.service.RelationshipService.Perspective;
-import dev.grindtrack.relationship.service.RelationshipService.Summary;
+import dev.grindtrack.relationship.service.RelationshipSummary;
+import dev.grindtrack.relationship.service.RelationshipSummary.Closeness;
+import dev.grindtrack.relationship.service.RelationshipSummary.Perspective;
 import dev.grindtrack.web.ApiExceptionHandler;
 import java.time.LocalDate;
 import java.util.List;
@@ -62,8 +62,8 @@ class RelationshipControllerTest {
     return m;
   }
 
-  private static Summary summary(String tone) {
-    return new Summary(
+  private static RelationshipSummary summary(String tone) {
+    return new RelationshipSummary(
         List.of(),
         new Closeness(
             List.of("2026-08-26"),

@@ -8,6 +8,9 @@ import dev.grindtrack.finance.domain.BudgetSettings;
 import dev.grindtrack.finance.domain.BudgetSettingsRepository;
 import dev.grindtrack.finance.domain.CategoryTotal;
 import dev.grindtrack.finance.domain.TransactionRepository;
+import dev.grindtrack.finance.service.BudgetMonth.CategoryLine;
+import dev.grindtrack.finance.service.BudgetMonth.ExtraLine;
+import dev.grindtrack.finance.service.BudgetMonth.UnbudgetedLine;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -67,58 +70,9 @@ public class BudgetService {
     this.transactions = transactions;
   }
 
-  /**
-   * Where one category stands this month. All figures positive — spending is flipped once, here.
-   */
-  public record CategoryLine(
-      Long budgetId,
-      String category,
-      BigDecimal budget,
-      BigDecimal extra,
-      BigDecimal planned,
-      BigDecimal spent,
-      BigDecimal left,
-      int percentUsed,
-      String pace,
-      List<String> extraLabels) {}
-
-  /** Money that went somewhere with no budget line. The honest leak indicator. */
-  public record UnbudgetedLine(String category, BigDecimal spent, long count) {}
-
-  public record ExtraLine(
-      Long id, String month, String label, BigDecimal amount, String category, String note) {}
-
-  /**
-   * One month, fully reconciled.
-   *
-   * @param leftToSpend planned minus spent. Negative means over budget, and it is shown that way
-   *     rather than clamped at zero, because "how far over" is the number that changes behaviour
-   * @param expectedSpentByNow where a perfectly even month would be today, for the pace read
-   * @param incomeIsEstimated true when income was inferred from a trailing average rather than set
-   */
-  public record MonthView(
-      String month,
-      String monthLabel,
-      int dayOfMonth,
-      int daysInMonth,
-      boolean currentMonth,
-      BigDecimal expectedIncome,
-      boolean incomeIsEstimated,
-      BigDecimal incomeSoFar,
-      BigDecimal planned,
-      BigDecimal spent,
-      BigDecimal leftToSpend,
-      BigDecimal projectedNet,
-      BigDecimal expectedSpentByNow,
-      BigDecimal extraExpenses,
-      BigDecimal extraIncome,
-      List<CategoryLine> categories,
-      List<UnbudgetedLine> unbudgeted,
-      List<ExtraLine> extras) {}
-
   // ------------------------------------------------------------- the month
 
-  public MonthView month(YearMonth target) {
+  public BudgetMonth month(YearMonth target) {
     LocalDate first = target.atDay(1);
     LocalDate last = target.atEndOfMonth();
     YearMonth now = YearMonth.now();
@@ -214,7 +168,7 @@ public class BudgetService {
                 .divide(BigDecimal.valueOf(target.lengthOfMonth()), 2, RoundingMode.HALF_UP)
             : planned;
 
-    return new MonthView(
+    return new BudgetMonth(
         target.format(MONTH_KEY),
         first.format(MONTH_LABEL),
         dayOfMonth,

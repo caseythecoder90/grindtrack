@@ -29,7 +29,7 @@ public final class WorkDtos {
       String blockers,
       String learnings) {
 
-    static WorkDayResponse from(WorkLog log) {
+    public static WorkDayResponse from(WorkLog log) {
       return new WorkDayResponse(
           log.getLogDate().toString(),
           log.getHours(),
@@ -63,7 +63,7 @@ public final class WorkDtos {
       String notes,
       int sortOrder) {
 
-    static WorkSkillResponse from(WorkSkill skill) {
+    public static WorkSkillResponse from(WorkSkill skill) {
       return new WorkSkillResponse(
           skill.getId(),
           skill.getName(),

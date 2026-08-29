@@ -9,6 +9,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -120,7 +121,7 @@ public class Transaction {
             + "|"
             + postedDate
             + "|"
-            + amount.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString()
+            + amount.setScale(2, RoundingMode.HALF_UP).toPlainString()
             + "|"
             + rawDescription.trim().toUpperCase().replaceAll("\\s+", " ");
     try {

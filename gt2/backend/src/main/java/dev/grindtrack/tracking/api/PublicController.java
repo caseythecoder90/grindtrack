@@ -1,7 +1,7 @@
 package dev.grindtrack.tracking.api;
 
-import dev.grindtrack.tracking.api.Dtos.PublicDay;
-import dev.grindtrack.tracking.api.Dtos.PublicStats;
+import dev.grindtrack.tracking.api.TrackingDtos.PublicDay;
+import dev.grindtrack.tracking.api.TrackingDtos.PublicStats;
 import dev.grindtrack.tracking.service.Stats;
 import dev.grindtrack.tracking.service.StatsService;
 import java.util.List;

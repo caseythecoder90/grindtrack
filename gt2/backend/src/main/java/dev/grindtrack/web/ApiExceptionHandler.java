@@ -40,6 +40,11 @@ public class ApiExceptionHandler {
     return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
   }
 
+  @ExceptionHandler(ConflictException.class)
+  ResponseEntity<Map<String, String>> onConflict(ConflictException e) {
+    return ResponseEntity.status(409).body(Map.of("error", e.getMessage()));
+  }
+
   @ExceptionHandler(NoSuchElementException.class)
   ResponseEntity<Map<String, String>> onNotFound(NoSuchElementException e) {
     return ResponseEntity.status(404).body(Map.of("error", "not found: " + e.getMessage()));

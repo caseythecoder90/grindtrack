@@ -2,8 +2,10 @@ package dev.grindtrack.web;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.YearMonth;
 import java.time.format.DateTimeParseException;
 import java.util.Locale;
+import java.util.Set;
 
 /**
  * Turning request strings into typed values, in one place.
@@ -46,6 +48,17 @@ public final class Requests {
     return optionalDate(value, "dates must be YYYY-MM-DD");
   }
 
+  /**
+   * @throws BadRequestException with {@code message} when the value is absent or unparseable
+   */
+  public static OffsetDateTime requireInstant(String value, String message) {
+    OffsetDateTime parsed = optionalInstant(value, message);
+    if (parsed == null) {
+      throw new BadRequestException(message);
+    }
+    return parsed;
+  }
+
   public static OffsetDateTime optionalInstant(String value, String message) {
     if (value == null || value.isBlank()) {
       return null;
@@ -54,6 +67,24 @@ public final class Requests {
       return OffsetDateTime.parse(value.trim());
     } catch (DateTimeParseException e) {
       throw new BadRequestException(message);
+    }
+  }
+
+  /**
+   * A {@code yyyy-MM} month, falling back to the current one when absent.
+   *
+   * <p>Absent means "the month I am looking at now" on every budget endpoint, so the fallback is
+   * here rather than repeated at each call site — a caller that omits {@code month} and a caller
+   * that sends this month must not be able to diverge.
+   */
+  public static YearMonth monthOrNow(String value) {
+    if (value == null || value.isBlank()) {
+      return YearMonth.now();
+    }
+    try {
+      return YearMonth.parse(value.trim());
+    } catch (DateTimeParseException e) {
+      throw new BadRequestException("month must be yyyy-MM, for example 2026-08");
     }
   }
 
@@ -80,7 +111,7 @@ public final class Requests {
    * {@link #enumValue}; this exists so those two do not need a schema change to be validated in one
    * place.
    */
-  public static String requireOneOf(String value, java.util.Set<String> allowed, String message) {
+  public static String requireOneOf(String value, Set<String> allowed, String message) {
     if (value == null || !allowed.contains(value)) {
       throw new BadRequestException(message);
     }

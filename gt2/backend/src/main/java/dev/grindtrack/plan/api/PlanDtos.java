@@ -10,6 +10,14 @@ public final class PlanDtos {
 
   private PlanDtos() {}
 
+  /**
+   * What a re-import changed.
+   *
+   * @param items rows that survived the import — progress on matching items is preserved, so this
+   *     is not the same as the number of items sent
+   */
+  public record ImportResult(int items, int quarters, int reference) {}
+
   public record ItemResponse(
       Long id,
       String type,
@@ -25,7 +33,7 @@ public final class PlanDtos {
       String completedAt,
       int sortOrder) {
 
-    static ItemResponse from(PlanItem i) {
+    public static ItemResponse from(PlanItem i) {
       return new ItemResponse(
           i.getId(),
           i.getItemType(),

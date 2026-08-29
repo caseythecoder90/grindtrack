@@ -15,10 +15,11 @@ Each feature is a top-level package split into layer subpackages:
 
 | Subpackage | Holds | Depends on |
 |---|---|---|
-| `api` | `@RestController`s + DTO records | `service`, `domain` |
-| `service` | business logic, `@Transactional` boundaries | `domain` |
+| `api` | `@RestController`s + one `<Feature>Dtos` record holder | `service`, `domain` |
+| `service` | business logic, `@Transactional` boundaries, computed result records | `domain` |
 | `domain` | JPA entities + Spring Data repositories | — |
 | `security` | (auth only) the JWT filter | `service` |
+| `web` | shared, feature-agnostic: request parsing, exception→status mapping | — |
 | `config` | cross-cutting: `SecurityConfig`, `AppProperties` | — |
 
 Full inventory:
@@ -29,39 +30,70 @@ dev.grindtrack
 ├── config/
 │   ├── AppProperties.java        record, @ConfigurationProperties(prefix="grindtrack")
 │   └── SecurityConfig.java       @EnableWebSecurity, SecurityFilterChain + PasswordEncoder beans
+├── web/                          the shared HTTP edge — no feature may duplicate it
+│   ├── Requests.java             requireDate/optionalDate/monthOrNow/requireText/enumValue/…
+│   ├── Responses.java            Deleted, Saved — the two acknowledgement bodies
+│   ├── BadRequestException.java  malformed shape → 400
+│   ├── ConflictException.java    well-formed but inapplicable → 409
+│   └── ApiExceptionHandler.java  the one @RestControllerAdvice
 ├── auth/
-│   ├── api/AuthController.java            (+ nested LoginRequest record)
+│   ├── api/{AuthController,AuthDtos}.java
 │   ├── service/AuthService.java           (+ nested RotatedTokens record)
-│   ├── service/JwtService.java
-│   ├── service/TotpService.java
-│   ├── service/LoginRateLimiter.java
+│   ├── service/{JwtService,TotpService,LoginRateLimiter}.java
 │   ├── service/UserBootstrap.java          CommandLineRunner (not a REST bean)
-│   ├── security/JwtAuthFilter.java         OncePerRequestFilter
+│   ├── security/{JwtAuthFilter,Cookies}.java
 │   └── domain/{User,UserRepository,RefreshToken,RefreshTokenRepository}.java
 ├── tracking/
-│   ├── api/{TrackingController,FocusController,PublicController,ExportController,Dtos}.java
-│   ├── service/{StatsService,Stats,FocusService}.java
-│   └── domain/{DailyLog,WeeklyReview,FocusSession}(+Repository).java
+│   ├── api/{TrackingController,FocusController,PublicController,ExportController,TrackingDtos}.java
+│   ├── service/{TrackingService,StatsService,Stats,FocusService}.java
+│   └── domain/{DailyLog,WeeklyReview,FocusSession,FocusKind}(+Repository).java
 ├── plan/
 │   ├── api/{PlanController,PlanDtos}.java
 │   ├── service/PlanService.java
 │   └── domain/{PlanItem,PlanQuarter,PlanReference}(+Repository).java
 ├── todo/
 │   ├── api/{TodoController,TodoDtos}.java
+│   ├── service/TodoService.java
 │   └── domain/{Todo,TodoRepository}.java
-└── work/
-    ├── api/{WorkController,WorkDtos}.java
-    └── domain/{WorkLog,WorkSkill}(+Repository).java
+├── work/
+│   ├── api/{WorkController,WorkDtos}.java
+│   ├── service/WorkService.java
+│   └── domain/{WorkLog,WorkSkill}(+Repository).java
+├── finance/
+│   ├── api/{FinanceController,TransactionController,CategoryRuleController,
+│   │         SpendingController,BudgetController,StatementImportController}.java
+│   ├── api/{FinanceDtos,BudgetDtos,StatementImportDtos}.java
+│   ├── service/{FinanceService,BudgetService,BudgetMonth,CategoryRuleService,
+│   │            RecurringDetector,StatementImportService,TxnTypeClassifier,MerchantNormalizer}.java
+│   ├── service/parse/{StatementParser,<Bank>Parser,OfxInvestmentParser,Csv,Amounts,
+│   │                  ParsedStatement,ParsedRow,StatementFormat,StatementParseException}.java
+│   └── domain/{Account,Transaction,Budget,BudgetExtra,BudgetSettings,CategoryRule,SavingsGoal,
+│               ImportBatch,CategoryTotal}(+Repository) + enums.java
+└── relationship/
+    ├── api/{RelationshipController,RelationshipDtos}.java
+    ├── service/{RelationshipService,RelationshipSummary}.java
+    └── domain/{Moment,Idea,Occasion,Reading}(+Repository) + enums.java
 ```
 
-DTOs are Java **records**; response records carry a static `from(entity)` factory. DTO holders
-`tracking/api/Dtos.java` and `plan/api/PlanDtos.java` are package-final with private constructors
-(namespaces, not instantiable).
+DTOs are Java **records** in `<feature>/api/<Feature>Dtos.java`; response records carry a static
+`from(entity)` factory. Every `…Dtos` holder is `final` with a private constructor (a namespace,
+not something to instantiate). Nothing a browser sends or receives is declared anywhere else — see
+[architecture-conventions.md](architecture-conventions.md) for why that rule exists and what
+happened without it.
+
+`Stats`, `BudgetMonth` and `RelationshipSummary` are the exception that proves it: they are results
+a service computes rather than projections of an entity, so they live in `service/`, each in its
+own file rather than nested inside the service class.
 
 ## REST endpoints
 
 All controllers are `@RestController`. "Public" = permitted in `SecurityConfig`; everything else
 requires a valid `gt_access` JWT cookie. Full request/response bodies in [api.md](api.md).
+
+Every error body is `{"error": "..."}`, produced by the single `ApiExceptionHandler`:
+`BadRequestException` (and `StatementParseException`) → 400, `IllegalArgumentException` from a
+service → 400, `ConflictException` → 409, `NoSuchElementException` → 404. Anything else stays a 500
+with its stack trace intact — there is deliberately no `@ExceptionHandler(Exception.class)`.
 
 ### `AuthController` — `/api/auth`
 | Method | Path | Access |
@@ -81,13 +113,16 @@ requires a valid `gt_access` JWT cookie. Full request/response bodies in [api.md
 | GET | `/weeks/{weekStart}` | date snapped to Monday (`previousOrSame(MONDAY)`) |
 | PUT | `/weeks/{weekStart}` | upsert weekly review |
 | GET | `/stats` | `Stats` aggregate |
-| GET | `/export` | full JSON dump, `Content-Disposition: attachment` |
 
 ### `FocusController` — `/api/focus`
 | Method | Path | Notes |
 |---|---|---|
-| POST | `/sessions` | `{date,startedAt,durationMinutes(1–1440),completed,kind}`; `kind` study→`daily_logs`, work→`work_logs` |
+| POST | `/sessions` | `{date,startedAt,durationMinutes(1–1440),completed,kind}`; `kind` study→`daily_logs`, work→`work_logs`, absent→study, anything else→400 |
 | GET | `/sessions?date=[&kind=]` | that day's sessions, ordered by start; optional `kind` filter |
+
+`kind` is the `FocusKind` enum, stored lower-case through an `AttributeConverter` so existing rows
+and the frontend's `"study" | "work"` union are untouched. It used to be a bare string coerced to
+`"study"` when unrecognised, which meant a typo filed work hours as study time.
 
 `FocusService` deliberately depends on both `DailyLogRepository` and (cross-feature) `WorkLogRepository` so a work session's minutes fold into the work log in the same transaction.
 
@@ -104,7 +139,8 @@ requires a valid `gt_access` JWT cookie. Full request/response bodies in [api.md
 | PATCH | `/{id}` | partial; null `dueDate` means "leave alone", `clearDueDate:true` removes it; `done` keeps `completedAt` in step; 404 if missing |
 | DELETE | `/{id}` | remove |
 
-Flat CRUD with no service layer, mirroring `WorkController` — there is no logic beyond field checks.
+Flat CRUD over `TodoService`. The validation here is all shape — a title within its column, a kind
+from the closed set the schema allows — which is why it stays in the controller.
 
 ### `PlanController` — `/api/plan`
 | Method | Path | Notes |
@@ -121,7 +157,90 @@ Flat CRUD with no service layer, mirroring `WorkController` — there is no logi
 | GET/POST | `/skills` | competency checklist; POST create `{name,category?,detail?}` |
 | PATCH/DELETE | `/skills/{id}` | partial update; status ∈ {not_started,in_progress,proficient}; 404 if missing |
 
-Direct-to-repository CRUD (no service layer), mirroring `TrackingController`.
+`WorkService` owns the rules about what a work log may contain (hours 0–24, category count and
+length), because they hold whether the log arrives over HTTP or from anywhere else; the controller
+owns parsing and column-length limits, which are facts about a request.
+
+### `ExportController` — `/api`
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/export` | Study logs + weekly reviews as one JSON download. Work, finance and relationship are deliberately excluded — an export lands in a downloads folder, so what goes in it is a decision rather than a default. |
+
+### `FinanceController` — `/api/finance`
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/summary` | Dashboard: savings balance, net worth, goals with progress, accounts, uncategorized count. Reads the savings SUM once and hands it down. |
+| GET/POST | `/accounts` | list (`?includeInactive`) / create |
+| PUT/DELETE | `/accounts/{id}` | full update / remove (cascades to its transactions) |
+| PATCH | `/accounts/{id}/balance` | `{balance, asOf?}`; sign corrected server-side for cards and loans |
+| GET | `/accounts/{id}/transactions` | that account's rows, newest first |
+| GET/POST | `/goals` | list (`?includeInactive`) / create |
+| PUT/DELETE | `/goals/{id}` | full update / remove |
+
+`SavingsGoal.progressPercent(savings)` and `.remaining(savings)` are on the entity, not the service:
+they are arithmetic over the goal's own target.
+
+### `TransactionController` — `/api/finance/transactions`
+| Method | Path | Notes |
+|---|---|---|
+| GET | `` | paged browse: `accountId, txnType, uncategorizedOnly, sort=date\|amount, page, size≤200` |
+| GET | `/uncategorized` | the review inbox |
+| POST | `` | create by hand; **409** if an identical row exists |
+| PATCH | `/{id}/category` | `{category}` — sets `categorySource=MANUAL`, which automation may never overwrite |
+| POST | `/{id}/categorize` | file the row and optionally learn a rule from it — the review inbox's whole point |
+| PATCH | `/{id}/type` | `{txnType}` ∈ SPEND/INCOME/TRANSFER/PAYMENT |
+| POST | `/reclassify` | re-run the type classifier over every row |
+| DELETE | `/{id}` | remove |
+
+### `CategoryRuleController` — `/api/finance/rules`
+| Method | Path | Notes |
+|---|---|---|
+| GET/POST | `` | list (`?includeInactive`) / create `{pattern, matchType?, category, priority?}`; `matchType` defaults to CONTAINS |
+| PUT/DELETE | `/{id}` | update / remove |
+| POST | `/apply` | re-run every rule over the whole history; hand-corrected rows are never touched |
+
+Whether a pattern compiles is `CategoryRuleService`'s check, not the controller's — it must hold for
+a rule created by an import job too.
+
+### `SpendingController` — `/api/finance`
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/spending?from=&to=` | rollup over a window, default the last 30 days; transfers and payments excluded by the query |
+| GET | `/spending/monthly?months=6` | months side by side (1–36) |
+| GET | `/recurring` | the charges that come back every month — budget seed and subscription audit |
+
+### `BudgetController` — `/api/finance/budget`
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/month?month=yyyy-MM` | `BudgetMonth`: the plan, what happened, and the gap. Defaults to this month |
+| GET/POST | `/lines` | the recurring plan |
+| PUT/DELETE | `/lines/{id}` | |
+| GET/POST | `/extras` | one-off costs and windfalls for a single month |
+| PUT/DELETE | `/extras/{id}` | |
+| PUT | `/income` | `{expectedMonthlyIncome}`; null or zero reverts to the trailing average of real deposits |
+
+### `StatementImportController` — `/api/finance/imports`
+| Method | Path | Notes |
+|---|---|---|
+| GET | `` | upload history |
+| POST | `?accountId=&dryRun=` | multipart `file`, ≤5 MB, read into memory and never written to disk |
+| DELETE | `/{id}` | undo a batch; answers how many transactions went with it |
+
+### `RelationshipController` — `/api/relationship`
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/summary` | recency, the closeness card, upcoming occasions, ready ideas, recent moments |
+| GET/POST | `/moments` | timeline (`?limit`) / log one |
+| PUT/DELETE | `/moments/{id}` | |
+| GET/POST | `/ideas` | list (`?includeDone`) / create |
+| PUT/DELETE | `/ideas/{id}` | |
+| POST | `/ideas/{id}/done` | acting on an idea logs it as a moment and takes it off the list |
+| GET/POST/PUT/DELETE | `/occasions[/{id}]` | writes answer with the whole list: every next date shifts together |
+| GET/POST/DELETE | `/reading[/{id}]` | |
+| POST | `/reading/{id}/read` | record the takeaway |
+| POST | `/reading/{id}/promote` | turn a takeaway into a gesture idea |
+
+Absent from `/api/public/**` on purpose: none of this has a public shape and none of it ever should.
 
 ## Auth internals (summary)
 

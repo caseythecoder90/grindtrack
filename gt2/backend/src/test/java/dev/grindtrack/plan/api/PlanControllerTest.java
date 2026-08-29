@@ -155,6 +155,8 @@ class PlanControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"status\": \"done\"}"))
         .andExpect(status().isNotFound())
-        .andExpect(jsonPath("$.error").value("no such item"));
+        // One not-found shape for the whole app: the advice maps NoSuchElementException,
+        // which is what every service already throws for a missing row.
+        .andExpect(jsonPath("$.error").value("not found: plan item 99"));
   }
 }

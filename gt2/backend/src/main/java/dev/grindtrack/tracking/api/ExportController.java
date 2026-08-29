@@ -1,10 +1,10 @@
 package dev.grindtrack.tracking.api;
 
-import dev.grindtrack.tracking.api.Dtos.DayResponse;
-import dev.grindtrack.tracking.api.Dtos.WeekResponse;
+import dev.grindtrack.tracking.api.TrackingDtos.DayResponse;
+import dev.grindtrack.tracking.api.TrackingDtos.ExportResponse;
+import dev.grindtrack.tracking.api.TrackingDtos.WeekResponse;
 import dev.grindtrack.tracking.service.TrackingService;
 import java.util.List;
-import java.util.Map;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -28,11 +28,11 @@ public class ExportController {
   }
 
   @GetMapping("/export")
-  public ResponseEntity<Map<String, Object>> export() {
+  public ResponseEntity<ExportResponse> export() {
     List<DayResponse> days = tracking.allDays().stream().map(DayResponse::from).toList();
     List<WeekResponse> weeks = tracking.allWeeks().stream().map(WeekResponse::from).toList();
     return ResponseEntity.ok()
         .header("Content-Disposition", "attachment; filename=\"grindtrack-export.json\"")
-        .body(Map.of("dailyLogs", days, "weeklyReviews", weeks));
+        .body(new ExportResponse(days, weeks));
   }
 }
