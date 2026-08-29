@@ -382,6 +382,12 @@ button.ghost.danger:hover { color: var(--red); border-color: var(--red); }
 
 .rules-table .mono { font-family: var(--mono); }
 .rules-table tr.inactive { opacity: 0.45; }
+.pager { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 12px 0 4px; }
+.pager .muted.small { margin: 0; font-family: var(--mono); }
+.rule-actions { display: flex; gap: 4px; justify-content: flex-end; }
+.rule-edit { display: flex; gap: 6px; align-items: center; }
+.rule-edit input { width: 150px; }
+input.rule-priority { width: 62px; text-align: right; }
 .section-head > div { display: flex; gap: 8px; }
 
 /* One bar per category, scaled against the largest, so proportion reads without a chart. */

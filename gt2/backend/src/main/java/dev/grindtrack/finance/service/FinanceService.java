@@ -3,6 +3,7 @@ package dev.grindtrack.finance.service;
 import dev.grindtrack.finance.domain.Account;
 import dev.grindtrack.finance.domain.AccountRepository;
 import dev.grindtrack.finance.domain.AccountType;
+import dev.grindtrack.finance.domain.CategorySource;
 import dev.grindtrack.finance.domain.CategoryTotal;
 import dev.grindtrack.finance.domain.Institution;
 import dev.grindtrack.finance.domain.SavingsGoal;
@@ -18,6 +19,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.JpaSort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -138,6 +143,31 @@ public class FinanceService {
 
   public List<Transaction> listByAccount(Long accountId) {
     return transactions.findByAccountIdOrderByPostedDateDesc(accountId);
+  }
+
+  /** One page of transactions, filtered. Null filters mean "no filter", not "match null". */
+  public record TransactionPage(
+      List<Transaction> items, int page, int size, long totalElements, int totalPages) {}
+
+  public TransactionPage browse(
+      Long accountId,
+      TxnType txnType,
+      CategorySource categorySource,
+      int page,
+      int size,
+      boolean byAmount) {
+    // Biggest-first means largest absolute value: a $2,700 rent payment and a $2,900 deposit are
+    // both "big", and sorting on the raw signed number would bury every expense under the income.
+    Sort sort =
+        byAmount
+            ? JpaSort.unsafe(Sort.Direction.DESC, "ABS(amount)")
+                .and(Sort.by(Sort.Direction.DESC, "id"))
+            : Sort.by(Sort.Direction.DESC, "postedDate").and(Sort.by(Sort.Direction.DESC, "id"));
+
+    Page<Transaction> found =
+        transactions.search(accountId, txnType, categorySource, PageRequest.of(page, size, sort));
+    return new TransactionPage(
+        found.getContent(), page, size, found.getTotalElements(), found.getTotalPages());
   }
 
   public List<Transaction> listUncategorized() {

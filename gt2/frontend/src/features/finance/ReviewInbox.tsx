@@ -21,6 +21,7 @@ export default function ReviewInbox({ onChange }: { onChange: () => void }) {
   // Biggest-first by default. One rule for a landlord clears eight rows; one for a coffee shop
   // clears one -- so the order that empties this list fastest is by amount, not by date.
   const [sort, setSort] = useState<"amount" | "date">("amount");
+  const [page, setPage] = useState(0);
   const [busy, setBusy] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
@@ -53,7 +54,13 @@ export default function ReviewInbox({ onChange }: { onChange: () => void }) {
           `Filed, and anything matching "${result.rule.pattern}" now goes to ${result.rule.category}.`,
         );
       }
-      setRows((current) => current.filter((r) => r.id !== txn.id));
+      setRows((current) => {
+        const next = current.filter((r) => r.id !== txn.id);
+        // Filing the last row on the final page would otherwise leave you staring at an empty one.
+        const pages = Math.max(1, Math.ceil(next.length / PER_PAGE));
+        setPage((p) => Math.min(p, pages - 1));
+        return next;
+      });
       setDraft((current) => {
         const next = { ...current };
         delete next[txn.id];
@@ -69,11 +76,14 @@ export default function ReviewInbox({ onChange }: { onChange: () => void }) {
 
   const options = categoryOptions([...known, ...rows.map((r) => r.category)]);
 
+  const PER_PAGE = 40;
   const ordered =
     sort === "amount"
       ? [...rows].sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount))
       : rows;
-  const shown = ordered.slice(0, 40);
+  const totalPages = Math.max(1, Math.ceil(ordered.length / PER_PAGE));
+  const safePage = Math.min(page, totalPages - 1);
+  const shown = ordered.slice(safePage * PER_PAGE, safePage * PER_PAGE + PER_PAGE);
 
   if (rows.length === 0) {
     return null;
@@ -88,12 +98,22 @@ export default function ReviewInbox({ onChange }: { onChange: () => void }) {
             <button
               type="button"
               aria-pressed={sort === "amount"}
-              onClick={() => setSort("amount")}
+              onClick={() => {
+                setSort("amount");
+                setPage(0);
+              }}
               title="Clears the list fastest"
             >
               biggest
             </button>
-            <button type="button" aria-pressed={sort === "date"} onClick={() => setSort("date")}>
+            <button
+              type="button"
+              aria-pressed={sort === "date"}
+              onClick={() => {
+                setSort("date");
+                setPage(0);
+              }}
+            >
               newest
             </button>
           </div>
@@ -162,13 +182,28 @@ export default function ReviewInbox({ onChange }: { onChange: () => void }) {
         </tbody>
       </table>
 
-      {rows.length > 40 && (
-        <p className="muted small">
-          Showing {sort === "amount" ? "the 40 biggest" : "the newest 40"} of {rows.length}. Each
-          rule you write here removes every other row
-          it matches from this list too.
-        </p>
+      {ordered.length > PER_PAGE && (
+        <div className="pager">
+          <button type="button" disabled={safePage === 0} onClick={() => setPage(safePage - 1)}>
+            ← prev
+          </button>
+          <span className="muted small">
+            {safePage * PER_PAGE + 1}–{Math.min((safePage + 1) * PER_PAGE, ordered.length)} of{" "}
+            {ordered.length} · page {safePage + 1} of {totalPages}
+          </span>
+          <button
+            type="button"
+            disabled={safePage >= totalPages - 1}
+            onClick={() => setPage(safePage + 1)}
+          >
+            next →
+          </button>
+        </div>
       )}
+      <p className="muted small">
+        Each rule you write here removes every other row it matches, from every page — so the list
+        shrinks faster than you page through it.
+      </p>
     </section>
   );
 }

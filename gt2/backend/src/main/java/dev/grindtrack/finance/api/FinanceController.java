@@ -16,6 +16,7 @@ import dev.grindtrack.finance.api.FinanceDtos.TransactionResponse;
 import dev.grindtrack.finance.domain.Account;
 import dev.grindtrack.finance.domain.AccountType;
 import dev.grindtrack.finance.domain.CategoryRule;
+import dev.grindtrack.finance.domain.CategorySource;
 import dev.grindtrack.finance.domain.Institution;
 import dev.grindtrack.finance.domain.MatchType;
 import dev.grindtrack.finance.domain.SavingsGoal;
@@ -235,6 +236,47 @@ public class FinanceController {
   @GetMapping("/accounts/{id}/transactions")
   public List<TransactionResponse> listByAccount(@PathVariable Long id) {
     return finance.listByAccount(id).stream().map(TransactionResponse::from).toList();
+  }
+
+  /**
+   * Every transaction, paged and filtered, for browsing rather than reviewing.
+   *
+   * @param txnType optional: SPEND, INCOME, TRANSFER or PAYMENT. Filtering to INCOME is how you
+   *     find out why an expected-income figure looks wrong
+   * @param sort {@code amount} for biggest-first by absolute value, anything else for newest-first
+   */
+  @GetMapping("/transactions")
+  public Map<String, Object> browse(
+      @RequestParam(required = false) Long accountId,
+      @RequestParam(required = false) String txnType,
+      @RequestParam(defaultValue = "false") boolean uncategorizedOnly,
+      @RequestParam(defaultValue = "date") String sort,
+      @RequestParam(defaultValue = "0") int page,
+      @RequestParam(defaultValue = "50") int size) {
+
+    if (page < 0) {
+      throw new BadRequestException("page cannot be negative");
+    }
+    if (size < 1 || size > 200) {
+      throw new BadRequestException("size must be between 1 and 200");
+    }
+
+    FinanceService.TransactionPage found =
+        finance.browse(
+            accountId,
+            optionalTxnType(txnType),
+            uncategorizedOnly ? CategorySource.UNCATEGORIZED : null,
+            page,
+            size,
+            "amount".equalsIgnoreCase(sort));
+
+    Map<String, Object> body = new LinkedHashMap<>();
+    body.put("items", found.items().stream().map(TransactionResponse::from).toList());
+    body.put("page", found.page());
+    body.put("size", found.size());
+    body.put("totalElements", found.totalElements());
+    body.put("totalPages", found.totalPages());
+    return body;
   }
 
   /** The review inbox: rows nothing has confidently categorized yet. */

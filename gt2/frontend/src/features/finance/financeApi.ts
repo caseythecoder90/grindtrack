@@ -20,6 +20,7 @@ import type {
   RecurringReport,
   RuleApplyResult,
   SpendSummary,
+  TransactionPage,
 } from "../../lib/types";
 
 const BASE = "/api/finance";
@@ -54,6 +55,25 @@ export const deleteAccount = (id: number) => api(`${BASE}/accounts/${id}`, { met
 
 // ------------------------------------------------------------- transactions
 
+/** Every transaction, paged and filtered. Blank filters are omitted rather than sent empty. */
+export const browseTransactions = (opts: {
+  accountId?: number | null;
+  txnType?: string | null;
+  uncategorizedOnly?: boolean;
+  sort?: "amount" | "date";
+  page?: number;
+  size?: number;
+}) => {
+  const q = new URLSearchParams();
+  if (opts.accountId) q.set("accountId", String(opts.accountId));
+  if (opts.txnType) q.set("txnType", opts.txnType);
+  if (opts.uncategorizedOnly) q.set("uncategorizedOnly", "true");
+  q.set("sort", opts.sort ?? "date");
+  q.set("page", String(opts.page ?? 0));
+  q.set("size", String(opts.size ?? 50));
+  return api<TransactionPage>(`${BASE}/transactions?${q.toString()}`);
+};
+
 export const getUncategorized = () =>
   api<FinanceTransaction[]>(`${BASE}/transactions/uncategorized`);
 
@@ -76,6 +96,9 @@ export const createGoal = (body: unknown) => api(`${BASE}/goals`, jsonInit("POST
 export const getRules = () => api<CategoryRule[]>(`${BASE}/rules`);
 
 export const createRule = (body: unknown) => api(`${BASE}/rules`, jsonInit("POST", body));
+
+export const updateRule = (id: number, body: unknown) =>
+  api(`${BASE}/rules/${id}`, jsonInit("PUT", body));
 
 export const deleteRule = (id: number) => api(`${BASE}/rules/${id}`, { method: "DELETE" });
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { errorMessage } from "../../lib/api";
-import { applyRules, createRule, deleteRule, getRules } from "./financeApi";
+import { applyRules, createRule, deleteRule, getRules, updateRule } from "./financeApi";
 import type { CategoryRule } from "../../lib/types";
 import { categoryOptions } from "./categories";
 
@@ -22,6 +22,9 @@ export default function CategoryRulesPanel({ onChange }: { onChange: () => void 
   const [category, setCategory] = useState("");
   const [priority, setPriority] = useState("100");
   const [busy, setBusy] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editCategory, setEditCategory] = useState("");
+  const [editPriority, setEditPriority] = useState("100");
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
 
@@ -56,6 +59,25 @@ export default function CategoryRulesPanel({ onChange }: { onChange: () => void 
       setError(errorMessage(e, "could not save that rule"));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function saveEdit(rule: CategoryRule) {
+    if (!editCategory.trim()) return;
+    setError("");
+    try {
+      await updateRule(rule.id, {
+        pattern: rule.pattern,
+        matchType: rule.matchType,
+        category: editCategory,
+        priority: Number(editPriority) || 100,
+        active: rule.active,
+      });
+      setEditingId(null);
+      load();
+      onChange();
+    } catch (e) {
+      setError(errorMessage(e, "could not save that rule"));
     }
   }
 
@@ -144,13 +166,16 @@ export default function CategoryRulesPanel({ onChange }: { onChange: () => void 
           <button type="button" disabled={busy} onClick={add}>
             add
           </button>
-          <datalist id="rule-category-options">
-            {options.map((c) => (
-              <option key={c} value={c} />
-            ))}
-          </datalist>
         </div>
       )}
+
+      {/* Outside the add form on purpose: the inline edit inputs use it too, and it must exist
+          whether or not that form is open. */}
+      <datalist id="rule-category-options">
+        {options.map((c) => (
+          <option key={c} value={c} />
+        ))}
+      </datalist>
 
       {rules.length === 0 ? (
         <p className="muted small">
@@ -162,7 +187,19 @@ export default function CategoryRulesPanel({ onChange }: { onChange: () => void 
           <tbody>
             {rules.map((r) => (
               <tr key={r.id} className={r.active ? "" : "inactive"}>
-                <td className="mono small">{r.priority}</td>
+                <td className="mono small">
+                  {editingId === r.id ? (
+                    <input
+                      type="number"
+                      step="10"
+                      className="rule-priority"
+                      value={editPriority}
+                      onChange={(e) => setEditPriority(e.target.value)}
+                    />
+                  ) : (
+                    r.priority
+                  )}
+                </td>
                 <td>
                   {r.pattern}
                   {r.matchType !== "CONTAINS" && (
@@ -170,12 +207,41 @@ export default function CategoryRulesPanel({ onChange }: { onChange: () => void 
                   )}
                 </td>
                 <td>
-                  <span className="tag cat">{r.category}</span>
+                  {editingId === r.id ? (
+                    <span className="rule-edit">
+                      <input
+                        list="rule-category-options"
+                        autoFocus
+                        value={editCategory}
+                        onChange={(e) => setEditCategory(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && saveEdit(r)}
+                      />
+                      <button type="button" onClick={() => saveEdit(r)}>
+                        save
+                      </button>
+                      <button type="button" className="ghost" onClick={() => setEditingId(null)}>
+                        cancel
+                      </button>
+                    </span>
+                  ) : (
+                    <span className="tag cat">{r.category}</span>
+                  )}
                 </td>
                 <td className="num muted small" title="rows this rule has filed">
                   {r.hitCount === 0 ? "never matched" : `${r.hitCount}×`}
                 </td>
-                <td className="num">
+                <td className="num rule-actions">
+                  <button
+                    type="button"
+                    className="ghost"
+                    onClick={() => {
+                      setEditingId(r.id);
+                      setEditCategory(r.category);
+                      setEditPriority(String(r.priority));
+                    }}
+                  >
+                    edit
+                  </button>
                   <button type="button" className="ghost" onClick={() => remove(r)}>
                     delete
                   </button>

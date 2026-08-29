@@ -43,13 +43,40 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
           + "ORDER BY t.postedDate DESC, t.id DESC")
   List<Transaction> findCountableBetween(@Param("from") LocalDate from, @Param("to") LocalDate to);
 
-  /** The review inbox: anything automation could not confidently place. */
+  /**
+   * The review inbox: spending that automation could not confidently place.
+   *
+   * <p>SPEND only, and that is the whole point. A category exists to answer "where did the money
+   * go", and only spending goes anywhere -- every rollup in the app filters on SPEND. Asking for a
+   * category on a paycheck, a card payment or a transfer between your own accounts is asking for
+   * data nothing will ever read, and it pads a list whose length is the thing that makes it feel
+   * unfinishable.
+   */
   @Query(
       "SELECT t FROM Transaction t "
           + "WHERE t.categorySource = dev.grindtrack.finance.domain.CategorySource.UNCATEGORIZED "
-          + "AND t.txnType <> dev.grindtrack.finance.domain.TxnType.TRANSFER "
+          + "AND t.txnType = dev.grindtrack.finance.domain.TxnType.SPEND "
           + "ORDER BY t.postedDate DESC, t.id DESC")
   List<Transaction> findUncategorized();
+
+  /**
+   * Every transaction, filtered and paged, for browsing rather than reviewing.
+   *
+   * <p>Each filter is skipped when its parameter is null, so one query serves "everything", "just
+   * this account", "just income" and any combination -- rather than a method per shape. Ordering
+   * comes from the {@link Pageable}, since sorting by amount and by date are both useful and
+   * neither belongs baked into the query.
+   */
+  @Query(
+      "SELECT t FROM Transaction t "
+          + "WHERE (:accountId IS NULL OR t.accountId = :accountId) "
+          + "AND (:txnType IS NULL OR t.txnType = :txnType) "
+          + "AND (:categorySource IS NULL OR t.categorySource = :categorySource)")
+  Page<Transaction> search(
+      @Param("accountId") Long accountId,
+      @Param("txnType") TxnType txnType,
+      @Param("categorySource") CategorySource categorySource,
+      Pageable pageable);
 
   long countByAccountId(Long accountId);
 

@@ -422,6 +422,15 @@ export interface BudgetMonth {
   extras: BudgetExtra[];
 }
 
+/** One page of transactions from the browse endpoint. */
+export interface TransactionPage {
+  items: FinanceTransaction[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+}
+
 export interface FinanceSummary {
   savingsBalance: number;
   netWorth: number;
