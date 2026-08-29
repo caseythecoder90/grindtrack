@@ -67,9 +67,26 @@ public class FinanceService {
       String last4,
       boolean countsTowardSavings,
       int sortOrder) {
+    checkSavingsFlag(accountType, countsTowardSavings);
     Account account = new Account(name, institution, accountType);
     account.update(name, institution, accountType, last4, countsTowardSavings, true, sortOrder);
     return accounts.save(account);
+  }
+
+  /**
+   * A savings goal means cash that could go toward a house, so only cash accounts may carry the
+   * flag. An invariant rather than a form rule: it has to hold however the account is created, and
+   * the damage — a progress bar reporting a third of a down payment that cannot be spent — is
+   * silent rather than loud.
+   */
+  private static void checkSavingsFlag(AccountType type, boolean countsTowardSavings) {
+    if (countsTowardSavings && !type.canCountTowardSavings()) {
+      throw new IllegalArgumentException(
+          "a "
+              + type.name().toLowerCase().replace('_', ' ')
+              + " account cannot count toward a savings goal — that figure is money available for a"
+              + " down payment, and this is not");
+    }
   }
 
   @Transactional
@@ -82,6 +99,7 @@ public class FinanceService {
       boolean countsTowardSavings,
       boolean active,
       int sortOrder) {
+    checkSavingsFlag(accountType, countsTowardSavings);
     Account account = getAccount(id);
     account.update(name, institution, accountType, last4, countsTowardSavings, active, sortOrder);
     return accounts.save(account);

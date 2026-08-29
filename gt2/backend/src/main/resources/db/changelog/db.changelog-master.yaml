@@ -29,3 +29,5 @@ databaseChangeLog:
       file: db/changelog/014-finance-budgets.sql
   - include:
       file: db/changelog/015-relationship.sql
+  - include:
+      file: db/changelog/016-finance-retirement-accounts.sql

@@ -40,6 +40,12 @@ function draftOf(a: FinanceAccount): Draft {
   };
 }
 
+/**
+ * Only cash can hold a savings goal — the server enforces this, and the form mirrors it so the
+ * checkbox is visibly unavailable rather than accepting a click and then failing.
+ */
+const CASH_TYPES: AccountType[] = ["CHECKING", "SAVINGS"];
+
 /** The fields common to the add and edit forms, so the two never drift apart. */
 function DraftFields({
   draft,
@@ -48,6 +54,11 @@ function DraftFields({
   draft: Draft;
   onChange: (next: Draft) => void;
 }) {
+  const canHoldSavings = CASH_TYPES.includes(draft.accountType);
+  const savingsHint = canHoldSavings
+    ? "Tick this for the accounts holding the house fund"
+    : "Only checking and savings can hold a goal — this figure is money available for a down payment";
+
   return (
     <>
       <input
@@ -67,7 +78,16 @@ function DraftFields({
       </select>
       <select
         value={draft.accountType}
-        onChange={(e) => onChange({ ...draft, accountType: e.target.value as AccountType })}
+        onChange={(e) => {
+          // Retyping to a card, loan or 401k clears the flag rather than leaving a stale true
+          // behind for the server to reject on save.
+          const next = e.target.value as AccountType;
+          onChange({
+            ...draft,
+            accountType: next,
+            counts: CASH_TYPES.includes(next) ? draft.counts : false,
+          });
+        }}
       >
         {ACCOUNT_TYPES.map((t) => (
           <option key={t} value={t}>
@@ -81,10 +101,11 @@ function DraftFields({
         value={draft.last4}
         onChange={(e) => onChange({ ...draft, last4: e.target.value })}
       />
-      <label className="inline">
+      <label className={`inline${canHoldSavings ? "" : " disabled"}`} title={savingsHint}>
         <input
           type="checkbox"
-          checked={draft.counts}
+          disabled={!canHoldSavings}
+          checked={canHoldSavings && draft.counts}
           onChange={(e) => onChange({ ...draft, counts: e.target.checked })}
         />
         counts toward savings

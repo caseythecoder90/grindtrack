@@ -187,7 +187,7 @@ export type Institution =
   | "AIDVANTAGE"
   | "OTHER";
 
-export type AccountType = "CHECKING" | "SAVINGS" | "CREDIT_CARD" | "LOAN";
+export type AccountType = "CHECKING" | "SAVINGS" | "CREDIT_CARD" | "LOAN" | "RETIREMENT";
 
 /**
  * SPEND and INCOME are real money movement. TRANSFER and PAYMENT are not — a card
@@ -444,6 +444,7 @@ export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
   SAVINGS: "savings",
   CREDIT_CARD: "credit card",
   LOAN: "loan",
+  RETIREMENT: "retirement",
 };
 
 // --- app constants ----------------------------------------------------------
