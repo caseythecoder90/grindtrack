@@ -227,6 +227,7 @@ export default function FinancePage() {
       />
 
       <CategoryRulesPanel
+        key={`rules-${revision}`}
         onChange={() => {
           load();
           setRevision((n) => n + 1);

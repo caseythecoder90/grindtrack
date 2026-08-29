@@ -373,6 +373,7 @@ button.ghost.danger:hover { color: var(--red); border-color: var(--red); }
 .import-counts li.skipped { color: var(--yellow); }
 .import-counts li.skipped b { color: var(--yellow); }
 
+.review-inbox .section-head > div { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .review-inbox .remember { font-family: var(--mono); font-size: 11px; color: var(--muted);
   display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
 .review-inbox .raw { margin-top: 2px; opacity: 0.75; }

@@ -18,6 +18,9 @@ export default function ReviewInbox({ onChange }: { onChange: () => void }) {
   const [known, setKnown] = useState<string[]>([]);
   const [draft, setDraft] = useState<Record<number, string>>({});
   const [remember, setRemember] = useState(true);
+  // Biggest-first by default. One rule for a landlord clears eight rows; one for a coffee shop
+  // clears one -- so the order that empties this list fastest is by amount, not by date.
+  const [sort, setSort] = useState<"amount" | "date">("amount");
   const [busy, setBusy] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
@@ -66,6 +69,12 @@ export default function ReviewInbox({ onChange }: { onChange: () => void }) {
 
   const options = categoryOptions([...known, ...rows.map((r) => r.category)]);
 
+  const ordered =
+    sort === "amount"
+      ? [...rows].sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount))
+      : rows;
+  const shown = ordered.slice(0, 40);
+
   if (rows.length === 0) {
     return null;
   }
@@ -74,14 +83,29 @@ export default function ReviewInbox({ onChange }: { onChange: () => void }) {
     <section className="review-inbox">
       <div className="section-head">
         <h3>to review</h3>
-        <label className="remember">
-          <input
-            type="checkbox"
-            checked={remember}
-            onChange={(e) => setRemember(e.target.checked)}
-          />
-          remember the merchant
-        </label>
+        <div>
+          <div className="seg">
+            <button
+              type="button"
+              aria-pressed={sort === "amount"}
+              onClick={() => setSort("amount")}
+              title="Clears the list fastest"
+            >
+              biggest
+            </button>
+            <button type="button" aria-pressed={sort === "date"} onClick={() => setSort("date")}>
+              newest
+            </button>
+          </div>
+          <label className="remember">
+            <input
+              type="checkbox"
+              checked={remember}
+              onChange={(e) => setRemember(e.target.checked)}
+            />
+            remember the merchant
+          </label>
+        </div>
       </div>
 
       <p className="muted small">
@@ -101,7 +125,7 @@ export default function ReviewInbox({ onChange }: { onChange: () => void }) {
 
       <table className="txn-table">
         <tbody>
-          {rows.slice(0, 40).map((t) => (
+          {shown.map((t) => (
             <tr key={t.id}>
               <td className="muted small">{t.postedDate.slice(5)}</td>
               <td>
@@ -140,7 +164,8 @@ export default function ReviewInbox({ onChange }: { onChange: () => void }) {
 
       {rows.length > 40 && (
         <p className="muted small">
-          Showing the newest 40 of {rows.length}. Each rule you write here removes every other row
+          Showing {sort === "amount" ? "the 40 biggest" : "the newest 40"} of {rows.length}. Each
+          rule you write here removes every other row
           it matches from this list too.
         </p>
       )}
