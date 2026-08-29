@@ -92,24 +92,39 @@ Package-by-feature at the top level; inside each feature, layers get their own s
 dev.grindtrack
 ├── GrindtrackApplication         @SpringBootApplication + @ConfigurationPropertiesScan
 ├── config/                       SecurityConfig, AppProperties
+├── web/                          Requests, Responses, BadRequest/ConflictException,
+│                                 ApiExceptionHandler — the shared HTTP edge
 ├── auth/
-│   ├── api/                      AuthController (login/refresh/logout/me)
+│   ├── api/                      AuthController, AuthDtos
 │   ├── service/                  AuthService, JwtService, TotpService, LoginRateLimiter, UserBootstrap
 │   ├── security/                 JwtAuthFilter (cookie → SecurityContext)
 │   └── domain/                   User, RefreshToken + repositories
 ├── tracking/
-│   ├── api/                      TrackingController, FocusController, PublicController, Dtos
-│   ├── service/                  StatsService (+Stats record), FocusService
-│   └── domain/                   DailyLog, WeeklyReview, FocusSession + repositories
-├── plan/
-│   ├── api/                      PlanController, PlanDtos
-│   ├── service/                  PlanService
-│   └── domain/                   PlanItem, PlanQuarter, PlanReference + repositories
-└── work/
-    ├── api/                      WorkController, WorkDtos
-    └── domain/                   WorkLog, WorkSkill + repositories
+│   ├── api/                      TrackingController, FocusController, PublicController,
+│   │                             ExportController, TrackingDtos
+│   ├── service/                  TrackingService, StatsService (+Stats), FocusService
+│   └── domain/                   DailyLog, WeeklyReview, FocusSession, FocusKind + repositories
+├── plan/                         PlanController/PlanDtos · PlanService · PlanItem, PlanQuarter,
+│                                 PlanReference
+├── todo/                         TodoController/TodoDtos · TodoService · Todo
+├── work/                         WorkController/WorkDtos · WorkService · WorkLog, WorkSkill
+├── finance/
+│   ├── api/                      FinanceController, TransactionController, CategoryRuleController,
+│   │                             SpendingController, BudgetController, StatementImportController
+│   │                             + FinanceDtos, BudgetDtos, StatementImportDtos
+│   ├── service/                  FinanceService, BudgetService (+BudgetMonth), CategoryRuleService,
+│   │                             RecurringDetector, StatementImportService, parse/*
+│   └── domain/                   Account, Transaction, Budget, CategoryRule, SavingsGoal, … + enums
+└── relationship/
+    ├── api/                      RelationshipController, RelationshipDtos
+    ├── service/                  RelationshipService (+RelationshipSummary)
+    └── domain/                   Moment, Idea, Occasion, Reading + enums
 ```
 
-There is intentionally **no** CORS config, `@ControllerAdvice`, `WebMvcConfigurer`, or
-SPA-forwarding controller — Spring Boot's default static handler serves the baked SPA from
+Every record a browser sends or receives is in a feature's `api/<Feature>Dtos.java`; a service
+returns entities or its own computed record. `dev.grindtrack.web` holds what no feature owns —
+request parsing, the two acknowledgement bodies, and the single advice that turns an exception into
+a status. See [architecture-conventions.md](architecture-conventions.md).
+
+There is intentionally **no** CORS config, `WebMvcConfigurer`, or SPA-forwarding controller — Spring Boot's default static handler serves the baked SPA from
 `classpath:/static/`, and `SecurityConfig` permits the static paths.

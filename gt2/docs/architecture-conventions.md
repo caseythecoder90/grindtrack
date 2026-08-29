@@ -7,6 +7,12 @@ motivated it, because a convention with no concrete failure behind it is just ta
 codebase drifting into two shapes again — which is exactly what had happened by August 2026, when
 half the controllers talked to a service and half talked straight to a repository.
 
+It drifted a second time, in a different direction, and the August 2026 pass that followed is what
+Parts 1.5 and 1.6 record: request records living in controllers, response records living in
+*services*, four controllers carrying private copies of the parsing helpers this document had
+already said belonged in one place, and thirty-nine endpoints whose declared return type was
+`ResponseEntity<?>`. The rules below are what stops each of those specific things.
+
 ---
 
 ## Part 1 — The backend
@@ -28,6 +34,15 @@ half the controllers talked to a service and half talked straight to a repositor
 in, and the next person adds a third.
 
 If a controller needs a number, the service provides it.
+
+#### Split a controller by resource, not by size
+
+`FinanceController` reached 515 lines over five unrelated resources — the dashboard, accounts,
+transactions, category rules and savings goals — injecting three services. Length was the symptom;
+the cause was that `/api/finance` had become a namespace rather than a resource. It is now
+`FinanceController` (summary, accounts, goals), `TransactionController`, `CategoryRuleController`
+and `SpendingController`, each with the service or two it actually needs. Every URL and every
+response body is unchanged: a split that alters the API is a rewrite, not a refactor.
 
 #### A controller calls exactly one service
 
@@ -68,9 +83,23 @@ Six controllers had each defined a private `BadRequest` class and its own `@Exce
 about fifty lines of identical code that could not be shared *because* each exception type was
 private to its own file. Three had separate copies of `optionalDate`.
 
-- `web/Requests.java` — static helpers: `requireDate`, `optionalDate`, `requireText`, `enumValue`.
+- `web/Requests.java` — static helpers: `requireDate`, `optionalDate`, `monthOrNow`, `requireText`,
+  `enumValue`, `optionalEnum`, `requireOneOf`, `requireWithin`.
 - `web/BadRequestException.java` — one type, thrown by controllers.
+- `web/ConflictException.java` — the 409, so an endpoint that has one can still declare its real
+  return type.
+- `web/Responses.java` — `Deleted` and `Saved`, the two acknowledgement bodies no feature owns.
 - `web/ApiExceptionHandler.java` — one `@RestControllerAdvice` mapping exceptions to statuses.
+
+Four controllers still had their own copies of `optionalDate` and their own enum parsers a year
+after this rule was written, and one — `FocusController` — had gone further and written parsers
+that return `null` on failure plus a private `badRequest()` helper, so its validation could not be
+read as a sequence of parses at all. They are gone. If a controller declares a `private static`
+method that turns a request string into a value, it belongs in `Requests`.
+
+`StatementParseException` extends `BadRequestException` rather than carrying the seventh
+per-controller `@ExceptionHandler`: an unreadable upload is a malformed request, and this way the
+message reaches the user through the same advice as every other error body.
 
 Services still throw plain `IllegalArgumentException` for invariant failures, and the advice maps it
 to 400. **This is a deliberate trade-off with a real downside:** `IllegalArgumentException` is
@@ -85,6 +114,76 @@ production 400 ever turns out to have been a NullPointer-shaped bug in disguise;
 `static from(Entity)` on the response record, as `TransactionResponse.from` and `WorkDayResponse.from`
 already do. The mapping lives next to the shape it produces, so changing a field means opening one
 file. No mapper classes, no MapStruct — see "decided against".
+
+### Every DTO lives in `<feature>/api/<Feature>Dtos.java`
+
+Not in the controller, and never in the service.
+
+Seven request records sat inside `RelationshipController` while its response records sat inside
+`RelationshipService`. Two things follow from that, and both had happened. The wire contract was
+declared by the service layer, so a field could not be renamed for the browser without editing a
+class that has no business knowing there is a browser. And the entity-to-DTO mapping existed
+**twice** — `RelationshipService.toMomentView` and `RelationshipController.view`, six identical
+lines each, both live: the summary endpoint used one, the write endpoints the other. Nothing would
+have told you if they drifted.
+
+The rule that prevents it: a record that a browser receives or sends belongs in the feature's
+`api` package. The service returns entities, or its own computed results; the controller maps.
+
+One file per feature, named for the feature — `FinanceDtos`, `WorkDtos`, `TrackingDtos`. The
+tracking one was called `Dtos`, which reads fine in its own package and not at all in an import
+list beside `FinanceDtos`. Split a second file out when a surface is genuinely separate rather than
+merely large: `BudgetDtos` and `StatementImportDtos` are their own files because the budget and an
+upload are different subjects, not because `FinanceDtos` was getting long.
+
+### A service's computed results get a file, not a nest
+
+Some records are not projections of an entity — `Stats`, `BudgetMonth`, `RelationshipSummary` are
+things a service *works out*. Those legitimately live in the `service` package, and the controller
+may return them directly.
+
+They do not live inside the service class. `RelationshipService` had nine record declarations
+between its class comment and its first method, `BudgetService` four between its constructor and
+its first method; both files read as a bag of shapes before they read as a service. `Stats` had it
+right all along — a top-level file beside `StatsService` — and the other two now match it.
+
+A computed record must not reference an entity's *view*. `RelationshipSummary` carries
+`List<Idea>`, not `List<IdeaResponse>`: the moment it holds a wire type, the service package is
+back to declaring the wire contract.
+
+### An endpoint's return type is its response
+
+`ResponseEntity<?>` says nothing, and the thirty-nine methods that declared it were mostly
+returning a hand-built `Map.of("deleted", id)`. A map is not a contract — nothing stopped the next
+one writing `"removed"`, and neither the compiler nor a reader of the signature could tell.
+
+- Acknowledgements: `Responses.Deleted` and `Responses.Saved`, in `web`.
+- Anything feature-shaped: a record in the feature's `Dtos` — `TransactionPageResponse` replaced
+  five `LinkedHashMap.put` calls that *were* the paging contract.
+- `ResponseEntity<T>` only when the response genuinely carries more than a body: `AuthController`
+  sets cookies, `ExportController` sets `Content-Disposition`. Typed, never `<?>`.
+
+A nullable return is fine and is not a 404: `GET /api/days/{date}` for an unlogged day answers 200
+with an empty body, which the frontend's fetch wrapper already turns into `null`.
+
+### One not-found shape for the whole app
+
+Services throw `NoSuchElementException("account 5")`; the advice maps it to 404. Todo, Plan and
+Work each built their own `ResponseEntity.status(404).body(Map.of("error", "no such todo"))`
+instead, so the same failure had two body shapes depending on which feature you hit. They now throw
+too. A controller holding an `Optional` ends it with
+`.orElseThrow(() -> new NoSuchElementException("todo " + id))`.
+
+### Enums, not strings, for closed vocabularies
+
+`focus_sessions.kind` was the string `"study"` or `"work"`, compared by hand in eight places. Every
+one of those comparisons treated an unrecognised value as `"study"` — so a typo silently logged
+work hours against the study log, the exact confusion that having two logs exists to prevent. It is
+`FocusKind` now, with an `AttributeConverter` so the stored rows and the frontend's `"study" |
+"work"` union both keep their lower-case spelling and no migration was needed.
+
+`Requests.requireOneOf` remains for the two vocabularies that are closed in the schema but were
+never made into Java enums (a todo's kind, a skill's status). New code should prefer a real enum.
 
 ### Rich domain objects
 
@@ -185,11 +284,14 @@ The order that keeps the layers honest:
 
 1. **Migration** — `db/changelog/NNN-<feature>.sql`, registered in `db.changelog-master.yaml`.
    Comments explain why a column exists, not what type it is. Seed nothing: the repo is public.
-2. **Domain** — entity with its invariants, enums, repository interface.
-3. **Service** — `@Transactional`, orchestration, invariant validation. **Test this first and
-   heaviest**; it is where the logic is and it needs no HTTP to exercise.
-4. **DTOs** — request and response records with `static from()`.
-5. **Controller** — routing, `Requests.*` parsing, one service call, DTO mapping.
+2. **Domain** — entity with its invariants, enums, repository interface. A closed vocabulary is an
+   enum here, not a string checked in three places.
+3. **Service** — `@Transactional`, orchestration, invariant validation. Returns entities, or a
+   computed record in its own file. **Test this first and heaviest**; it is where the logic is and
+   it needs no HTTP to exercise.
+4. **DTOs** — `<feature>/api/<Feature>Dtos.java`: request and response records with `static from()`.
+5. **Controller** — routing, `Requests.*` parsing, one service call, DTO mapping. The method's
+   return type is the response; `Optional.orElseThrow(NoSuchElementException::new)` for a 404.
 6. **Wire types** — `lib/types.ts`, mirroring the response records.
 7. **API module** — `features/<feature>/<feature>Api.ts`.
 8. **UI** — page plus panels.
