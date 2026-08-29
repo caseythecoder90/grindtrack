@@ -163,8 +163,8 @@ export default function FinancePage() {
         </div>
         {summary.goals.length === 0 && !addingGoal && (
           <p className="muted">
-            No goal yet. The house fund is $230k — $100k down on a $500k house, ~$15k closing,
-            ~$12k move-in, $100k retained.
+            No goal yet. The house and truck fund is $275k — $100k down on the house, $100k
+            retained after closing, and $75k for a truck.
           </p>
         )}
         {addingGoal && (

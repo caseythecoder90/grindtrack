@@ -153,8 +153,24 @@ nav.tabs.sub { border-bottom: none; margin-bottom: 12px; }
 .panelhead h2 { margin: 0; }
 h2 { font-family: var(--mono); font-size: 14px; font-weight: 600; color: var(--cyan); margin: 0 0 14px; letter-spacing: 0.05em; text-transform: lowercase; }
 label { display: block; font-family: var(--mono); font-size: 12px; color: var(--muted); margin: 12px 0 4px; }
-input, textarea { width: 100%; background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; color: var(--text); padding: 8px 10px; font-family: var(--sans); font-size: 14px; }
-input:focus-visible, textarea:focus-visible { outline: 2px solid var(--cyan); outline-offset: 1px; border-color: var(--cyan); }
+/* select shares the input look on purpose -- left unstyled, it renders as bare OS chrome (white
+   background, system font) next to inputs and buttons that already match the app, which is
+   exactly the mismatch a "+ account" form makes obvious. */
+input, select, textarea { width: 100%; background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; color: var(--text); padding: 8px 10px; font-family: var(--sans); font-size: 14px; }
+input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--cyan); outline-offset: 1px; border-color: var(--cyan); }
+select { cursor: pointer; }
+
+input[type="checkbox"] { width: auto; accent-color: var(--cyan); cursor: pointer; }
+
+/* The native "Choose File" button can't inherit color like a normal button, so it needs its own
+   rule -- ::file-selector-button is the one hook browsers give for restyling it. */
+input[type="file"] { font-family: var(--mono); font-size: 12px; color: var(--muted); padding: 6px 8px; }
+input[type="file"]::file-selector-button {
+  font-family: var(--mono); font-size: 12px; color: var(--text); background: var(--panel);
+  border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; margin-right: 10px;
+  cursor: pointer;
+}
+input[type="file"]::file-selector-button:hover { border-color: var(--cyan); }
 textarea { min-height: 64px; resize: vertical; }
 .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .row3 { display: grid; grid-template-columns: minmax(140px, 1fr) minmax(96px, 0.6fr) minmax(160px, 2fr); gap: 16px; align-items: end; }
@@ -324,6 +340,11 @@ tr.today-row td { background: rgba(127, 209, 255, 0.06); }
 .balance-edit { display: flex; gap: 6px; justify-content: flex-end; }
 .balance-edit input { width: 110px; text-align: right; }
 
+.account-row-actions { display: flex; gap: 4px; justify-content: flex-end; white-space: nowrap; }
+button.ghost.danger { color: var(--red); }
+button.ghost.danger:hover { color: var(--red); border-color: var(--red); }
+.delete-warning { font-family: var(--mono); font-size: 12px; color: var(--red); padding: 0 6px 10px !important; }
+
 .txn-table .tag { font-family: var(--mono); font-size: 10px; letter-spacing: 0.06em;
   text-transform: uppercase; color: var(--muted); margin-left: 6px; }
 .txn-table .tag.cat { color: var(--cyan); }
@@ -334,8 +355,7 @@ tr.today-row td { background: rgba(127, 209, 255, 0.06); }
 }
 
 /* --- statement import ------------------------------------------------------- */
-.import-panel input[type="file"] { font-family: var(--mono); font-size: 12px; color: var(--muted);
-  max-width: 260px; }
+.import-panel input[type="file"] { max-width: 260px; }
 .import-panel .muted.small { margin: 8px 0 0; line-height: 1.5; }
 
 .import-result { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--study);
