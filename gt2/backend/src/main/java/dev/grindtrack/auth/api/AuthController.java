@@ -1,6 +1,7 @@
 package dev.grindtrack.auth.api;
 
 import dev.grindtrack.auth.api.AuthDtos.AuthError;
+import dev.grindtrack.auth.api.AuthDtos.AuthResponse;
 import dev.grindtrack.auth.api.AuthDtos.LoginRequest;
 import dev.grindtrack.auth.api.AuthDtos.LogoutResponse;
 import dev.grindtrack.auth.api.AuthDtos.SessionResponse;
@@ -47,7 +48,8 @@ public class AuthController {
   }
 
   @PostMapping("/login")
-  public ResponseEntity<?> login(@RequestBody LoginRequest body, HttpServletRequest request) {
+  public ResponseEntity<AuthResponse> login(
+      @RequestBody LoginRequest body, HttpServletRequest request) {
     if (!rateLimiter.allow(clientIp(request))) {
       return ResponseEntity.status(429).body(new AuthError("Too many attempts. Wait 5 minutes."));
     }
@@ -58,7 +60,7 @@ public class AuthController {
   }
 
   @PostMapping("/refresh")
-  public ResponseEntity<?> refresh(HttpServletRequest request) {
+  public ResponseEntity<AuthResponse> refresh(HttpServletRequest request) {
     String presented = Cookies.value(request, REFRESH_COOKIE);
     if (presented == null) {
       return unauthorized("No refresh token.");
@@ -70,7 +72,7 @@ public class AuthController {
   }
 
   @PostMapping("/logout")
-  public ResponseEntity<?> logout(HttpServletRequest request) {
+  public ResponseEntity<AuthResponse> logout(HttpServletRequest request) {
     String presented = Cookies.value(request, REFRESH_COOKIE);
     if (presented != null) {
       authService.revoke(presented);
@@ -87,7 +89,7 @@ public class AuthController {
   }
 
   /** 200 with fresh access + refresh cookies — the shared success shape of login and refresh. */
-  private ResponseEntity<Object> sessionResponse(User user, String refreshToken) {
+  private ResponseEntity<AuthResponse> sessionResponse(User user, String refreshToken) {
     String accessToken = jwtService.issueAccessToken(user.getUsername());
     return ResponseEntity.ok()
         .header(HttpHeaders.SET_COOKIE, accessCookie(accessToken).toString())
@@ -95,7 +97,7 @@ public class AuthController {
         .body(new SessionResponse(user.getUsername()));
   }
 
-  private static ResponseEntity<Object> unauthorized(String message) {
+  private static ResponseEntity<AuthResponse> unauthorized(String message) {
     return ResponseEntity.status(401).body(new AuthError(message));
   }
 

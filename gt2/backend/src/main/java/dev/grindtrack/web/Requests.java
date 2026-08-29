@@ -48,6 +48,17 @@ public final class Requests {
     return optionalDate(value, "dates must be YYYY-MM-DD");
   }
 
+  /**
+   * @throws BadRequestException with {@code message} when the value is absent or unparseable
+   */
+  public static OffsetDateTime requireInstant(String value, String message) {
+    OffsetDateTime parsed = optionalInstant(value, message);
+    if (parsed == null) {
+      throw new BadRequestException(message);
+    }
+    return parsed;
+  }
+
   public static OffsetDateTime optionalInstant(String value, String message) {
     if (value == null || value.isBlank()) {
       return null;

@@ -6,7 +6,6 @@ import dev.grindtrack.tracking.domain.FocusKind;
 import dev.grindtrack.tracking.service.FocusService;
 import dev.grindtrack.web.BadRequestException;
 import dev.grindtrack.web.Requests;
-import java.time.OffsetDateTime;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -46,7 +45,7 @@ public class FocusController {
     return FocusSessionResponse.from(
         focusService.record(
             Requests.requireDate(body.date(), "date must be YYYY-MM-DD"),
-            requireStartedAt(body.startedAt()),
+            Requests.requireInstant(body.startedAt(), "startedAt must be an ISO-8601 timestamp"),
             requireDuration(body.durationMinutes()),
             Boolean.TRUE.equals(body.completed()),
             Requests.enumValue(FocusKind.class, body.kind(), "kind", FocusKind.STUDY)));
@@ -62,15 +61,6 @@ public class FocusController {
         .stream()
         .map(FocusSessionResponse::from)
         .toList();
-  }
-
-  private static OffsetDateTime requireStartedAt(String value) {
-    OffsetDateTime parsed =
-        Requests.optionalInstant(value, "startedAt must be an ISO-8601 timestamp");
-    if (parsed == null) {
-      throw new BadRequestException("startedAt must be an ISO-8601 timestamp");
-    }
-    return parsed;
   }
 
   private static int requireDuration(Integer minutes) {
