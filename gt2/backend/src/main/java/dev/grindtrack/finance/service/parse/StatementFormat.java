@@ -18,7 +18,12 @@ public enum StatementFormat {
   /** {@code DATE,DESCRIPTION,AMOUNT,CHECK #,STATUS} */
   WELLS_FARGO("Wells Fargo card"),
   /** {@code Date,LoanName,Description,Principal,Interest,Fees,Total,UnpaidPrincipalBalanceValue} */
-  AIDVANTAGE("Aidvantage student loans");
+  AIDVANTAGE("Aidvantage student loans"),
+  /**
+   * OFX/QFX from a brokerage or 401k provider. Not CSV at all -- SGML, and the only format here
+   * that states a market value outright rather than a list of movements.
+   */
+  OFX_INVESTMENT("Investment account (OFX/QFX)");
 
   private final String label;
 

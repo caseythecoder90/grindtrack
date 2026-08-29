@@ -88,7 +88,7 @@ export default function ImportPanel({
             </option>
           ))}
         </select>
-        <input type="file" accept=".csv,text/csv" ref={fileRef} />
+        <input type="file" accept=".csv,.qfx,.ofx,text/csv" ref={fileRef} />
         <button type="button" disabled={busy} onClick={() => send(true)}>
           preview
         </button>
@@ -98,8 +98,8 @@ export default function ImportPanel({
       </div>
 
       <p className="muted small">
-        Capital One (checking, savings, cards), Chase, Wells Fargo, Bank of America and Aidvantage
-        are all recognized automatically. Re-importing an overlapping date range is safe — rows
+        Capital One (checking, savings, cards), Chase, Wells Fargo, Bank of America, Aidvantage
+        and OFX/QFX investment files are all recognized automatically. Re-importing an overlapping date range is safe — rows
         already present are skipped, not duplicated.
       </p>
 

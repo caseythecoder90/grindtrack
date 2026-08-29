@@ -27,6 +27,7 @@ import dev.grindtrack.finance.service.parse.BankOfAmericaParser;
 import dev.grindtrack.finance.service.parse.CapitalOneCreditParser;
 import dev.grindtrack.finance.service.parse.CapitalOneDepositParser;
 import dev.grindtrack.finance.service.parse.ChaseParser;
+import dev.grindtrack.finance.service.parse.OfxInvestmentParser;
 import dev.grindtrack.finance.service.parse.StatementParseException;
 import dev.grindtrack.finance.service.parse.StatementParser;
 import dev.grindtrack.finance.service.parse.WellsFargoParser;
@@ -72,7 +73,8 @@ class StatementImportServiceTest {
             batches,
             new MerchantNormalizer(),
             new TxnTypeClassifier(),
-            new CategoryRuleService(categoryRules, transactions));
+            new CategoryRuleService(categoryRules, transactions),
+            new OfxInvestmentParser());
 
     when(batches.save(any(ImportBatch.class))).thenAnswer(invocation -> invocation.getArgument(0));
     when(transactions.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));

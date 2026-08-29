@@ -9,6 +9,7 @@ import dev.grindtrack.finance.domain.Transaction;
 import dev.grindtrack.finance.domain.TransactionRepository;
 import dev.grindtrack.finance.domain.TxnType;
 import dev.grindtrack.finance.service.parse.Csv;
+import dev.grindtrack.finance.service.parse.OfxInvestmentParser;
 import dev.grindtrack.finance.service.parse.ParsedRow;
 import dev.grindtrack.finance.service.parse.ParsedStatement;
 import dev.grindtrack.finance.service.parse.StatementFormat;
@@ -50,6 +51,7 @@ public class StatementImportService {
   private final MerchantNormalizer merchantNormalizer;
   private final TxnTypeClassifier classifier;
   private final CategoryRuleService categoryRules;
+  private final OfxInvestmentParser ofx;
 
   public StatementImportService(
       List<StatementParser> parsers,
@@ -58,7 +60,8 @@ public class StatementImportService {
       ImportBatchRepository batches,
       MerchantNormalizer merchantNormalizer,
       TxnTypeClassifier classifier,
-      CategoryRuleService categoryRules) {
+      CategoryRuleService categoryRules,
+      OfxInvestmentParser ofx) {
     this.parsers = parsers;
     this.accounts = accounts;
     this.transactions = transactions;
@@ -66,6 +69,7 @@ public class StatementImportService {
     this.merchantNormalizer = merchantNormalizer;
     this.classifier = classifier;
     this.categoryRules = categoryRules;
+    this.ofx = ofx;
   }
 
   /**
@@ -254,6 +258,12 @@ public class StatementImportService {
   }
 
   private ParsedStatement parse(String content) {
+    // OFX/QFX is SGML rather than a table, so it is checked before anything tries to read it as
+    // rows of cells. See OfxInvestmentParser for why it does not share the CSV parser interface.
+    if (ofx.canParse(content)) {
+      return ofx.parse(content);
+    }
+
     String cleaned = content.stripLeading();
     if (cleaned.regionMatches(true, 0, DOCTYPE_PREFIX, 0, DOCTYPE_PREFIX.length())) {
       int end = cleaned.indexOf('>');
@@ -274,8 +284,9 @@ public class StatementImportService {
       }
     }
     throw new StatementParseException(
-        "Unrecognized statement format. Expected an export from Capital One, Chase, "
-            + "Wells Fargo, Bank of America or Aidvantage — the header was: "
+        "Unrecognized statement format. Expected a CSV export from Capital One, Chase, "
+            + "Wells Fargo, Bank of America or Aidvantage, or an OFX/QFX investment file — "
+            + "the header was: "
             + String.join(", ", header));
   }
 
@@ -310,6 +321,7 @@ public class StatementImportService {
     return switch (format) {
       case CAPITAL_ONE_DEPOSIT -> List.of(AccountType.CHECKING, AccountType.SAVINGS);
       case AIDVANTAGE -> List.of(AccountType.LOAN);
+      case OFX_INVESTMENT -> List.of(AccountType.RETIREMENT);
       case CAPITAL_ONE_CREDIT, CHASE, BANK_OF_AMERICA, WELLS_FARGO ->
           List.of(AccountType.CREDIT_CARD);
     };
