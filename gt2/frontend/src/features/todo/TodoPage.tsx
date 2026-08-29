@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Segmented from "../../components/Segmented";
-import { api, jsonInit } from "../../lib/api";
+import { errorMessage } from "../../lib/api";
+import { createTodo, deleteTodo, getTodos, updateTodo } from "./todoApi";
 import { todayISO } from "../../lib/dates";
 import type { Todo, TodoKind } from "../../lib/types";
 
@@ -43,10 +44,9 @@ export default function TodoPage() {
   const load = useCallback(async (f: Filter) => {
     setError("");
     try {
-      const query = f === "all" ? "" : `?kind=${f}`;
-      setTodos(await api<Todo[]>(`/api/todos${query}`));
+      setTodos(await getTodos(f === "all" ? undefined : f));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "could not load the list");
+      setError(errorMessage(e, "could not load the list"));
     }
   }, []);
 
@@ -58,12 +58,12 @@ export default function TodoPage() {
     if (!title.trim()) return;
     setError("");
     try {
-      await api("/api/todos", jsonInit("POST", { title, kind, dueDate: due || null }));
+      await createTodo({ title, kind, dueDate: due || null });
       setTitle("");
       setDue("");
       load(filter);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "could not add that");
+      setError(errorMessage(e, "could not add that"));
     }
   }
 
@@ -71,7 +71,7 @@ export default function TodoPage() {
     // Optimistic: the checkbox should feel instant, and a failed PATCH re-syncs below.
     setTodos((list) => list.map((t) => (t.id === todo.id ? { ...t, done: !t.done } : t)));
     try {
-      await api(`/api/todos/${todo.id}`, jsonInit("PATCH", { done: !todo.done }));
+      await updateTodo(todo.id, { done: !todo.done });
     } catch {
       setError("could not save that change");
     }
@@ -81,10 +81,10 @@ export default function TodoPage() {
   async function remove(id: number) {
     setError("");
     try {
-      await api(`/api/todos/${id}`, { method: "DELETE" });
+      await deleteTodo(id);
       load(filter);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "could not delete that");
+      setError(errorMessage(e, "could not delete that"));
     }
   }
 

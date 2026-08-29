@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import WeekTotals from "../../components/WeekTotals";
-import { api } from "../../lib/api";
+import { errorMessage } from "../../lib/api";
+import { getWorkDays } from "./workApi";
 import { addDays, mondayOf, todayISO } from "../../lib/dates";
 import type { WorkDay as WorkDayT } from "../../lib/types";
 
@@ -16,9 +17,9 @@ export default function WorkWeek() {
     setError("");
     try {
       const end = addDays(weekStart, 6);
-      setDays(await api<WorkDayT[]>(`/api/work/days?from=${weekStart}&to=${end}`));
+      setDays(await getWorkDays(weekStart, end));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "could not load the week");
+      setError(errorMessage(e, "could not load the week"));
     }
   }, [weekStart]);
 

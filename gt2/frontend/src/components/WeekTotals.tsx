@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { api } from "../lib/api";
+import { getDays } from "../features/tracking/trackingApi";
+import { getWorkDays } from "../features/work/workApi";
 import { addDays } from "../lib/dates";
-import { TARGETS, type DayLog, type WorkDay } from "../lib/types";
+import { TARGETS } from "../lib/types";
 import Meter from "./Meter";
 
 interface Props {
@@ -27,8 +28,8 @@ export default function WeekTotals({ weekStart }: Props) {
       (rows ?? []).reduce((total, r) => total + r.hours, 0);
 
     Promise.all([
-      api<DayLog[]>(`/api/days?from=${weekStart}&to=${end}`).catch(() => null),
-      api<WorkDay[]>(`/api/work/days?from=${weekStart}&to=${end}`).catch(() => null),
+      getDays(weekStart, end).catch(() => null),
+      getWorkDays(weekStart, end).catch(() => null),
     ]).then(([days, workDays]) => {
       if (ignore) return;
       setStudy(sum(days));

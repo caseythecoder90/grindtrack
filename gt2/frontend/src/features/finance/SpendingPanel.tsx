@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { api } from "../../lib/api";
+import { errorMessage } from "../../lib/api";
+import { getMonthlyTotals, getSpending } from "./financeApi";
 import type { MonthTotal, SpendSummary } from "../../lib/types";
 import { money, moneyWhole } from "./money";
 
@@ -37,13 +38,9 @@ export default function SpendingPanel() {
   const load = useCallback(async (days: number) => {
     setError("");
     try {
-      setData(
-        await api<SpendSummary>(
-          `/api/finance/spending?from=${isoDaysAgo(days)}&to=${new Date().toISOString().slice(0, 10)}`,
-        ),
-      );
+      setData(await getSpending(isoDaysAgo(days), new Date().toISOString().slice(0, 10)));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "could not load your spending");
+      setError(errorMessage(e, "could not load your spending"));
     }
   }, []);
 
@@ -52,7 +49,7 @@ export default function SpendingPanel() {
   }, [load, window]);
 
   useEffect(() => {
-    api<MonthTotal[]>("/api/finance/spending/monthly?months=6")
+    getMonthlyTotals(6)
       .then(setMonths)
       .catch(() => setMonths([]));
   }, []);

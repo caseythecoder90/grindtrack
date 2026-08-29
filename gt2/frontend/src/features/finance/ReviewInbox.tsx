@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, jsonInit } from "../../lib/api";
-import type { CategoryRule, FinanceTransaction } from "../../lib/types";
+import { errorMessage } from "../../lib/api";
+import { categorizeAndLearn, getRules, getUncategorized } from "./financeApi";
+import type { FinanceTransaction } from "../../lib/types";
 import { categoryOptions } from "./categories";
 import { signed } from "./money";
 
@@ -23,14 +24,11 @@ export default function ReviewInbox({ onChange }: { onChange: () => void }) {
 
   const load = useCallback(async () => {
     try {
-      const [pending, rules] = await Promise.all([
-        api<FinanceTransaction[]>("/api/finance/transactions/uncategorized"),
-        api<CategoryRule[]>("/api/finance/rules"),
-      ]);
+      const [pending, rules] = await Promise.all([getUncategorized(), getRules()]);
       setRows(pending);
       setKnown(rules.map((r) => r.category));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "could not load the review list");
+      setError(errorMessage(e, "could not load the review list"));
     }
   }, []);
 
@@ -46,10 +44,7 @@ export default function ReviewInbox({ onChange }: { onChange: () => void }) {
     setError("");
     setNote("");
     try {
-      const result = await api<{ rule: CategoryRule | null; ruleExisted: boolean }>(
-        `/api/finance/transactions/${txn.id}/categorize`,
-        jsonInit("POST", { category, createRule: remember }),
-      );
+      const result = await categorizeAndLearn(txn.id, category, remember);
       if (result.rule) {
         setNote(
           `Filed, and anything matching "${result.rule.pattern}" now goes to ${result.rule.category}.`,
@@ -63,7 +58,7 @@ export default function ReviewInbox({ onChange }: { onChange: () => void }) {
       });
       onChange();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "could not file that one");
+      setError(errorMessage(e, "could not file that one"));
     } finally {
       setBusy(null);
     }

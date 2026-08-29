@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { api, jsonInit } from "../../lib/api";
+import { errorMessage } from "../../lib/api";
+import { getWorkDay, saveWorkDay } from "./workApi";
 import { todayISO } from "../../lib/dates";
-import { WORK_CATEGORIES, type WorkDay as WorkDayT } from "../../lib/types";
+import { WORK_CATEGORIES } from "../../lib/types";
 
 /**
  * One day of the actual job: hours, project, categories, and the goals →
@@ -22,7 +23,7 @@ export default function WorkDay({ onSaved }: { onSaved: () => void }) {
 
   useEffect(() => {
     let ignore = false;
-    api<WorkDayT | null>(`/api/work/days/${date}`)
+    getWorkDay(date)
       .then((d) => {
         if (ignore) return;
         setHours(String(d?.hours ?? 0));
@@ -50,23 +51,20 @@ export default function WorkDay({ onSaved }: { onSaved: () => void }) {
   async function save() {
     setError("");
     try {
-      await api(
-        `/api/work/days/${date}`,
-        jsonInit("PUT", {
-          hours: Number(hours),
-          categories: [...cats],
-          project,
-          goals,
-          did,
-          blockers,
-          learnings,
-        }),
-      );
+      await saveWorkDay(date, {
+        hours: Number(hours),
+        categories: [...cats],
+        project,
+        goals,
+        did,
+        blockers,
+        learnings,
+      });
       setToast(true);
       setTimeout(() => setToast(false), 1600);
       onSaved();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "save failed");
+      setError(errorMessage(e, "save failed"));
     }
   }
 
