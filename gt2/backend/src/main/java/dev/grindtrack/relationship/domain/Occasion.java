@@ -8,6 +8,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.Year;
 
 /**
  * An anniversary or a birthday — the only part of this feature with an actual deadline.
@@ -87,7 +88,7 @@ public class Occasion {
   }
 
   private static boolean isLeap(int year) {
-    return java.time.Year.isLeap(year);
+    return Year.isLeap(year);
   }
 
   /** How many years old this occasion will be at its next occurrence; null when not recurring. */

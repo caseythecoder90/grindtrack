@@ -8,6 +8,7 @@ import java.math.BigDecimal;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.temporal.TemporalAdjusters;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
@@ -124,14 +125,12 @@ public class TrackingService {
 
   /** Everything, for the JSON backup. Ordered so the file is stable between downloads. */
   public List<DailyLog> allDays() {
-    return dailyLogs.findAll().stream()
-        .sorted(java.util.Comparator.comparing(DailyLog::getLogDate))
-        .toList();
+    return dailyLogs.findAll().stream().sorted(Comparator.comparing(DailyLog::getLogDate)).toList();
   }
 
   public List<WeeklyReview> allWeeks() {
     return weeklyReviews.findAll().stream()
-        .sorted(java.util.Comparator.comparing(WeeklyReview::getWeekStart))
+        .sorted(Comparator.comparing(WeeklyReview::getWeekStart))
         .toList();
   }
 }

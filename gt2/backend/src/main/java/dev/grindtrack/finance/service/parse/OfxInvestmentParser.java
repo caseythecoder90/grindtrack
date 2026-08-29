@@ -1,7 +1,9 @@
 package dev.grindtrack.finance.service.parse;
 
 import java.math.BigDecimal;
+import java.time.DateTimeException;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.springframework.stereotype.Component;
@@ -76,7 +78,7 @@ public class OfxInvestmentParser {
 
     LocalDate asOf = firstDate(content, PRICE_AS_OF, AS_OF);
 
-    return ParsedStatement.of(StatementFormat.OFX_INVESTMENT, java.util.List.of(), positions, 0)
+    return ParsedStatement.of(StatementFormat.OFX_INVESTMENT, List.of(), positions, 0)
         .withBalance(total, asOf)
         .withNote(
             "No transactions imported, and that is correct: contributions come out of payroll"
@@ -120,7 +122,7 @@ public class OfxInvestmentParser {
           Integer.parseInt(digits.substring(0, 4)),
           Integer.parseInt(digits.substring(4, 6)),
           Integer.parseInt(digits.substring(6, 8)));
-    } catch (NumberFormatException | java.time.DateTimeException e) {
+    } catch (NumberFormatException | DateTimeException e) {
       return null;
     }
   }

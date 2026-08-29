@@ -21,8 +21,8 @@ import dev.grindtrack.relationship.domain.OccasionRepository;
 import dev.grindtrack.relationship.domain.Reading;
 import dev.grindtrack.relationship.domain.ReadingKind;
 import dev.grindtrack.relationship.domain.ReadingRepository;
-import dev.grindtrack.relationship.service.RelationshipService.Perspective;
-import dev.grindtrack.relationship.service.RelationshipService.Upcoming;
+import dev.grindtrack.relationship.service.RelationshipSummary.Perspective;
+import dev.grindtrack.relationship.service.RelationshipSummary.Upcoming;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -221,7 +221,7 @@ class RelationshipServiceTest {
                 idea("Book the pottery class", Effort.MEDIUM)));
 
     assertThat(service.listIdeas(false))
-        .extracting(RelationshipService.IdeaView::title)
+        .extracting(Idea::getTitle)
         .containsExactly("Note in her bag", "Book the pottery class", "Weekend away");
   }
 

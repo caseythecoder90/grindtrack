@@ -10,6 +10,15 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+/**
+ * Queries over transactions. No logic — the rollup queries here filter by transaction type, which
+ * is a fact about what the query is <em>for</em> rather than a rule about a transaction.
+ *
+ * <p>The fully-qualified {@code dev.grindtrack.finance.domain.TxnType.SPEND} inside the JPQL below
+ * is not the same smell as a fully-qualified name in Java code and must not be "tidied up": these
+ * are strings, an import cannot reach them, and JPQL resolves an enum literal by its qualified
+ * name. The same goes for the {@code SELECT new ...CategoryTotal(} constructor expressions.
+ */
 public interface TransactionRepository extends JpaRepository<Transaction, Long> {
 
   boolean existsByAccountIdAndFingerprint(Long accountId, String fingerprint);

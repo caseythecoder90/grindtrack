@@ -1,17 +1,17 @@
 package dev.grindtrack.tracking.api;
 
-import dev.grindtrack.tracking.api.Dtos.DayRequest;
-import dev.grindtrack.tracking.api.Dtos.DayResponse;
-import dev.grindtrack.tracking.api.Dtos.WeekRequest;
-import dev.grindtrack.tracking.api.Dtos.WeekResponse;
+import dev.grindtrack.tracking.api.TrackingDtos.DayRequest;
+import dev.grindtrack.tracking.api.TrackingDtos.DayResponse;
+import dev.grindtrack.tracking.api.TrackingDtos.WeekRequest;
+import dev.grindtrack.tracking.api.TrackingDtos.WeekResponse;
 import dev.grindtrack.tracking.service.Stats;
 import dev.grindtrack.tracking.service.StatsService;
 import dev.grindtrack.tracking.service.TrackingService;
 import dev.grindtrack.web.Requests;
+import dev.grindtrack.web.Responses.Deleted;
+import dev.grindtrack.web.Responses.Saved;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Map;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -56,14 +56,17 @@ public class TrackingController {
         .toList();
   }
 
+  /** Null — an empty 200 body — for a day with nothing logged yet; that is not a 404. */
   @GetMapping("/days/{date}")
-  public ResponseEntity<?> day(@PathVariable String date) {
-    return ResponseEntity.ok(
-        tracking.day(Requests.requireDate(date, INVALID_DATE)).map(DayResponse::from).orElse(null));
+  public DayResponse day(@PathVariable String date) {
+    return tracking
+        .day(Requests.requireDate(date, INVALID_DATE))
+        .map(DayResponse::from)
+        .orElse(null);
   }
 
   @PutMapping("/days/{date}")
-  public ResponseEntity<?> upsertDay(@PathVariable String date, @RequestBody DayRequest body) {
+  public Saved upsertDay(@PathVariable String date, @RequestBody DayRequest body) {
     LocalDate parsed = Requests.requireDate(date, INVALID_DATE);
     Requests.requireWithin(
         MAX_TEXT_CHARS, TEXT_TOO_LONG, body.focus(), body.did(), body.wins(), body.blockers());
@@ -77,30 +80,29 @@ public class TrackingController {
         body.wins(),
         body.blockers(),
         body.energy());
-    return ResponseEntity.ok(Map.of("saved", parsed.toString()));
+    return Saved.of(parsed);
   }
 
   @DeleteMapping("/days/{date}")
-  public ResponseEntity<?> deleteDay(@PathVariable String date) {
+  public Deleted deleteDay(@PathVariable String date) {
     LocalDate parsed = Requests.requireDate(date, INVALID_DATE);
     tracking.deleteDay(parsed);
-    return ResponseEntity.ok(Map.of("deleted", parsed.toString()));
+    return Deleted.of(parsed);
   }
 
   // ---------- weekly reviews ----------
 
+  /** Null — an empty 200 body — for a week not yet reviewed. */
   @GetMapping("/weeks/{weekStart}")
-  public ResponseEntity<?> week(@PathVariable String weekStart) {
-    return ResponseEntity.ok(
-        tracking
-            .week(Requests.requireDate(weekStart, INVALID_DATE))
-            .map(WeekResponse::from)
-            .orElse(null));
+  public WeekResponse week(@PathVariable String weekStart) {
+    return tracking
+        .week(Requests.requireDate(weekStart, INVALID_DATE))
+        .map(WeekResponse::from)
+        .orElse(null);
   }
 
   @PutMapping("/weeks/{weekStart}")
-  public ResponseEntity<?> upsertWeek(
-      @PathVariable String weekStart, @RequestBody WeekRequest body) {
+  public Saved upsertWeek(@PathVariable String weekStart, @RequestBody WeekRequest body) {
     LocalDate parsed = Requests.requireDate(weekStart, INVALID_DATE);
     Requests.requireWithin(
         MAX_TEXT_CHARS,
@@ -121,7 +123,7 @@ public class TrackingController {
         body.onTrack());
     // Report the Monday the review was filed against, not the date that was sent: saving against a
     // Wednesday lands on that week's row, and echoing the raw input would hide that.
-    return ResponseEntity.ok(Map.of("saved", TrackingService.mondayOf(parsed).toString()));
+    return Saved.of(TrackingService.mondayOf(parsed));
   }
 
   // ---------- stats ----------

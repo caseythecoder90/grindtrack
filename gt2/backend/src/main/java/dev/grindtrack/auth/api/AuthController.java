@@ -1,5 +1,9 @@
 package dev.grindtrack.auth.api;
 
+import dev.grindtrack.auth.api.AuthDtos.AuthError;
+import dev.grindtrack.auth.api.AuthDtos.LoginRequest;
+import dev.grindtrack.auth.api.AuthDtos.LogoutResponse;
+import dev.grindtrack.auth.api.AuthDtos.SessionResponse;
 import dev.grindtrack.auth.domain.User;
 import dev.grindtrack.auth.security.Cookies;
 import dev.grindtrack.auth.security.JwtAuthFilter;
@@ -8,10 +12,8 @@ import dev.grindtrack.auth.service.JwtService;
 import dev.grindtrack.auth.service.LoginRateLimiter;
 import dev.grindtrack.config.AppProperties;
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.validation.constraints.NotBlank;
 import java.security.Principal;
 import java.time.Duration;
-import java.util.Map;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
@@ -47,7 +49,7 @@ public class AuthController {
   @PostMapping("/login")
   public ResponseEntity<?> login(@RequestBody LoginRequest body, HttpServletRequest request) {
     if (!rateLimiter.allow(clientIp(request))) {
-      return ResponseEntity.status(429).body(Map.of("error", "Too many attempts. Wait 5 minutes."));
+      return ResponseEntity.status(429).body(new AuthError("Too many attempts. Wait 5 minutes."));
     }
     return authService
         .authenticate(body.username(), body.password(), body.otp())
@@ -76,12 +78,12 @@ public class AuthController {
     return ResponseEntity.ok()
         .header(HttpHeaders.SET_COOKIE, expiredCookie(JwtAuthFilter.ACCESS_COOKIE, "/").toString())
         .header(HttpHeaders.SET_COOKIE, expiredCookie(REFRESH_COOKIE, REFRESH_PATH).toString())
-        .body(Map.of("status", "logged out"));
+        .body(new LogoutResponse("logged out"));
   }
 
   @GetMapping("/me")
-  public Map<String, String> me(Principal principal) {
-    return Map.of("username", principal.getName());
+  public SessionResponse me(Principal principal) {
+    return new SessionResponse(principal.getName());
   }
 
   /** 200 with fresh access + refresh cookies — the shared success shape of login and refresh. */
@@ -90,11 +92,11 @@ public class AuthController {
     return ResponseEntity.ok()
         .header(HttpHeaders.SET_COOKIE, accessCookie(accessToken).toString())
         .header(HttpHeaders.SET_COOKIE, refreshCookie(refreshToken).toString())
-        .body(Map.of("username", user.getUsername()));
+        .body(new SessionResponse(user.getUsername()));
   }
 
   private static ResponseEntity<Object> unauthorized(String message) {
-    return ResponseEntity.status(401).body(Map.of("error", message));
+    return ResponseEntity.status(401).body(new AuthError(message));
   }
 
   private ResponseCookie accessCookie(String token) {
@@ -125,7 +127,4 @@ public class AuthController {
     String forwarded = request.getHeader("X-Forwarded-For");
     return forwarded != null ? forwarded.split(",")[0].trim() : request.getRemoteAddr();
   }
-
-  public record LoginRequest(
-      @NotBlank String username, @NotBlank String password, @NotBlank String otp) {}
 }

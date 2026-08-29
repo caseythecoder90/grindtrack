@@ -12,7 +12,6 @@ import dev.grindtrack.finance.domain.Transaction;
 import dev.grindtrack.finance.domain.TransactionRepository;
 import dev.grindtrack.finance.domain.TxnType;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.ArrayList;
@@ -325,24 +324,6 @@ public class FinanceService {
   public BigDecimal netWorth() {
     BigDecimal sum = accounts.sumNetWorth();
     return sum == null ? BigDecimal.ZERO : sum;
-  }
-
-  /** Percent of a goal reached, 0-100, rounded to one decimal. */
-  public BigDecimal progressPercent(SavingsGoal goal) {
-    return progressPercent(goal, savingsBalance());
-  }
-
-  /**
-   * @param current the savings balance, passed in when the caller already has it. Rendering a list
-   *     of goals otherwise re-queries the same sum twice per goal.
-   */
-  public BigDecimal progressPercent(SavingsGoal goal, BigDecimal current) {
-    if (goal.getTargetAmount() == null || goal.getTargetAmount().signum() <= 0) {
-      return BigDecimal.ZERO;
-    }
-    return current
-        .multiply(BigDecimal.valueOf(100))
-        .divide(goal.getTargetAmount(), 1, RoundingMode.HALF_UP);
   }
 
   // --------------------------------------------------------------- rollups

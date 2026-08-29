@@ -118,7 +118,7 @@ class WorkControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"status\": \"in_progress\"}"))
         .andExpect(status().isNotFound())
-        .andExpect(jsonPath("$.error").value("no such skill"));
+        .andExpect(jsonPath("$.error").value("not found: skill 99"));
   }
 
   @Test

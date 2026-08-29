@@ -1,17 +1,14 @@
 package dev.grindtrack.finance.api;
 
-import dev.grindtrack.finance.domain.ImportBatch;
+import dev.grindtrack.finance.api.StatementImportDtos.ImportBatchResponse;
+import dev.grindtrack.finance.api.StatementImportDtos.UndoResponse;
 import dev.grindtrack.finance.service.StatementImportService;
 import dev.grindtrack.finance.service.StatementImportService.ImportResult;
-import dev.grindtrack.finance.service.parse.StatementFormat;
 import dev.grindtrack.finance.service.parse.StatementParseException;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.Map;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -26,6 +23,10 @@ import org.springframework.web.multipart.MultipartFile;
  * <p>Files are read straight out of the request into memory and never written to disk. The parsed
  * rows are the product; keeping the original around would put real bank data on a server for no
  * benefit.
+ *
+ * <p>There is no {@code @ExceptionHandler} here: {@link StatementParseException} is a {@code
+ * BadRequestException}, so the one shared advice turns it into the same 400 body every other
+ * malformed request gets.
  */
 @RestController
 @RequestMapping("/api/finance/imports")
@@ -36,39 +37,12 @@ public class StatementImportController {
    */
   private static final long MAX_BYTES = 5L * 1024 * 1024;
 
+  private static final String DEFAULT_FILENAME = "statement.csv";
+
   private final StatementImportService imports;
 
   public StatementImportController(StatementImportService imports) {
     this.imports = imports;
-  }
-
-  public record ImportBatchResponse(
-      Long id,
-      Long accountId,
-      String filename,
-      String sourceFormat,
-      int rowsInFile,
-      int rowsImported,
-      int rowsDuplicate,
-      int rowsPending,
-      String periodStart,
-      String periodEnd,
-      String importedAt) {
-
-    static ImportBatchResponse from(ImportBatch b) {
-      return new ImportBatchResponse(
-          b.getId(),
-          b.getAccountId(),
-          b.getFilename(),
-          StatementFormat.labelOf(b.getSourceFormat()),
-          b.getRowsInFile(),
-          b.getRowsImported(),
-          b.getRowsDuplicate(),
-          b.getRowsPending(),
-          b.getPeriodStart() == null ? null : b.getPeriodStart().toString(),
-          b.getPeriodEnd() == null ? null : b.getPeriodEnd().toString(),
-          b.getImportedAt().toString());
-    }
   }
 
   @GetMapping
@@ -98,17 +72,11 @@ public class StatementImportController {
     String filename = file.getOriginalFilename();
     String content = new String(file.getBytes(), StandardCharsets.UTF_8);
     return imports.importStatement(
-        accountId, filename == null ? "statement.csv" : filename, content, dryRun);
+        accountId, filename == null ? DEFAULT_FILENAME : filename, content, dryRun);
   }
 
   @DeleteMapping("/{id}")
-  public ResponseEntity<?> undo(@PathVariable Long id) {
-    long removed = imports.undo(id);
-    return ResponseEntity.ok(Map.of("undone", id, "transactionsRemoved", removed));
-  }
-
-  @ExceptionHandler(StatementParseException.class)
-  ResponseEntity<Map<String, String>> onParseFailure(StatementParseException e) {
-    return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+  public UndoResponse undo(@PathVariable Long id) {
+    return new UndoResponse(id, imports.undo(id));
   }
 }

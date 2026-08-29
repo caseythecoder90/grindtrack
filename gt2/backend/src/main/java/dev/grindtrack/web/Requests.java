@@ -2,8 +2,10 @@ package dev.grindtrack.web;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.YearMonth;
 import java.time.format.DateTimeParseException;
 import java.util.Locale;
+import java.util.Set;
 
 /**
  * Turning request strings into typed values, in one place.
@@ -58,6 +60,24 @@ public final class Requests {
   }
 
   /**
+   * A {@code yyyy-MM} month, falling back to the current one when absent.
+   *
+   * <p>Absent means "the month I am looking at now" on every budget endpoint, so the fallback is
+   * here rather than repeated at each call site — a caller that omits {@code month} and a caller
+   * that sends this month must not be able to diverge.
+   */
+  public static YearMonth monthOrNow(String value) {
+    if (value == null || value.isBlank()) {
+      return YearMonth.now();
+    }
+    try {
+      return YearMonth.parse(value.trim());
+    } catch (DateTimeParseException e) {
+      throw new BadRequestException("month must be yyyy-MM, for example 2026-08");
+    }
+  }
+
+  /**
    * A trimmed, non-blank string within {@code max} characters.
    *
    * @param requirement completes the sentence "a ...", so pass a phrase like {@code "todo needs a
@@ -80,7 +100,7 @@ public final class Requests {
    * {@link #enumValue}; this exists so those two do not need a schema change to be validated in one
    * place.
    */
-  public static String requireOneOf(String value, java.util.Set<String> allowed, String message) {
+  public static String requireOneOf(String value, Set<String> allowed, String message) {
     if (value == null || !allowed.contains(value)) {
       throw new BadRequestException(message);
     }

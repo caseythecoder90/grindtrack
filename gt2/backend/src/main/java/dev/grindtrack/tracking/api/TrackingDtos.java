@@ -6,10 +6,17 @@ import dev.grindtrack.tracking.domain.WeeklyReview;
 import java.math.BigDecimal;
 import java.util.List;
 
-/** Request/response shapes for the tracking API. */
-public final class Dtos {
+/**
+ * Request/response shapes for the tracking API — daily logs, weekly reviews, focus sessions and the
+ * public heatmap.
+ *
+ * <p>Named for its feature like every other {@code <Feature>Dtos} in the codebase. It was {@code
+ * Dtos}, which reads fine in this package and not at all in an import list next to {@code
+ * FinanceDtos} and {@code WorkDtos}.
+ */
+public final class TrackingDtos {
 
-  private Dtos() {}
+  private TrackingDtos() {}
 
   public record DayRequest(
       BigDecimal hours,
@@ -72,18 +79,28 @@ public final class Dtos {
     }
   }
 
+  /**
+   * @param completed false when the timer was stopped early; the partial minutes are still logged
+   * @param kind study or work; absent means study
+   */
+  public record FocusSessionRequest(
+      String date, String startedAt, Integer durationMinutes, Boolean completed, String kind) {}
+
   public record FocusSessionResponse(
       Long id, String startedAt, int durationMinutes, boolean completed, String kind) {
 
-    static FocusSessionResponse from(FocusSession session) {
+    public static FocusSessionResponse from(FocusSession session) {
       return new FocusSessionResponse(
           session.getId(),
           session.getStartedAt().toString(),
           session.getDurationMinutes(),
           session.isCompleted(),
-          session.getKind());
+          session.getKind().wireValue());
     }
   }
+
+  /** The backup file's shape. A record rather than a map so the download's schema is declared. */
+  public record ExportResponse(List<DayResponse> dailyLogs, List<WeekResponse> weeklyReviews) {}
 
   public record PublicStats(int streak, double totalHours, long daysLogged, List<PublicDay> days) {}
 

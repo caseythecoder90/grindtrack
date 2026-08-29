@@ -1,15 +1,16 @@
 package dev.grindtrack.finance.api;
 
-import dev.grindtrack.finance.domain.Budget;
-import dev.grindtrack.finance.domain.BudgetExtra;
+import dev.grindtrack.finance.api.BudgetDtos.ExtraRequest;
+import dev.grindtrack.finance.api.BudgetDtos.ExtraResponse;
+import dev.grindtrack.finance.api.BudgetDtos.IncomeRequest;
+import dev.grindtrack.finance.api.BudgetDtos.IncomeResponse;
+import dev.grindtrack.finance.api.BudgetDtos.LineRequest;
+import dev.grindtrack.finance.api.BudgetDtos.LineResponse;
+import dev.grindtrack.finance.service.BudgetMonth;
 import dev.grindtrack.finance.service.BudgetService;
-import dev.grindtrack.finance.service.BudgetService.MonthView;
-import java.math.BigDecimal;
-import java.time.YearMonth;
-import java.time.format.DateTimeParseException;
+import dev.grindtrack.web.Requests;
+import dev.grindtrack.web.Responses.Deleted;
 import java.util.List;
-import java.util.Map;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -30,7 +31,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/finance/budget")
 public class BudgetController {
 
+  /** A label long enough to say what the number was for, short enough to read in the list. */
   private static final int MAX_LABEL_CHARS = 120;
+
+  private static final String LABEL_REQUIRED =
+      "label is required, so the number explains itself when you look back at it";
 
   private final BudgetService budget;
 
@@ -38,59 +43,14 @@ public class BudgetController {
     this.budget = budget;
   }
 
-  public record LineRequest(
-      String category, BigDecimal monthlyAmount, String note, Boolean active, Integer sortOrder) {}
-
-  public record LineResponse(
-      Long id,
-      String category,
-      BigDecimal monthlyAmount,
-      String note,
-      boolean active,
-      int sortOrder) {
-
-    static LineResponse from(Budget b) {
-      return new LineResponse(
-          b.getId(),
-          b.getCategory(),
-          b.getMonthlyAmount(),
-          b.getNote(),
-          b.isActive(),
-          b.getSortOrder());
-    }
-  }
-
-  /**
-   * @param amount negative for a one-off cost, positive for one-off money in
-   * @param category optional; when set, the cost counts against that category for the month
-   */
-  public record ExtraRequest(
-      String month, String label, BigDecimal amount, String category, String note) {}
-
-  public record ExtraResponse(
-      Long id, String month, String label, BigDecimal amount, String category, String note) {
-
-    static ExtraResponse from(BudgetExtra e) {
-      return new ExtraResponse(
-          e.getId(),
-          YearMonth.from(e.getMonth()).toString(),
-          e.getLabel(),
-          e.getAmount(),
-          e.getCategory(),
-          e.getNote());
-    }
-  }
-
-  public record IncomeRequest(BigDecimal expectedMonthlyIncome) {}
-
   // ------------------------------------------------------------- the month
 
   /**
    * @param month {@code yyyy-MM}; defaults to the current month
    */
   @GetMapping("/month")
-  public MonthView month(@RequestParam(required = false) String month) {
-    return budget.month(parseMonth(month));
+  public BudgetMonth month(@RequestParam(required = false) String month) {
+    return budget.month(Requests.monthOrNow(month));
   }
 
   // -------------------------------------------------------------- the plan
@@ -123,9 +83,9 @@ public class BudgetController {
   }
 
   @DeleteMapping("/lines/{id}")
-  public ResponseEntity<?> deleteLine(@PathVariable Long id) {
+  public Deleted deleteLine(@PathVariable Long id) {
     budget.delete(id);
-    return ResponseEntity.ok(Map.of("deleted", id));
+    return Deleted.of(id);
   }
 
   // ------------------------------------------------------- this month only
@@ -136,15 +96,15 @@ public class BudgetController {
    */
   @GetMapping("/extras")
   public List<ExtraResponse> extras(@RequestParam(required = false) String from) {
-    return budget.extrasFrom(parseMonth(from)).stream().map(ExtraResponse::from).toList();
+    return budget.extrasFrom(Requests.monthOrNow(from)).stream().map(ExtraResponse::from).toList();
   }
 
   @PostMapping("/extras")
   public ExtraResponse createExtra(@RequestBody ExtraRequest body) {
     return ExtraResponse.from(
         budget.addExtra(
-            parseMonth(body.month()),
-            requireLabel(body.label()),
+            Requests.monthOrNow(body.month()),
+            Requests.requireText(body.label(), LABEL_REQUIRED, MAX_LABEL_CHARS),
             body.amount(),
             body.category(),
             body.note()));
@@ -155,55 +115,25 @@ public class BudgetController {
     return ExtraResponse.from(
         budget.updateExtra(
             id,
-            parseMonth(body.month()),
-            requireLabel(body.label()),
+            Requests.monthOrNow(body.month()),
+            Requests.requireText(body.label(), LABEL_REQUIRED, MAX_LABEL_CHARS),
             body.amount(),
             body.category(),
             body.note()));
   }
 
   @DeleteMapping("/extras/{id}")
-  public ResponseEntity<?> deleteExtra(@PathVariable Long id) {
+  public Deleted deleteExtra(@PathVariable Long id) {
     budget.deleteExtra(id);
-    return ResponseEntity.ok(Map.of("deleted", id));
+    return Deleted.of(id);
   }
 
   // ------------------------------------------------------------------ income
 
   /** Null or zero clears the override and goes back to the trailing average of real deposits. */
   @PutMapping("/income")
-  public Map<String, Object> setIncome(@RequestBody IncomeRequest body) {
-    BigDecimal saved =
-        budget.setExpectedIncome(body.expectedMonthlyIncome()).getExpectedMonthlyIncome();
-    return Map.of(
-        "expectedMonthlyIncome",
-        saved == null ? "" : saved.toPlainString(),
-        "estimated",
-        saved == null);
-  }
-
-  // ---------------------------------------------------------------- helpers
-
-  private static YearMonth parseMonth(String value) {
-    if (value == null || value.isBlank()) {
-      return YearMonth.now();
-    }
-    try {
-      return YearMonth.parse(value.trim());
-    } catch (DateTimeParseException e) {
-      throw new IllegalArgumentException("month must be yyyy-MM, for example 2026-08");
-    }
-  }
-
-  private static String requireLabel(String value) {
-    String label = value == null ? "" : value.trim();
-    if (label.isBlank() || label.length() > MAX_LABEL_CHARS) {
-      throw new IllegalArgumentException(
-          "a label is required (max "
-              + MAX_LABEL_CHARS
-              + " chars), so the number explains itself"
-              + " when you look back at it");
-    }
-    return label;
+  public IncomeResponse setIncome(@RequestBody IncomeRequest body) {
+    return IncomeResponse.of(
+        budget.setExpectedIncome(body.expectedMonthlyIncome()).getExpectedMonthlyIncome());
   }
 }

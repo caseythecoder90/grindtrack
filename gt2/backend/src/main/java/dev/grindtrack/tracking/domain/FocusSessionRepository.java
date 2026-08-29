@@ -7,5 +7,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface FocusSessionRepository extends JpaRepository<FocusSession, Long> {
   List<FocusSession> findBySessionDateOrderByStartedAt(LocalDate sessionDate);
 
-  List<FocusSession> findBySessionDateAndKindOrderByStartedAt(LocalDate sessionDate, String kind);
+  List<FocusSession> findBySessionDateAndKindOrderByStartedAt(
+      LocalDate sessionDate, FocusKind kind);
 }

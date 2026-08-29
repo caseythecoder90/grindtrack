@@ -182,7 +182,7 @@ class TodoControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"done\": true}"))
         .andExpect(status().isNotFound())
-        .andExpect(jsonPath("$.error").value("no such todo"));
+        .andExpect(jsonPath("$.error").value("not found: todo 9"));
   }
 
   @Test

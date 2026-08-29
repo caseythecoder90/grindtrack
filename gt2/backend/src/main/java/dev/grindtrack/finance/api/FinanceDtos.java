@@ -4,11 +4,16 @@ import dev.grindtrack.finance.domain.Account;
 import dev.grindtrack.finance.domain.CategoryRule;
 import dev.grindtrack.finance.domain.SavingsGoal;
 import dev.grindtrack.finance.domain.Transaction;
+import dev.grindtrack.finance.service.FinanceService.TransactionPage;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 
 /**
- * Wire shapes for the finance feature. Mirrors {@code TodoDtos} — nested records, static from().
+ * Wire shapes for accounts, transactions, savings goals and category rules.
+ *
+ * <p>Nested records with a {@code static from()} each, like every other {@code <Feature>Dtos} here.
+ * The budget and statement-import surfaces have their own files rather than swelling this one.
  */
 public final class FinanceDtos {
 
@@ -126,8 +131,12 @@ public final class FinanceDtos {
       BigDecimal remaining,
       BigDecimal progressPercent) {
 
-    public static GoalResponse from(SavingsGoal g, BigDecimal current, BigDecimal percent) {
-      BigDecimal remaining = g.getTargetAmount().subtract(current).max(BigDecimal.ZERO);
+    /**
+     * @param savings the summed savings balance. Read once by the caller and handed down: every
+     *     goal needs it twice, and re-querying it per goal made the dashboard issue the same SUM
+     *     four or five times per load.
+     */
+    public static GoalResponse from(SavingsGoal g, BigDecimal savings) {
       return new GoalResponse(
           g.getId(),
           g.getName(),
@@ -136,9 +145,9 @@ public final class FinanceDtos {
           g.getNote(),
           g.isActive(),
           g.getSortOrder(),
-          current,
-          remaining,
-          percent);
+          savings,
+          g.remaining(savings),
+          g.progressPercent(savings));
     }
   }
 
@@ -170,6 +179,48 @@ public final class FinanceDtos {
           r.isActive(),
           r.getHitCount(),
           r.getLastApplied() == null ? null : r.getLastApplied().toString());
+    }
+  }
+
+  /**
+   * One page of transactions.
+   *
+   * <p>This was assembled as a {@code LinkedHashMap} in the controller, which meant the paging
+   * contract — the part a client has to get right to iterate — was five {@code put} calls with no
+   * type behind them.
+   */
+  public record TransactionPageResponse(
+      List<TransactionResponse> items, int page, int size, long totalElements, int totalPages) {
+
+    public static TransactionPageResponse from(TransactionPage found) {
+      return new TransactionPageResponse(
+          found.items().stream().map(TransactionResponse::from).toList(),
+          found.page(),
+          found.size(),
+          found.totalElements(),
+          found.totalPages());
+    }
+  }
+
+  /**
+   * The review inbox's answer: the row as filed, plus what was learned from it.
+   *
+   * @param rule the rule that was created, or null when none was asked for or one already existed
+   * @param ruleExisted true when a rule for that merchant was already on file, so nothing new was
+   *     created and nothing is wrong
+   */
+  public record CategorizeAndLearnResponse(
+      TransactionResponse transaction, RuleResponse rule, boolean ruleExisted) {
+
+    public static CategorizeAndLearnResponse of(Transaction saved) {
+      return new CategorizeAndLearnResponse(TransactionResponse.from(saved), null, false);
+    }
+
+    public static CategorizeAndLearnResponse of(Transaction saved, Optional<CategoryRule> rule) {
+      return new CategorizeAndLearnResponse(
+          TransactionResponse.from(saved),
+          rule.map(RuleResponse::from).orElse(null),
+          rule.isEmpty());
     }
   }
 

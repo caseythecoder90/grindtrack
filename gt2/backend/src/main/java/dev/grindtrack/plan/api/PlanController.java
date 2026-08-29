@@ -4,6 +4,7 @@ import dev.grindtrack.plan.api.PlanDtos.ImportItem;
 import dev.grindtrack.plan.api.PlanDtos.ImportQuarter;
 import dev.grindtrack.plan.api.PlanDtos.ImportReference;
 import dev.grindtrack.plan.api.PlanDtos.ImportRequest;
+import dev.grindtrack.plan.api.PlanDtos.ImportResult;
 import dev.grindtrack.plan.api.PlanDtos.ItemResponse;
 import dev.grindtrack.plan.api.PlanDtos.PlanResponse;
 import dev.grindtrack.plan.api.PlanDtos.QuarterResponse;
@@ -18,9 +19,8 @@ import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Set;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -53,7 +53,7 @@ public class PlanController {
   }
 
   @PatchMapping("/items/{id}")
-  public ResponseEntity<?> update(@PathVariable Long id, @RequestBody UpdateItemRequest body) {
+  public ItemResponse update(@PathVariable Long id, @RequestBody UpdateItemRequest body) {
     if (body.status() != null && !STATUSES.contains(body.status())) {
       throw new BadRequestException("status must be one of " + STATUSES);
     }
@@ -62,20 +62,18 @@ public class PlanController {
     }
     return planService
         .update(id, body.status(), body.notes())
-        .<ResponseEntity<?>>map(item -> ResponseEntity.ok(ItemResponse.from(item)))
-        .orElseGet(() -> ResponseEntity.status(404).body(Map.of("error", "no such item")));
+        .map(ItemResponse::from)
+        .orElseThrow(() -> new NoSuchElementException("plan item " + id));
   }
 
   /** Full plan (re-)import from plan.json; progress on matching items is preserved. */
   @PostMapping("/import")
-  public ResponseEntity<?> importPlan(@RequestBody ImportRequest body) {
+  public ImportResult importPlan(@RequestBody ImportRequest body) {
     List<PlanItem> newItems = toItems(body.items());
     List<PlanQuarter> newQuarters = toQuarters(body.quarters());
     List<PlanReference> newReferences = toReferences(body.reference());
     int imported = planService.importPlan(newItems, newQuarters, newReferences);
-    return ResponseEntity.ok(
-        Map.of(
-            "items", imported, "quarters", newQuarters.size(), "reference", newReferences.size()));
+    return new ImportResult(imported, newQuarters.size(), newReferences.size());
   }
 
   private static List<PlanItem> toItems(List<ImportItem> items) {

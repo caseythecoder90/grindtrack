@@ -5,10 +5,10 @@ import dev.grindtrack.todo.api.TodoDtos.TodoResponse;
 import dev.grindtrack.todo.api.TodoDtos.TodoUpdateRequest;
 import dev.grindtrack.todo.service.TodoService;
 import dev.grindtrack.web.Requests;
+import dev.grindtrack.web.Responses.Deleted;
 import java.util.List;
-import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Set;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -57,7 +57,7 @@ public class TodoController {
   }
 
   @PatchMapping("/{id}")
-  public ResponseEntity<?> update(@PathVariable Long id, @RequestBody TodoUpdateRequest body) {
+  public TodoResponse update(@PathVariable Long id, @RequestBody TodoUpdateRequest body) {
     String title =
         body.title() == null
             ? null
@@ -74,13 +74,13 @@ public class TodoController {
             Boolean.TRUE.equals(body.clearDueDate()),
             Requests.optionalDate(body.dueDate(), "dueDate must be YYYY-MM-DD"),
             body.sortOrder())
-        .<ResponseEntity<?>>map(todo -> ResponseEntity.ok(TodoResponse.from(todo)))
-        .orElseGet(() -> ResponseEntity.status(404).body(Map.of("error", "no such todo")));
+        .map(TodoResponse::from)
+        .orElseThrow(() -> new NoSuchElementException("todo " + id));
   }
 
   @DeleteMapping("/{id}")
-  public ResponseEntity<?> delete(@PathVariable Long id) {
+  public Deleted delete(@PathVariable Long id) {
     todos.delete(id);
-    return ResponseEntity.ok(Map.of("deleted", id));
+    return Deleted.of(id);
   }
 }

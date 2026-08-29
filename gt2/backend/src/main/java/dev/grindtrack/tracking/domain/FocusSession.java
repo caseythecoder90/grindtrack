@@ -11,8 +11,8 @@ import java.time.OffsetDateTime;
 
 /**
  * One completed (or abandoned-early) pomodoro focus session. Recording a session also adds its
- * duration to that day's hours — to {@link DailyLog} for a {@code study} session, or to the work
- * log for a {@code work} session — see FocusService.
+ * duration to that day's hours — to {@link DailyLog} for a {@link FocusKind#STUDY} session, or to
+ * the work log for a {@link FocusKind#WORK} one — see FocusService.
  */
 @Entity
 @Table(name = "focus_sessions")
@@ -35,9 +35,9 @@ public class FocusSession {
   @Column(nullable = false)
   private boolean completed;
 
-  /** "study" (folds into daily_logs) or "work" (folds into work_logs). */
+  /** Study folds into {@code daily_logs}, work into {@code work_logs}. */
   @Column(nullable = false)
-  private String kind = "study";
+  private FocusKind kind = FocusKind.STUDY;
 
   @Column(name = "created_at", insertable = false, updatable = false)
   private OffsetDateTime createdAt;
@@ -49,12 +49,12 @@ public class FocusSession {
       OffsetDateTime startedAt,
       int durationMinutes,
       boolean completed,
-      String kind) {
+      FocusKind kind) {
     this.sessionDate = sessionDate;
     this.startedAt = startedAt;
     this.durationMinutes = durationMinutes;
     this.completed = completed;
-    this.kind = kind == null ? "study" : kind;
+    this.kind = kind == null ? FocusKind.STUDY : kind;
   }
 
   public Long getId() {
@@ -77,7 +77,7 @@ public class FocusSession {
     return completed;
   }
 
-  public String getKind() {
+  public FocusKind getKind() {
     return kind;
   }
 }

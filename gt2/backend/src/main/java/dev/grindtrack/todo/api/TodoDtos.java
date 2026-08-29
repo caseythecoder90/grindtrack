@@ -25,7 +25,7 @@ public final class TodoDtos {
   public record TodoResponse(
       Long id, String title, String kind, boolean done, String dueDate, int sortOrder) {
 
-    static TodoResponse from(Todo todo) {
+    public static TodoResponse from(Todo todo) {
       return new TodoResponse(
           todo.getId(),
           todo.getTitle(),

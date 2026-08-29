@@ -8,6 +8,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import dev.grindtrack.auth.api.AuthDtos.LoginRequest;
+import dev.grindtrack.auth.api.AuthDtos.SessionResponse;
 import dev.grindtrack.auth.domain.User;
 import dev.grindtrack.auth.service.AuthService;
 import dev.grindtrack.auth.service.AuthService.RotatedTokens;
@@ -16,7 +18,6 @@ import dev.grindtrack.auth.service.LoginRateLimiter;
 import dev.grindtrack.config.AppProperties;
 import jakarta.servlet.http.Cookie;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -67,11 +68,10 @@ class AuthControllerTest {
     when(jwtService.issueAccessToken("casey")).thenReturn("access.jwt");
 
     ResponseEntity<?> response =
-        controller.login(
-            new AuthController.LoginRequest("casey", "pw", "123456"), requestFrom("1.2.3.4"));
+        controller.login(new LoginRequest("casey", "pw", "123456"), requestFrom("1.2.3.4"));
 
     assertThat(response.getStatusCode().value()).isEqualTo(200);
-    assertThat(response.getBody()).isEqualTo(Map.of("username", "casey"));
+    assertThat(response.getBody()).isEqualTo(new SessionResponse("casey"));
     List<String> cookies = setCookies(response);
     assertThat(cookies).hasSize(2);
     assertThat(cookies.get(0))
@@ -96,8 +96,7 @@ class AuthControllerTest {
     when(authService.authenticate("casey", "bad", "000000")).thenReturn(Optional.empty());
 
     ResponseEntity<?> response =
-        controller.login(
-            new AuthController.LoginRequest("casey", "bad", "000000"), requestFrom("1.2.3.4"));
+        controller.login(new LoginRequest("casey", "bad", "000000"), requestFrom("1.2.3.4"));
 
     assertThat(response.getStatusCode().value()).isEqualTo(401);
     assertThat(setCookies(response)).isNull();
@@ -109,8 +108,7 @@ class AuthControllerTest {
     when(rateLimiter.allow("1.2.3.4")).thenReturn(false);
 
     ResponseEntity<?> response =
-        controller.login(
-            new AuthController.LoginRequest("casey", "pw", "123456"), requestFrom("1.2.3.4"));
+        controller.login(new LoginRequest("casey", "pw", "123456"), requestFrom("1.2.3.4"));
 
     assertThat(response.getStatusCode().value()).isEqualTo(429);
     verifyNoInteractions(authService, jwtService);
@@ -123,7 +121,7 @@ class AuthControllerTest {
     when(rateLimiter.allow("9.9.9.9")).thenReturn(false);
 
     ResponseEntity<?> response =
-        controller.login(new AuthController.LoginRequest("casey", "pw", "123456"), request);
+        controller.login(new LoginRequest("casey", "pw", "123456"), request);
 
     assertThat(response.getStatusCode().value()).isEqualTo(429);
     verify(rateLimiter).allow("9.9.9.9");
@@ -149,7 +147,7 @@ class AuthControllerTest {
     ResponseEntity<?> response = controller.refresh(request);
 
     assertThat(response.getStatusCode().value()).isEqualTo(200);
-    assertThat(response.getBody()).isEqualTo(Map.of("username", "casey"));
+    assertThat(response.getBody()).isEqualTo(new SessionResponse("casey"));
     List<String> cookies = setCookies(response);
     assertThat(cookies).hasSize(2);
     assertThat(cookies.get(0)).contains("gt_access=fresh.jwt");
@@ -196,6 +194,6 @@ class AuthControllerTest {
 
   @Test
   void meEchoesThePrincipalName() {
-    assertThat(controller.me(() -> "casey")).isEqualTo(Map.of("username", "casey"));
+    assertThat(controller.me(() -> "casey")).isEqualTo(new SessionResponse("casey"));
   }
 }
