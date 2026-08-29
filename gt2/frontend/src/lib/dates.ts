@@ -25,3 +25,16 @@ export function addDays(iso: string, n: number): string {
   d.setDate(d.getDate() + n);
   return toISO(d);
 }
+
+/**
+ * Whole days from a YYYY-MM-DD to today, both taken at local midnight.
+ *
+ * <p>Normalising both ends to midnight is the whole point: subtracting raw
+ * timestamps makes "yesterday evening" 0 days ago before noon and 1 after, so a
+ * card that says how long it has been would change while you looked at it.
+ */
+export function daysSince(iso: string): number {
+  const then = new Date(iso + "T00:00:00");
+  const today = new Date(todayISO() + "T00:00:00");
+  return Math.round((today.getTime() - then.getTime()) / 86_400_000);
+}

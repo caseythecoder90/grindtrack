@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { errorMessage } from "../../lib/api";
+import { addDays, todayISO } from "../../lib/dates";
 import { getMonthlyTotals, getSpending } from "./financeApi";
 import type { MonthTotal, SpendSummary } from "../../lib/types";
 import { money, moneyWhole } from "./money";
@@ -15,12 +16,6 @@ const WINDOWS: Window[] = [
   { label: "90 days", days: 90 },
   { label: "12 months", days: 365 },
 ];
-
-function isoDaysAgo(days: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() - days);
-  return d.toISOString().slice(0, 10);
-}
 
 /**
  * Where the money actually went.
@@ -38,7 +33,7 @@ export default function SpendingPanel() {
   const load = useCallback(async (days: number) => {
     setError("");
     try {
-      setData(await getSpending(isoDaysAgo(days), new Date().toISOString().slice(0, 10)));
+      setData(await getSpending(addDays(todayISO(), -days), todayISO()));
     } catch (e) {
       setError(errorMessage(e, "could not load your spending"));
     }
