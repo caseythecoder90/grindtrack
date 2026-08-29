@@ -382,6 +382,22 @@ button.ghost.danger:hover { color: var(--red); border-color: var(--red); }
 
 .rules-table .mono { font-family: var(--mono); }
 .rules-table tr.inactive { opacity: 0.45; }
+/* --- money sub-tabs --------------------------------------------------------- */
+/* Sub-navigation, not the app's main tabs: quieter, and it sits inside a panel rather than
+   under the header, so the two levels never read as the same control. */
+.subtabs { display: flex; flex-wrap: wrap; gap: 2px; margin: 4px 0 18px; padding: 3px;
+  background: var(--panel2); border: 1px solid var(--line); border-radius: 9px; }
+.subtabs button { flex: 1 1 auto; border: none; background: none; border-radius: 6px;
+  padding: 8px 14px; color: var(--muted); font-size: 12px; letter-spacing: 0.02em;
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
+.subtabs button:hover { color: var(--text); border-color: transparent; }
+.subtabs button.active { background: var(--panel); color: var(--money);
+  box-shadow: inset 0 0 0 1px var(--line); }
+.subtabs .badge { font-family: var(--mono); font-size: 10px; line-height: 1; padding: 3px 6px;
+  border-radius: 99px; background: var(--line); color: var(--text); }
+.subtabs button.active .badge { background: var(--money); color: #06121e; font-weight: 600; }
+@media (max-width: 620px) { .subtabs button { flex: 1 1 40%; } }
+
 .pager { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 12px 0 4px; }
 .pager .muted.small { margin: 0; font-family: var(--mono); }
 .rule-actions { display: flex; gap: 4px; justify-content: flex-end; }

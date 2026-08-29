@@ -65,11 +65,14 @@ class TxnTypeClassifierTest {
   }
 
   @Test
-  void studentLoanServicerIsAPayment() {
-    // The $572.40 debit is the real money movement; the per-loan rows in AllLoans.csv are a
-    // sub-ledger of the same payment and must never be imported as separate spending.
+  void studentLoanServicerIsSpendingNotAPayment() {
+    // This assertion used to say PAYMENT, on the reasoning that AllLoans.csv holds a sub-ledger of
+    // the same money. That reasoning was wrong in a way that cost real visibility: the Aidvantage
+    // parser imports zero transactions by design, so this debit is the *only* record of $572.40
+    // leaving the household every month. Filed as a payment it disappeared from every spending
+    // total and could not be budgeted for at all.
     assertThat(classify("Withdrawal from ADVS ED SERV", "-572.40", AccountType.CHECKING))
-        .isEqualTo(TxnType.PAYMENT);
+        .isEqualTo(TxnType.SPEND);
   }
 
   @Test
@@ -104,5 +107,45 @@ class TxnTypeClassifierTest {
   void nullDescriptionDoesNotThrow() {
     assertThat(classifier.classify(null, new BigDecimal("-10.00"), AccountType.CHECKING))
         .isEqualTo(TxnType.SPEND);
+  }
+
+  // ---------- the card-versus-loan line ----------
+
+  @Test
+  void aLoanPaymentIsSpendingBecauseNothingElseRecordsIt() {
+    // This one went wrong in production: $572.40 a month vanished from every total because a
+    // student loan was filed as a card payment. A card's purchases are imported individually, so
+    // its payment would double-count. A loan's are not, so its payment is the only record.
+    assertThat(
+            classifier.classify(
+                "Withdrawal from ADVS ED SERV", new BigDecimal("-572.40"), AccountType.CHECKING))
+        .isEqualTo(TxnType.SPEND);
+  }
+
+  @Test
+  void aBuyNowPayLaterInstalmentIsAlsoSpending() {
+    assertThat(
+            classifier.classify(
+                "Withdrawal from AFFIRM.COM PAYME AFFIRM.COM",
+                new BigDecimal("-168.34"),
+                AccountType.CHECKING))
+        .isEqualTo(TxnType.SPEND);
+  }
+
+  @Test
+  void everyCardIssuerPaymentIsRecognized() {
+    // Each of these was landing as spending because the list named issuers one at a time and
+    // these three were missing.
+    for (String description :
+        new String[] {
+          "Withdrawal from BANK OF AMERICA PAYMENT",
+          "Withdrawal from APPLECARD GSBANK PAYMENT",
+          "Withdrawal from WELLS FARGO CARD CCPYMT",
+          "Withdrawal from CAPITAL ONE MOBILE PMT"
+        }) {
+      assertThat(classifier.classify(description, new BigDecimal("-200.00"), AccountType.CHECKING))
+          .as(description)
+          .isEqualTo(TxnType.PAYMENT);
+    }
   }
 }

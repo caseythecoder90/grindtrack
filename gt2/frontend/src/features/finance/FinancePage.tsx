@@ -20,6 +20,28 @@ import { money, moneyWhole, signed } from "./money";
 
 const TXN_TYPES: TxnType[] = ["SPEND", "INCOME", "TRANSFER", "PAYMENT"];
 
+type MoneyView = "overview" | "budget" | "review" | "spending" | "setup";
+
+const VIEWS: { id: MoneyView; label: string }[] = [
+  { id: "overview", label: "overview" },
+  { id: "budget", label: "budget" },
+  { id: "review", label: "review" },
+  { id: "spending", label: "spending" },
+  { id: "setup", label: "accounts & import" },
+];
+
+const VIEW_KEY = "gt-money-view";
+
+/** Remembered per device, so a refresh mid-categorizing does not dump you back on the overview. */
+function storedView(): MoneyView {
+  try {
+    const raw = localStorage.getItem(VIEW_KEY);
+    return VIEWS.some((v) => v.id === raw) ? (raw as MoneyView) : "overview";
+  } catch {
+    return "overview";
+  }
+}
+
 /**
  * The finance tab.
  *
@@ -48,6 +70,10 @@ export default function FinancePage() {
   // Bumped whenever categorization changes, so the spending breakdown re-reads rather than
   // showing totals that predate the rule the user just wrote.
   const [revision, setRevision] = useState(0);
+  // Nine stacked sections meant scrolling past a whole budget to reach the review list, with no
+  // visual cue where one ended and the next began. Sub-tabs rather than accordions: collapsing
+  // still leaves you scrolling, and these are five genuinely separate jobs.
+  const [view, setView] = useState<MoneyView>(storedView);
 
   const load = useCallback(async () => {
     setError("");
@@ -150,6 +176,32 @@ export default function FinancePage() {
         )}
       </div>
 
+      <nav className="subtabs" aria-label="Money sections">
+        {VIEWS.map((v) => (
+          <button
+            key={v.id}
+            type="button"
+            className={view === v.id ? "active" : ""}
+            aria-current={view === v.id ? "page" : undefined}
+            onClick={() => {
+              setView(v.id);
+              try {
+                localStorage.setItem(VIEW_KEY, v.id);
+              } catch {
+                /* a browser refusing storage should not break navigation */
+              }
+            }}
+          >
+            {v.label}
+            {v.id === "review" && summary.uncategorizedCount > 0 && (
+              <span className="badge">{summary.uncategorizedCount}</span>
+            )}
+          </button>
+        ))}
+      </nav>
+
+      {view === "overview" && (
+        <>
       {summary.goals.map((g) => (
         <SavingsGoalCard key={g.id} goal={g} />
       ))}
@@ -193,48 +245,54 @@ export default function FinancePage() {
         )}
       </section>
 
-      <AccountsPanel accounts={summary.accounts} onChange={load} />
-
-      {summary.accounts.length > 0 && (
-        <ImportPanel
-          accounts={summary.accounts}
-          onImported={() => {
-            load();
-            setRevision((n) => n + 1);
-            if (typeof accountId === "number") loadRecent(accountId);
-          }}
-        />
+        </>
       )}
 
-      <BudgetPanel
-        key={`budget-${revision}`}
-        onChange={() => setRevision((n) => n + 1)}
-      />
+      {view === "setup" && (
+        <>
+          <AccountsPanel accounts={summary.accounts} onChange={load} />
+          {summary.accounts.length > 0 && (
+            <ImportPanel
+              accounts={summary.accounts}
+              onImported={() => {
+                load();
+                setRevision((n) => n + 1);
+                if (typeof accountId === "number") loadRecent(accountId);
+              }}
+            />
+          )}
+        </>
+      )}
 
-      <RecurringPanel
-        key={`recurring-${revision}`}
-        onChange={() => setRevision((n) => n + 1)}
-      />
+      {view === "budget" && (
+        <>
+          <BudgetPanel key={`budget-${revision}`} onChange={() => setRevision((n) => n + 1)} />
+          <RecurringPanel key={`recurring-${revision}`} onChange={() => setRevision((n) => n + 1)} />
+        </>
+      )}
 
-      <SpendingPanel key={`spend-${revision}`} />
+      {view === "spending" && <SpendingPanel key={`spend-${revision}`} />}
 
-      <ReviewInbox
-        key={`review-${revision}`}
-        onChange={() => {
-          load();
-          setRevision((n) => n + 1);
-        }}
-      />
+      {view === "review" && (
+        <>
+          <ReviewInbox
+            key={`review-${revision}`}
+            onChange={() => {
+              load();
+              setRevision((n) => n + 1);
+            }}
+          />
+          <CategoryRulesPanel
+            key={`rules-${revision}`}
+            onChange={() => {
+              load();
+              setRevision((n) => n + 1);
+            }}
+          />
+        </>
+      )}
 
-      <CategoryRulesPanel
-        key={`rules-${revision}`}
-        onChange={() => {
-          load();
-          setRevision((n) => n + 1);
-        }}
-      />
-
-      {summary.accounts.length > 0 && (
+      {view === "setup" && summary.accounts.length > 0 && (
         <section>
           <div className="section-head">
             <h3>add a transaction</h3>

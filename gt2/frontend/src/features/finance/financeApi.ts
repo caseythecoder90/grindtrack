@@ -103,6 +103,12 @@ export const updateRule = (id: number, body: unknown) =>
 export const deleteRule = (id: number) => api(`${BASE}/rules/${id}`, { method: "DELETE" });
 
 /** Re-runs every rule over the whole history. Safe: a rule never overwrites a manual category. */
+/** Re-runs the type classifier over every transaction, after the classifier itself is fixed. */
+export const reclassifyAll = () =>
+  api<{ examined: number; changed: number }>(`${BASE}/transactions/reclassify`, {
+    method: "POST",
+  });
+
 export const applyRules = () => api<RuleApplyResult>(`${BASE}/rules/apply`, { method: "POST" });
 
 // ------------------------------------------------------------------ imports

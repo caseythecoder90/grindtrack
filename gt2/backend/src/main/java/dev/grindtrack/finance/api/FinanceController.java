@@ -279,6 +279,17 @@ public class FinanceController {
     return body;
   }
 
+  /**
+   * Re-runs the type classifier over every transaction.
+   *
+   * <p>For after the classifier is corrected: the fix reaches future imports on its own, but months
+   * of already-imported rows keep whatever the old rule decided until this is run.
+   */
+  @PostMapping("/transactions/reclassify")
+  public FinanceService.ReclassifyResult reclassifyAll() {
+    return finance.reclassifyAll();
+  }
+
   /** The review inbox: rows nothing has confidently categorized yet. */
   @GetMapping("/transactions/uncategorized")
   public List<TransactionResponse> uncategorized() {

@@ -16,7 +16,9 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
@@ -168,6 +170,42 @@ public class FinanceService {
         transactions.search(accountId, txnType, categorySource, PageRequest.of(page, size, sort));
     return new TransactionPage(
         found.getContent(), page, size, found.getTotalElements(), found.getTotalPages());
+  }
+
+  /** How many rows a re-classification changed, and what they became. */
+  public record ReclassifyResult(int examined, int changed) {}
+
+  /**
+   * Re-runs the type classifier over every transaction.
+   *
+   * <p>Needed whenever the classifier itself is corrected: a fix to what counts as a card payment
+   * only reaches future imports otherwise, leaving months of already-imported rows filed under the
+   * old, wrong rule.
+   *
+   * <p>The known cost: a type someone corrected by hand is overwritten too, because nothing records
+   * that a human set it. {@code categorySource} exists for exactly that reason on categories and
+   * has no equivalent here. Worth adding the day this becomes annoying.
+   */
+  @Transactional
+  public ReclassifyResult reclassifyAll() {
+    Map<Long, AccountType> types = new HashMap<>();
+    for (Account account : accounts.findAll()) {
+      types.put(account.getId(), account.getAccountType());
+    }
+
+    List<Transaction> all = transactions.findAll();
+    List<Transaction> changed = new ArrayList<>();
+    for (Transaction txn : all) {
+      TxnType next =
+          classifier.classify(
+              txn.getRawDescription(), txn.getAmount(), types.get(txn.getAccountId()));
+      if (next != txn.getTxnType()) {
+        txn.reclassify(next);
+        changed.add(txn);
+      }
+    }
+    transactions.saveAll(changed);
+    return new ReclassifyResult(all.size(), changed.size());
   }
 
   public List<Transaction> listUncategorized() {

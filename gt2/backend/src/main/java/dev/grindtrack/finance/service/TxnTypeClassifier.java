@@ -24,17 +24,34 @@ import org.springframework.stereotype.Component;
 @Component
 public class TxnTypeClassifier {
 
-  /** Payments toward a card or loan. Settles debt already recorded as SPEND. */
+  /**
+   * Payments toward a <em>credit card</em>, and only a credit card.
+   *
+   * <p>The line this list draws is narrower than it looks, and getting it wrong costs real money in
+   * both directions. A card payment is not spending because every purchase on that card was already
+   * imported and counted individually; counting the payment too would double every dollar. A
+   * <em>loan</em> payment is the opposite: nothing else in the app records it, the money genuinely
+   * leaves the household and never comes back, so calling it a payment hides it from every total
+   * and makes budgeting for it impossible.
+   *
+   * <p>Student loans sat in this list until it was noticed that $572.40 a month had gone missing
+   * from spending. They were put here to avoid double-counting the Aidvantage export, but that
+   * export deliberately imports zero transactions, so there was never anything to double-count.
+   */
   private static final List<Pattern> PAYMENT =
       List.of(
           Pattern.compile("CAPITAL ONE (AUTOPAY|MOBILE|CRCARDPMT)", Pattern.CASE_INSENSITIVE),
           Pattern.compile("CHASE CREDIT CRD", Pattern.CASE_INSENSITIVE),
           Pattern.compile("WELLS FARGO CARD", Pattern.CASE_INSENSITIVE),
-          Pattern.compile("\\bAUTOPAY\\b|\\bCRCARDPMT\\b", Pattern.CASE_INSENSITIVE),
+          // "BANK OF AMERICA PAYMENT" and "APPLECARD GSBANK PAYMENT" were both landing as
+          // spending: every pattern above names an issuer, and neither of those is in the list.
+          Pattern.compile("BANK OF AMERICA\\s+PAYMENT", Pattern.CASE_INSENSITIVE),
+          Pattern.compile("\\bAPPLECARD\\b", Pattern.CASE_INSENSITIVE),
+          Pattern.compile("\\bDISCOVER\\b.*\\bPAYMENT\\b", Pattern.CASE_INSENSITIVE),
+          Pattern.compile("\\bAUTOPAY\\b|\\bCRCARDPMT\\b|\\bCCPYMT\\b", Pattern.CASE_INSENSITIVE),
           Pattern.compile("AUTOMATIC PAYMENT\\s*-?\\s*THANK", Pattern.CASE_INSENSITIVE),
           Pattern.compile("PAYMENT\\s*/?\\s*CREDIT", Pattern.CASE_INSENSITIVE),
-          Pattern.compile("ONLINE (BANKING )?PAYMENT", Pattern.CASE_INSENSITIVE),
-          Pattern.compile("ADVS ED SERV|AIDVANTAGE", Pattern.CASE_INSENSITIVE));
+          Pattern.compile("ONLINE (BANKING )?PAYMENT", Pattern.CASE_INSENSITIVE));
 
   /** Movement between two accounts that are both yours. Nets to zero. */
   private static final List<Pattern> TRANSFER =
