@@ -46,15 +46,12 @@ export default function FocusPage({ onLogged }: Props) {
   const [takeaway, setTakeaway] = useState("");
   const [error, setError] = useState("");
 
-  const timer = useFocusTimer(record);
-  const { state, clock, paused, pct } = timer;
-  const cfg = state.config;
-  const kind = cfg.kind;
-
   // The timer keeps `record` for the life of the component, so it must not close over the
   // subject — a ref lets it read whatever is configured at the moment a session finishes.
-  const subject = useRef({ planItemId: cfg.planItemId, topic: cfg.topic });
-  subject.current = { planItemId: cfg.planItemId, topic: cfg.topic };
+  const subject = useRef<{ planItemId: number | null; topic: string }>({
+    planItemId: null,
+    topic: "",
+  });
 
   const loadSessions = useCallback(async (k: FocusKind) => {
     try {
@@ -72,35 +69,45 @@ export default function FocusPage({ onLogged }: Props) {
     }
   }, []);
 
-  async function record(
-    startedAt: string,
-    minutes: number,
-    completed: boolean,
-    k: FocusKind,
-  ) {
-    if (minutes < 1) return;
-    try {
-      const saved = await postSession({
-        date: todayISO(),
-        startedAt,
-        durationMinutes: minutes,
-        completed,
-        kind: k,
-        planItemId: subject.current.planItemId,
-        topic: subject.current.topic,
-      });
-      setError("");
-      if (isLunch(k)) {
-        setPending(saved);
-        setTakeaway("");
-        loadProgress();
+  /**
+   * Must stay referentially stable: useFocusTimer keys its deadline effect off this callback,
+   * and an identity that changes every render re-arms that effect every render. It takes the
+   * kind as an argument and reads the subject from a ref for exactly that reason — closing over
+   * either would put them in the dependency array and defeat the point.
+   */
+  const record = useCallback(
+    async (startedAt: string, minutes: number, completed: boolean, k: FocusKind) => {
+      if (minutes < 1) return;
+      try {
+        const saved = await postSession({
+          date: todayISO(),
+          startedAt,
+          durationMinutes: minutes,
+          completed,
+          kind: k,
+          planItemId: subject.current.planItemId,
+          topic: subject.current.topic,
+        });
+        setError("");
+        if (isLunch(k)) {
+          setPending(saved);
+          setTakeaway("");
+          loadProgress();
+        }
+        onLogged();
+        loadSessions(k);
+      } catch (e) {
+        setError(errorMessage(e, "could not save session"));
       }
-      onLogged();
-      loadSessions(k);
-    } catch (e) {
-      setError(errorMessage(e, "could not save session"));
-    }
-  }
+    },
+    [onLogged, loadSessions, loadProgress],
+  );
+
+  const timer = useFocusTimer(record);
+  const { state, clock, paused, pct } = timer;
+  const cfg = state.config;
+  const kind = cfg.kind;
+  subject.current = { planItemId: cfg.planItemId, topic: cfg.topic };
 
   async function submitTakeaway() {
     if (!pending) return;

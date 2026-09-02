@@ -118,12 +118,26 @@ class ReadingServiceTest {
 
     ReadingProgress progress = service.progress(WED);
 
+    assertThat(progress.daysThisWeek()).isEqualTo(2);
     assertThat(progress.sessionsThisWeek()).isEqualTo(2);
     assertThat(progress.hoursThisWeek()).isEqualTo(1.3); // 75 minutes
     assertThat(progress.weeklyTarget()).isEqualTo(ReadingService.WEEKLY_TARGET);
     // Totals still span everything.
     assertThat(progress.totalSessions()).isEqualTo(3);
     assertThat(progress.totalHours()).isEqualTo(2.3); // 135 minutes
+  }
+
+  @Test
+  void twoSittingsInOneDayAreOneDayAgainstTheTarget() {
+    // The target and the streak sit next to each other on the panel. If one counted sessions,
+    // a single lunch with two pomodoros would fill half the week while the streak said one day.
+    given(session(WED, FocusKind.READING, 25, "DDIA"), session(WED, FocusKind.READING, 25, "DDIA"));
+
+    ReadingProgress progress = service.progress(WED);
+
+    assertThat(progress.daysThisWeek()).isEqualTo(1);
+    assertThat(progress.sessionsThisWeek()).isEqualTo(2);
+    assertThat(progress.weekdayStreak()).isEqualTo(1);
   }
 
   // ---------- what it went into ----------

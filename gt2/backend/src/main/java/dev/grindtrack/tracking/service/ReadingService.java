@@ -27,7 +27,7 @@ import org.springframework.stereotype.Service;
 public class ReadingService {
 
   /**
-   * Lunches a week worth aiming at.
+   * Lunches a week worth aiming at, counted in <strong>days</strong>.
    *
    * <p>Four, not five. A five-of-five target is broken by one meeting that runs long, and a target
    * you break in the first week is a target you stop looking at; four leaves room for the week to
@@ -57,16 +57,21 @@ public class ReadingService {
     int sessionsThisWeek = 0;
     int minutesThisWeek = 0;
     int totalMinutes = 0;
+    // Days, because the target and the streak sit next to each other and must not disagree
+    // about what one unit is: two pomodoros over one lunch is one day, not half a week.
+    Set<LocalDate> daysThisWeek = new HashSet<>();
     for (FocusSession s : lunches) {
       totalMinutes += s.getDurationMinutes();
       if (!s.getSessionDate().isBefore(monday) && !s.getSessionDate().isAfter(today)) {
         sessionsThisWeek++;
         minutesThisWeek += s.getDurationMinutes();
+        daysThisWeek.add(s.getSessionDate());
       }
     }
 
     return new ReadingProgress(
         weekdayStreak(lunches, today),
+        daysThisWeek.size(),
         sessionsThisWeek,
         WEEKLY_TARGET,
         hours(minutesThisWeek),

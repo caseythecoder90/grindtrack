@@ -54,7 +54,7 @@ error.
 | POST | `/api/focus/sessions` | `{date, startedAt, durationMinutes, completed, kind, planItemId?, topic?}`. Records a pomodoro session and **atomically adds its minutes to that day's hours** (rounded to 0.1 h, day capped at 24). `completed=false` marks an ended-early session; its partial minutes still count. |
 | PATCH | `/api/focus/sessions/{id}/takeaway` | `{takeaway}` — the note written *after* the session, which is the only time you know it. Blank clears it. |
 | GET | `/api/focus/sessions?date=YYYY-MM-DD[&kind=…]` | That day's sessions, ordered by start time; optional `kind` filter |
-| GET | `/api/focus/reading` | The lunch dashboard: weekday streak, sessions and hours this week against the target, per-subject totals, and the recent takeaways |
+| GET | `/api/focus/reading` | The lunch dashboard: weekday streak, **days** this week against the target (plus the session count and hours for the same window), per-subject totals, and the recent takeaways |
 
 **Kinds.** `study` (the 6–8am block), `work` (the day job), `reading` (books, papers, RFCs) and
 `review` (reading your own code). Only `work` folds into `work_logs.hours`; the other three go to
@@ -67,6 +67,10 @@ time so history stays readable if the workbook later renames or drops the item �
 subject a `review` session has, since a repo is not a plan item. `/api/focus/reading` groups by
 item id when there is one and by lower-cased topic otherwise, so `Grindtrack` and `grindtrack` do
 not become two subjects.
+
+**The weekly target counts days, not sessions**, so it and the streak measure the same unit — two
+pomodoros over one lunch is one day against the target, exactly as the streak counts it.
+`sessionsThisWeek` is reported alongside as the effort figure.
 
 **The streak counts weekdays.** A weekend is skipped, not counted as a miss, and it is computed
 from lunch sessions only — a long evening of cert prep must not be able to satisfy it, or it stops

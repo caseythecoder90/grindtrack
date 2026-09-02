@@ -9,12 +9,16 @@ import java.util.List;
  * StatsService}. Nothing here is a projection of an entity — every field is worked out.
  *
  * @param weekdayStreak consecutive weekdays with a lunch session
- * @param sessionsThisWeek lunch sessions since Monday, against {@code weeklyTarget}
+ * @param daysThisWeek distinct days since Monday with a lunch session, against {@code
+ *     weeklyTarget}. Days, not sessions, so this and the streak measure the same unit — two
+ *     pomodoros over one lunch is one day here, exactly as the streak counts it
+ * @param sessionsThisWeek how many sittings those days took, for the effort figure
  * @param subjects what the hours went into, most-recent-first
  * @param recentTakeaways the written notes, newest first — the part worth rereading
  */
 public record ReadingProgress(
     int weekdayStreak,
+    int daysThisWeek,
     int sessionsThisWeek,
     int weeklyTarget,
     double hoursThisWeek,
