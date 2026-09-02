@@ -303,9 +303,11 @@ class StatsServiceTest {
     LocalDate longAgo = LocalDate.of(2020, 1, 1);
 
     DailyLog studyLog = new DailyLog(longAgo);
-    studyLog.update(BigDecimal.valueOf(2.0), List.of(), null, null, null, null, null);
+    studyLog.setHours(BigDecimal.valueOf(2.0));
+    studyLog.update(List.of(), null, null, null, null, null);
     WorkLog workLog = new WorkLog(longAgo.plusDays(1));
-    workLog.update(BigDecimal.valueOf(3.0), List.of(), null, null, null, null, null);
+    workLog.setHours(BigDecimal.valueOf(3.0));
+    workLog.update(List.of(), null, null, null, null, null);
 
     when(dailyLogs.findAll()).thenReturn(List.of(studyLog));
     when(workLogs.findAll()).thenReturn(List.of(workLog));

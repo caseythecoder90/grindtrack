@@ -129,4 +129,32 @@ class WorkServiceTest {
     when(workSkills.findById(99L)).thenReturn(Optional.empty());
     assertThat(service.updateSkill(99L, "x", null, null, null, null, null)).isEmpty();
   }
+
+  @Test
+  void savingWithoutHoursLeavesTheStoredHoursAlone() {
+    // Same lost update as on the study log: a work focus session adds to work_logs.hours, and a
+    // form save that re-sends a stale total would undo it.
+    WorkLog existing = new WorkLog(DAY);
+    existing.setHours(new BigDecimal("6.5"));
+    when(workLogs.findById(DAY)).thenReturn(Optional.of(existing));
+    when(workLogs.save(any())).thenAnswer(i -> i.getArgument(0));
+
+    WorkLog saved =
+        service.saveDay(DAY, null, List.of("platform"), "proj", "goals", "did", "blk", "learn");
+
+    assertThat(saved.getHours()).isEqualByComparingTo("6.5");
+    assertThat(saved.getProject()).isEqualTo("proj");
+  }
+
+  @Test
+  void anExplicitHoursValueStillWins() {
+    WorkLog existing = new WorkLog(DAY);
+    existing.setHours(new BigDecimal("6.5"));
+    when(workLogs.findById(DAY)).thenReturn(Optional.of(existing));
+    when(workLogs.save(any())).thenAnswer(i -> i.getArgument(0));
+
+    WorkLog saved = service.saveDay(DAY, new BigDecimal("8.0"), null, null, null, null, null, null);
+
+    assertThat(saved.getHours()).isEqualByComparingTo("8.0");
+  }
 }

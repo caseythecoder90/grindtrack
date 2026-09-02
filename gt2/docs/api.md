@@ -40,12 +40,23 @@ error.
 |---|---|---|
 | GET | `/api/days?from=YYYY-MM-DD&to=YYYY-MM-DD` | Ordered range of daily logs |
 | GET | `/api/days/{date}` | Single day or `null` |
-| PUT | `/api/days/{date}` | Upsert: `{hours, categories[], focus, did, wins, blockers, energy}`. Validates hours 0–24, energy 1–5. |
+| PUT | `/api/days/{date}` | Upsert: `{hours?, categories[], focus, did, wins, blockers, energy}`. Validates hours 0–24, energy 1–5. **Omitting `hours` leaves the stored value alone** — see below. |
 | DELETE | `/api/days/{date}` | Remove a day |
 | GET | `/api/weeks/{date}` | Weekly review; any date normalizes to its Monday |
 | PUT | `/api/weeks/{date}` | Upsert review: `{summary, wins, blockers, adjustments, nextFocus, onTrack}` |
 | GET | `/api/stats` | `{study, work, all}`, each a scope of `{totalHours, daysLogged, streak, daysThisMonth, weeks[12], categories[], days[]}`. All three are computed per request so the UI switches scope without refetching. `days[]` is the 26-week heatmap series. Category hours are split evenly across a day's tags; in `all` the two scopes' category maps are **summed**, not recomputed over merged rows (see backend.md). |
 | GET | `/api/export` | Full JSON dump as a download |
+
+### Hours have two writers
+
+`hours` on a day (study or work) is written two ways with different meanings: the form sets a
+total, and a focus session **adds** to it. An absolute write that re-sends a stale total therefore
+undoes every session logged since the form loaded — across two devices, that is a silent lost
+update.
+
+So `hours` is optional on both upserts: **absent means unchanged**, and the forms omit it unless the
+box was actually edited. It previously meant *zero*, so any client omitting the field wiped the
+day's hours outright.
 
 ## Focus sessions (authenticated)
 
@@ -54,7 +65,7 @@ error.
 | POST | `/api/focus/sessions` | `{date, startedAt, durationMinutes, completed, kind, planItemId?, topic?}`. Records a pomodoro session and **atomically adds its minutes to that day's hours** (rounded to 0.1 h, day capped at 24). `completed=false` marks an ended-early session; its partial minutes still count. |
 | PATCH | `/api/focus/sessions/{id}/takeaway` | `{takeaway}` — the note written *after* the session, which is the only time you know it. Blank clears it. |
 | GET | `/api/focus/sessions?date=YYYY-MM-DD[&kind=…]` | That day's sessions, ordered by start time; optional `kind` filter |
-| GET | `/api/focus/reading` | The lunch dashboard: weekday streak, sessions and hours this week against the target, per-subject totals, and the recent takeaways |
+| GET | `/api/focus/reading` | The lunch dashboard: weekday streak, **days** this week against the target (plus the session count and hours for the same window), per-subject totals, and the recent takeaways |
 
 **Kinds.** `study` (the 6–8am block), `work` (the day job), `reading` (books, papers, RFCs) and
 `review` (reading your own code). Only `work` folds into `work_logs.hours`; the other three go to
@@ -67,6 +78,10 @@ time so history stays readable if the workbook later renames or drops the item �
 subject a `review` session has, since a repo is not a plan item. `/api/focus/reading` groups by
 item id when there is one and by lower-cased topic otherwise, so `Grindtrack` and `grindtrack` do
 not become two subjects.
+
+**The weekly target counts days, not sessions**, so it and the streak measure the same unit — two
+pomodoros over one lunch is one day against the target, exactly as the streak counts it.
+`sessionsThisWeek` is reported alongside as the effort figure.
 
 **The streak counts weekdays.** A weekend is skipped, not counted as a miss, and it is computed
 from lunch sessions only — a long evening of cert prep must not be able to satisfy it, or it stops
@@ -105,7 +120,7 @@ and lives only in the database — nothing is seeded (the repo is public).
 |---|---|---|
 | GET | `/api/work/days?from=YYYY-MM-DD&to=YYYY-MM-DD` | Ordered range of work-day logs |
 | GET | `/api/work/days/{date}` | Single work day or `null` |
-| PUT | `/api/work/days/{date}` | Upsert: `{hours, categories[], project, goals, did, blockers, learnings}`. Validates hours 0–24. |
+| PUT | `/api/work/days/{date}` | Upsert: `{hours?, categories[], project, goals, did, blockers, learnings}`. Validates hours 0–24. **Omitting `hours` leaves the stored value alone.** |
 | DELETE | `/api/work/days/{date}` | Remove a work day |
 | GET | `/api/work/skills` | Deliberate competency checklist, ordered by `sortOrder` then id |
 | POST | `/api/work/skills` | Create: `{name, category?, detail?}` — name required; status defaults to `not_started` |

@@ -15,9 +15,10 @@ interface Props {
  * not an analytics page.
  */
 export default function ReadingPanel({ progress }: Props) {
-  const { weekdayStreak, sessionsThisWeek, weeklyTarget, hoursThisWeek } = progress;
-  const pct = Math.min(100, (sessionsThisWeek / Math.max(1, weeklyTarget)) * 100);
-  const onPace = sessionsThisWeek >= weeklyTarget;
+  const { weekdayStreak, daysThisWeek, sessionsThisWeek, weeklyTarget, hoursThisWeek } = progress;
+  // Days, not sessions: this bar sits beside the streak and the two must count the same thing.
+  const pct = Math.min(100, (daysThisWeek / Math.max(1, weeklyTarget)) * 100);
+  const onPace = daysThisWeek >= weeklyTarget;
 
   return (
     <div className="panel">
@@ -32,10 +33,13 @@ export default function ReadingPanel({ progress }: Props) {
         <div className="stat">
           <span className="k">this week</span>
           <span className="v">
-            {sessionsThisWeek}
-            <small>/{weeklyTarget}</small>
+            {daysThisWeek}
+            <small>/{weeklyTarget} days</small>
           </span>
-          <span className="split">{hoursThisWeek.toFixed(1)}h</span>
+          <span className="split">
+            {sessionsThisWeek} {sessionsThisWeek === 1 ? "session" : "sessions"} ·{" "}
+            {hoursThisWeek.toFixed(1)}h
+          </span>
         </div>
         <div className="stat">
           <span className="k">banked</span>

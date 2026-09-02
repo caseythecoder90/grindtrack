@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { errorMessage } from "../../lib/api";
 import { getWorkDay, saveWorkDay } from "./workApi";
 import { todayISO } from "../../lib/dates";
@@ -20,27 +20,32 @@ export default function WorkDay({ onSaved }: { onSaved: () => void }) {
   const [learnings, setLearnings] = useState("");
   const [toast, setToast] = useState(false);
   const [error, setError] = useState("");
+  /**
+   * Whether the hours box has been touched since it was last loaded. Untouched hours are left
+   * out of the save: the focus timer writes work hours too, and re-sending a stale total would
+   * undo any work session logged since this form loaded. See DailyLog.setHours.
+   */
+  const [hoursEdited, setHoursEdited] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const d = await getWorkDay(date);
+      setHours(String(d?.hours ?? 0));
+      setCats(new Set(d?.categories ?? []));
+      setProject(d?.project ?? "");
+      setGoals(d?.goals ?? "");
+      setDid(d?.did ?? "");
+      setBlockers(d?.blockers ?? "");
+      setLearnings(d?.learnings ?? "");
+      setHoursEdited(false);
+    } catch {
+      setError("could not load this day");
+    }
+  }, [date]);
 
   useEffect(() => {
-    let ignore = false;
-    getWorkDay(date)
-      .then((d) => {
-        if (ignore) return;
-        setHours(String(d?.hours ?? 0));
-        setCats(new Set(d?.categories ?? []));
-        setProject(d?.project ?? "");
-        setGoals(d?.goals ?? "");
-        setDid(d?.did ?? "");
-        setBlockers(d?.blockers ?? "");
-        setLearnings(d?.learnings ?? "");
-      })
-      .catch(() => {
-        if (!ignore) setError("could not load this day");
-      });
-    return () => {
-      ignore = true;
-    };
-  }, [date]);
+    load();
+  }, [load]);
 
   function toggleCat(c: string) {
     const next = new Set(cats);
@@ -52,7 +57,7 @@ export default function WorkDay({ onSaved }: { onSaved: () => void }) {
     setError("");
     try {
       await saveWorkDay(date, {
-        hours: Number(hours),
+        ...(hoursEdited ? { hours: Number(hours) } : {}),
         categories: [...cats],
         project,
         goals,
@@ -60,6 +65,8 @@ export default function WorkDay({ onSaved }: { onSaved: () => void }) {
         blockers,
         learnings,
       });
+      // Re-read: the stored total may include focus minutes this form never saw.
+      await load();
       setToast(true);
       setTimeout(() => setToast(false), 1600);
       onSaved();
@@ -79,7 +86,7 @@ export default function WorkDay({ onSaved }: { onSaved: () => void }) {
         <div>
           <label htmlFor="w-hours">Hours</label>
           <input id="w-hours" type="number" min={0} max={24} step={0.5} value={hours}
-            onChange={(e) => setHours(e.target.value)} />
+            onChange={(e) => { setHours(e.target.value); setHoursEdited(true); }} />
         </div>
         <div>
           <label htmlFor="w-project">Project / initiative</label>

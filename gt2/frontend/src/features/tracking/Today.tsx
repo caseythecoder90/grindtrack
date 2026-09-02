@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getDay, saveDay } from "./trackingApi";
 import { todayISO } from "../../lib/dates";
 import { CATEGORIES } from "../../lib/types";
@@ -18,18 +18,30 @@ export default function Today({ onSaved }: Props) {
   const [wins, setWins] = useState("");
   const [blockers, setBlockers] = useState("");
   const [toast, setToast] = useState(false);
+  /**
+   * Whether the hours box has been touched since it was last loaded.
+   *
+   * Untouched hours are left out of the save entirely, because this form is not the only writer:
+   * the focus timer adds to the same day. Re-sending a number loaded ten minutes ago would
+   * silently undo any session logged since — including one logged on the other device.
+   */
+  const [hoursEdited, setHoursEdited] = useState(false);
+
+  const load = useCallback(async () => {
+    const d = await getDay(date);
+    setHours(String(d?.hours ?? 0));
+    setCats(new Set(d?.categories ?? []));
+    setEnergy(d?.energy ?? null);
+    setFocus(d?.focus ?? "");
+    setDid(d?.did ?? "");
+    setWins(d?.wins ?? "");
+    setBlockers(d?.blockers ?? "");
+    setHoursEdited(false);
+  }, [date]);
 
   useEffect(() => {
-    getDay(date).then((d) => {
-      setHours(String(d?.hours ?? 0));
-      setCats(new Set(d?.categories ?? []));
-      setEnergy(d?.energy ?? null);
-      setFocus(d?.focus ?? "");
-      setDid(d?.did ?? "");
-      setWins(d?.wins ?? "");
-      setBlockers(d?.blockers ?? "");
-    });
-  }, [date]);
+    load();
+  }, [load]);
 
   function toggleCat(c: string) {
     const next = new Set(cats);
@@ -39,7 +51,7 @@ export default function Today({ onSaved }: Props) {
 
   async function save() {
     await saveDay(date, {
-      hours: Number(hours),
+      ...(hoursEdited ? { hours: Number(hours) } : {}),
       categories: [...cats],
       focus,
       did,
@@ -47,6 +59,9 @@ export default function Today({ onSaved }: Props) {
       blockers,
       energy,
     });
+    // Re-read rather than trusting the form: the stored total may include focus minutes this
+    // form never saw, and showing a stale number is how the overwrite happened in the first place.
+    await load();
     setToast(true);
     setTimeout(() => setToast(false), 1600);
     onSaved();
@@ -63,7 +78,7 @@ export default function Today({ onSaved }: Props) {
         <div>
           <label htmlFor="d-hours">Hours</label>
           <input id="d-hours" type="number" min={0} max={24} step={0.5} value={hours}
-            onChange={(e) => setHours(e.target.value)} />
+            onChange={(e) => { setHours(e.target.value); setHoursEdited(true); }} />
         </div>
         <div>
           <label>Energy</label>

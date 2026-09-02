@@ -61,8 +61,10 @@ public class WorkService {
       String blockers,
       String learnings) {
 
-    BigDecimal safeHours = hours == null ? BigDecimal.ZERO : hours;
-    if (safeHours.signum() < 0 || safeHours.doubleValue() > 24) {
+    // A null hours means "leave it alone", not zero. It used to mean zero, so any client that
+    // omitted the field wiped the day — and the form omits it now unless you actually edited it,
+    // precisely so that saving a note cannot undo a focus session logged from another device.
+    if (hours != null && (hours.signum() < 0 || hours.doubleValue() > 24)) {
       throw new IllegalArgumentException("hours must be 0-24");
     }
     if (categories != null
@@ -73,7 +75,10 @@ public class WorkService {
     }
 
     WorkLog log = workLogs.findById(date).orElseGet(() -> new WorkLog(date));
-    log.update(safeHours, categories, project, goals, did, blockers, learnings);
+    if (hours != null) {
+      log.setHours(hours);
+    }
+    log.update(categories, project, goals, did, blockers, learnings);
     return workLogs.save(log);
   }
 

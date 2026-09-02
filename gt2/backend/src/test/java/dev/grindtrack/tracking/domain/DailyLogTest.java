@@ -38,21 +38,21 @@ class DailyLogTest {
   @Test
   void categoryListSplitsAndTrimsTheStoredString() {
     DailyLog log = new DailyLog(DATE);
-    log.update(BigDecimal.ONE, List.of("java", "aws"), null, null, null, null, null);
+    log.update(List.of("java", "aws"), null, null, null, null, null);
     assertThat(log.categoryList()).containsExactly("java", "aws");
   }
 
   @Test
   void categoryListIsEmptyWhenNoCategoriesWereSet() {
     DailyLog log = new DailyLog(DATE);
-    log.update(BigDecimal.ONE, null, null, null, null, null, null);
+    log.update(null, null, null, null, null, null);
     assertThat(log.categoryList()).isEmpty();
   }
 
   @Test
   void updateNormalizesNullTextFieldsToEmptyStrings() {
     DailyLog log = new DailyLog(DATE);
-    log.update(BigDecimal.ONE, null, null, null, null, null, null);
+    log.update(null, null, null, null, null, null);
     assertThat(log.getFocus()).isEmpty();
     assertThat(log.getDid()).isEmpty();
     assertThat(log.getWins()).isEmpty();

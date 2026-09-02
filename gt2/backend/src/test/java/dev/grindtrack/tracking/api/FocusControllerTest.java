@@ -50,7 +50,7 @@ class FocusControllerTest {
     focusService = mock(FocusService.class);
     readingService = mock(ReadingService.class);
     when(readingService.progress(any()))
-        .thenReturn(new ReadingProgress(0, 0, 4, 0, 0, 0, List.of(), List.of()));
+        .thenReturn(new ReadingProgress(0, 0, 0, 4, 0, 0, 0, List.of(), List.of()));
     mvc =
         MockMvcBuilders.standaloneSetup(new FocusController(focusService, readingService))
             .setControllerAdvice(new ApiExceptionHandler())

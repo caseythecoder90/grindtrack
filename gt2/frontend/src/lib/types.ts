@@ -117,6 +117,8 @@ export interface ReadingTakeaway {
 /** The lunch dashboard: streak, weekly pace, what it went into, and what you wrote down. */
 export interface ReadingProgress {
   weekdayStreak: number;
+  /** Distinct days since Monday — the same unit the streak counts. */
+  daysThisWeek: number;
   sessionsThisWeek: number;
   weeklyTarget: number;
   hoursThisWeek: number;

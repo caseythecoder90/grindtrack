@@ -98,15 +98,26 @@ public class WorkLog {
     this.updatedAt = OffsetDateTime.now();
   }
 
+  /**
+   * Sets the day's hours outright — the number a person typed into the form.
+   *
+   * <p>Separate from {@link #update} for the same reason as {@code DailyLog.setHours}: the form
+   * sets a total and the focus timer adds to one, and folding them together let a stale form
+   * silently undo logged sessions.
+   */
+  public void setHours(BigDecimal hours) {
+    this.hours = hours;
+    this.updatedAt = OffsetDateTime.now();
+  }
+
+  /** The written entry. Deliberately does not touch hours — see {@link #setHours}. */
   public void update(
-      BigDecimal hours,
       List<String> categoryList,
       String project,
       String goals,
       String did,
       String blockers,
       String learnings) {
-    this.hours = hours;
     this.categories = categoryList == null ? "" : String.join(",", categoryList);
     this.project = project == null ? "" : project;
     this.goals = goals == null ? "" : goals;
