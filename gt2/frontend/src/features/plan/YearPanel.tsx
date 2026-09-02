@@ -1,4 +1,4 @@
-import type { PlanItem, PlanQuarter } from "../../lib/types";
+import type { PlanItem, PlanQuarter, ReadingSubject } from "../../lib/types";
 import ItemRow from "./ItemRow";
 import { byTarget, doneCount, progressPercent, YEAR_WINDOW } from "./planModel";
 
@@ -15,12 +15,14 @@ interface Props {
   onToggleExpand: (id: number) => void;
   onCycle: (item: PlanItem) => void;
   onSaveNotes: (item: PlanItem, notes: string) => void;
+  /** Lunch progress by plan item id; empty until the reading endpoint answers. */
+  reading: Map<number, ReadingSubject>;
 }
 
 /** One plan year: progress bar, collapsible quarter roadmap, and its item rows. */
 export default function YearPanel({
   year, shown, all, quarters, quartersOpen, onToggleQuarters,
-  expandedId, onToggleExpand, onCycle, onSaveNotes,
+  expandedId, onToggleExpand, onCycle, onSaveNotes, reading,
 }: Props) {
   const yearItems = shown.filter((i) => i.yearNum === year).sort(byTarget);
   const allYear = all.filter((i) => i.yearNum === year);
@@ -57,7 +59,8 @@ export default function YearPanel({
       {yearItems.map((item) => (
         <ItemRow key={item.id} item={item} expanded={expandedId === item.id}
           onToggle={() => onToggleExpand(item.id)}
-          onCycle={() => onCycle(item)} onSaveNotes={onSaveNotes} />
+          onCycle={() => onCycle(item)} onSaveNotes={onSaveNotes}
+          reading={reading.get(item.id)} />
       ))}
       {yearItems.length === 0 && <div className="empty">nothing in this filter</div>}
     </div>

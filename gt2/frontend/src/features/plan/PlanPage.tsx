@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { errorMessage } from "../../lib/api";
 import { getPlan, importPlan, updatePlanItem } from "./planApi";
-import type { PlanData, PlanItem, PlanItemType } from "../../lib/types";
+// A plan item's reading hours are a focus-tracking fact, not a plan fact — so it is a
+// second call joined by id here rather than a cross-feature dependency in the backend.
+import { getReadingProgress } from "../focus/focusApi";
+import type { PlanData, PlanItem, PlanItemType, ReadingSubject } from "../../lib/types";
 import ImportControl from "./ImportControl";
 import ItemRow from "./ItemRow";
 import PlanHeader from "./PlanHeader";
@@ -20,6 +23,7 @@ export default function PlanPage() {
   const [view, setView] = useState<"tracker" | "reference">("tracker");
   const [expanded, setExpanded] = useState<number | null>(null);
   const [openQuarters, setOpenQuarters] = useState(false);
+  const [reading, setReading] = useState<Map<number, ReadingSubject>>(new Map());
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
@@ -32,6 +36,19 @@ export default function PlanPage() {
 
   useEffect(() => {
     load();
+    getReadingProgress()
+      .then((p) =>
+        setReading(
+          new Map(
+            p.subjects
+              .filter((s): s is ReadingSubject & { planItemId: number } => s.planItemId !== null)
+              .map((s) => [s.planItemId, s]),
+          ),
+        ),
+      )
+      .catch(() => {
+        /* the hours are a bonus on this page; the plan itself still renders */
+      });
   }, [load]);
 
   function applyUpdate(updated: PlanItem) {
@@ -116,7 +133,7 @@ export default function PlanPage() {
               quarters={data.quarters} quartersOpen={openQuarters}
               onToggleQuarters={() => setOpenQuarters(!openQuarters)}
               expandedId={expanded} onToggleExpand={toggleExpand}
-              onCycle={cycleStatus} onSaveNotes={saveNotes} />
+              onCycle={cycleStatus} onSaveNotes={saveNotes} reading={reading} />
           ))}
           {ongoing.length > 0 && (
             <div className="panel yearpanel">
@@ -124,7 +141,8 @@ export default function PlanPage() {
               {[...ongoing].sort(byTarget).map((item) => (
                 <ItemRow key={item.id} item={item} expanded={expanded === item.id}
                   onToggle={() => toggleExpand(item.id)}
-                  onCycle={() => cycleStatus(item)} onSaveNotes={saveNotes} />
+                  onCycle={() => cycleStatus(item)} onSaveNotes={saveNotes}
+                  reading={reading.get(item.id)} />
               ))}
             </div>
           )}

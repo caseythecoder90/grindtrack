@@ -12,6 +12,7 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.NoSuchElementException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,11 +48,18 @@ public class FocusService {
       OffsetDateTime startedAt,
       int durationMinutes,
       boolean completed,
-      FocusKind kind) {
-    FocusSession session =
-        sessions.save(new FocusSession(date, startedAt, durationMinutes, completed, kind));
+      FocusKind kind,
+      Long planItemId,
+      String topic) {
+    // Normalised once, so the row that is stored and the log the minutes land on cannot
+    // disagree. The controller never sends null, but this is also called from tests and would
+    // be called by any future importer; a null kind must not decide it is the day job.
+    FocusKind resolved = kind == null ? FocusKind.STUDY : kind;
+    FocusSession session = new FocusSession(date, startedAt, durationMinutes, completed, resolved);
+    session.setSubject(planItemId, topic);
+    session = sessions.save(session);
     BigDecimal hours = BigDecimal.valueOf(durationMinutes).divide(SIXTY, 1, RoundingMode.HALF_UP);
-    if (kind == FocusKind.WORK) {
+    if (resolved.isDayJob()) {
       WorkLog log = workLogs.findById(date).orElseGet(() -> new WorkLog(date));
       log.addHours(hours);
       workLogs.save(log);
@@ -63,7 +71,25 @@ public class FocusService {
     return session;
   }
 
-  /** Sessions on a date, optionally filtered to one kind ({@code null} returns both). */
+  /**
+   * Records the note written after a session ended.
+   *
+   * <p>A separate call rather than part of {@link #record}, because you do not know the takeaway
+   * when the timer stops — you know it a minute later, once you have thought about it. Making it
+   * part of the original write would mean either blocking the save on a text box or losing the
+   * note.
+   */
+  @Transactional
+  public FocusSession recordTakeaway(Long sessionId, String takeaway) {
+    FocusSession session =
+        sessions
+            .findById(sessionId)
+            .orElseThrow(() -> new NoSuchElementException("focus session " + sessionId));
+    session.setTakeaway(takeaway);
+    return sessions.save(session);
+  }
+
+  /** Sessions on a date, optionally filtered to one kind ({@code null} returns every kind). */
   public List<FocusSession> sessionsOn(LocalDate date, FocusKind kind) {
     return kind == null
         ? sessions.findBySessionDateOrderByStartedAt(date)

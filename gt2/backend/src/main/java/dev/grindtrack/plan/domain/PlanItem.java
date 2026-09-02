@@ -150,11 +150,31 @@ public class PlanItem {
   }
 
   /** Used by import to carry existing progress onto the re-imported item. */
-  public void carryProgressFrom(PlanItem previous) {
-    this.status = previous.status;
-    this.completedAt = previous.completedAt;
-    if (!previous.notes.isBlank()) {
-      this.notes = previous.notes;
+  /**
+   * Overwrites this row's workbook-owned content from {@code incoming}, leaving the columns the
+   * user owns — status, completedAt, notes — and, critically, the id.
+   *
+   * <p>Re-import used to be delete-all + insert, so every item got a fresh id each time. Nothing
+   * referenced those ids, so nothing broke; the moment something does — focus sessions recording
+   * which book an hour went into — a re-import would silently orphan the lot. Updating in place
+   * makes the id as durable as the notes attached to it.
+   *
+   * <p>The one exception to "the user owns notes": the workbook may <em>seed</em> notes onto an
+   * item that has none, which is how a note written in the spreadsheet arrives at all. It can never
+   * overwrite a note you wrote here.
+   */
+  public void replaceContentFrom(PlanItem incoming) {
+    this.itemType = incoming.itemType;
+    this.title = incoming.title;
+    this.details = incoming.details;
+    this.targetLabel = incoming.targetLabel;
+    this.targetDate = incoming.targetDate;
+    this.yearNum = incoming.yearNum;
+    this.qtr = incoming.qtr;
+    this.tier = incoming.tier;
+    this.sortOrder = incoming.sortOrder;
+    if (this.notes.isBlank()) {
+      this.notes = incoming.notes;
     }
   }
 }

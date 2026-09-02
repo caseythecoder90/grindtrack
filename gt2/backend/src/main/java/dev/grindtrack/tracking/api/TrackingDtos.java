@@ -81,13 +81,32 @@ public final class TrackingDtos {
 
   /**
    * @param completed false when the timer was stopped early; the partial minutes are still logged
-   * @param kind study or work; absent means study
+   * @param kind study, work, reading or review; absent means study
+   * @param planItemId the book, paper or module this went into, when it is one
+   * @param topic what it went into in words — a repo and area for a review, or the item's title,
+   *     which is snapshotted so the history survives the workbook renaming it
    */
   public record FocusSessionRequest(
-      String date, String startedAt, Integer durationMinutes, Boolean completed, String kind) {}
+      String date,
+      String startedAt,
+      Integer durationMinutes,
+      Boolean completed,
+      String kind,
+      Long planItemId,
+      String topic) {}
+
+  /** The note written after a session, not during it. */
+  public record TakeawayRequest(String takeaway) {}
 
   public record FocusSessionResponse(
-      Long id, String startedAt, int durationMinutes, boolean completed, String kind) {
+      Long id,
+      String startedAt,
+      int durationMinutes,
+      boolean completed,
+      String kind,
+      Long planItemId,
+      String topic,
+      String takeaway) {
 
     public static FocusSessionResponse from(FocusSession session) {
       return new FocusSessionResponse(
@@ -95,7 +114,10 @@ public final class TrackingDtos {
           session.getStartedAt().toString(),
           session.getDurationMinutes(),
           session.isCompleted(),
-          session.getKind().wireValue());
+          session.getKind().wireValue(),
+          session.getPlanItemId(),
+          session.getTopic(),
+          session.getTakeaway());
     }
   }
 

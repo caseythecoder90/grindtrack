@@ -67,7 +67,21 @@ export const SCOPE_LABELS: Record<Scope, string> = {
 
 // --- focus timer ------------------------------------------------------------
 
-export type FocusKind = "study" | "work";
+/**
+ * "study" is the 6-8am block and "work" the day job; "reading" and "review" are the
+ * lunch kinds. All but "work" fold their minutes into daily_logs.
+ */
+export type FocusKind = "study" | "work" | "reading" | "review";
+
+/** The two lunch kinds, which get their own streak and weekly target. */
+export const LUNCH_KINDS: FocusKind[] = ["reading", "review"];
+
+export const FOCUS_KIND_LABEL: Record<FocusKind, string> = {
+  study: "study",
+  work: "work",
+  reading: "reading",
+  review: "code review",
+};
 
 export interface FocusSession {
   id: number;
@@ -75,9 +89,54 @@ export interface FocusSession {
   durationMinutes: number;
   completed: boolean;
   kind: FocusKind;
+  /** The plan item this went into, when it is one. Null for a code review. */
+  planItemId: number | null;
+  /** What it went into, in words. Snapshotted at write time so history survives a re-import. */
+  topic: string;
+  takeaway: string;
 }
 
-export const FOCUS_DEFAULTS = { sessions: 3, focusMin: 60, breakMin: 10, kind: "study" as FocusKind };
+/** One thing being worked through at lunch — a book, a paper, or a repo. */
+export interface ReadingSubject {
+  planItemId: number | null;
+  label: string;
+  kind: FocusKind;
+  sessions: number;
+  hours: number;
+  lastOn: string;
+}
+
+export interface ReadingTakeaway {
+  sessionId: number;
+  on: string;
+  label: string;
+  kind: FocusKind;
+  text: string;
+}
+
+/** The lunch dashboard: streak, weekly pace, what it went into, and what you wrote down. */
+export interface ReadingProgress {
+  weekdayStreak: number;
+  sessionsThisWeek: number;
+  weeklyTarget: number;
+  hoursThisWeek: number;
+  totalSessions: number;
+  totalHours: number;
+  subjects: ReadingSubject[];
+  recentTakeaways: ReadingTakeaway[];
+}
+
+export const FOCUS_DEFAULTS = {
+  sessions: 3,
+  focusMin: 60,
+  breakMin: 10,
+  kind: "study" as FocusKind,
+  planItemId: null as number | null,
+  topic: "",
+};
+
+/** A lunch break is one session, and it is shorter than a study block. */
+export const LUNCH_DEFAULTS = { sessions: 1, focusMin: 40, breakMin: 5 };
 
 // --- 4-year plan ------------------------------------------------------------
 

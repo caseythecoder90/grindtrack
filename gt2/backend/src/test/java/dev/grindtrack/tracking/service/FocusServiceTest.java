@@ -52,7 +52,7 @@ class FocusServiceTest {
   void roundsSessionMinutesToOneDecimalOfAnHour() {
     when(dailyLogs.findById(DATE)).thenReturn(Optional.empty());
 
-    service.record(DATE, STARTED_AT, 25, true, FocusKind.STUDY);
+    service.record(DATE, STARTED_AT, 25, true, FocusKind.STUDY, null, "");
 
     assertThat(savedDailyLog().getHours()).isEqualByComparingTo("0.4");
   }
@@ -62,7 +62,7 @@ class FocusServiceTest {
     when(dailyLogs.findById(DATE)).thenReturn(Optional.empty());
 
     // 45 min = 0.75 h; HALF_UP to one decimal is 0.8, not 0.7.
-    service.record(DATE, STARTED_AT, 45, true, FocusKind.STUDY);
+    service.record(DATE, STARTED_AT, 45, true, FocusKind.STUDY, null, "");
 
     assertThat(savedDailyLog().getHours()).isEqualByComparingTo("0.8");
   }
@@ -73,7 +73,7 @@ class FocusServiceTest {
     existing.addHours(new BigDecimal("2.5"));
     when(dailyLogs.findById(DATE)).thenReturn(Optional.of(existing));
 
-    service.record(DATE, STARTED_AT, 30, true, FocusKind.STUDY);
+    service.record(DATE, STARTED_AT, 30, true, FocusKind.STUDY, null, "");
 
     assertThat(savedDailyLog().getHours()).isEqualByComparingTo("3.0");
   }
@@ -84,7 +84,7 @@ class FocusServiceTest {
     existing.addHours(new BigDecimal("23.8"));
     when(dailyLogs.findById(DATE)).thenReturn(Optional.of(existing));
 
-    service.record(DATE, STARTED_AT, 60, false, FocusKind.STUDY);
+    service.record(DATE, STARTED_AT, 60, false, FocusKind.STUDY, null, "");
 
     assertThat(savedDailyLog().getHours()).isEqualByComparingTo("24");
   }
@@ -93,7 +93,7 @@ class FocusServiceTest {
   void savesTheSessionWithItsFieldsAndReturnsIt() {
     when(dailyLogs.findById(DATE)).thenReturn(Optional.empty());
 
-    FocusSession session = service.record(DATE, STARTED_AT, 25, false, FocusKind.STUDY);
+    FocusSession session = service.record(DATE, STARTED_AT, 25, false, FocusKind.STUDY, null, "");
 
     assertThat(session.getSessionDate()).isEqualTo(DATE);
     assertThat(session.getStartedAt()).isEqualTo(STARTED_AT);
@@ -107,7 +107,7 @@ class FocusServiceTest {
   void workSessionAddsToTheWorkLogNotTheDailyLog() {
     when(workLogs.findById(DATE)).thenReturn(Optional.empty());
 
-    FocusSession session = service.record(DATE, STARTED_AT, 30, true, FocusKind.WORK);
+    FocusSession session = service.record(DATE, STARTED_AT, 30, true, FocusKind.WORK, null, "");
 
     ArgumentCaptor<WorkLog> captor = ArgumentCaptor.forClass(WorkLog.class);
     verify(workLogs).save(captor.capture());
@@ -120,7 +120,7 @@ class FocusServiceTest {
   void aMissingKindFallsBackToStudy() {
     when(dailyLogs.findById(DATE)).thenReturn(Optional.empty());
 
-    FocusSession session = service.record(DATE, STARTED_AT, 30, true, null);
+    FocusSession session = service.record(DATE, STARTED_AT, 30, true, null, null, "");
 
     assertThat(session.getKind()).isEqualTo(FocusKind.STUDY);
     verify(dailyLogs).save(any());
