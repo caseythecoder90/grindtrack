@@ -5,7 +5,7 @@ import jakarta.persistence.Converter;
 import java.util.Locale;
 
 /**
- * Which day a focus session's minutes are added to: the personal study log or the day-job work log.
+ * What a focus session was: the 6-8am study block, the day job, or one of the two lunch kinds.
  *
  * <p>This was the string {@code "study"} or {@code "work"}, compared by hand in eight places across
  * the controller, the service and the entity. Every one of those comparisons treated an unknown
@@ -16,8 +16,29 @@ import java.util.Locale;
  * frontend's {@code FocusKind} union have to change; {@link Converter} handles the mapping.
  */
 public enum FocusKind {
+  /** The main block — 6-8am on a weekday, cert prep and course work. */
   STUDY,
-  WORK;
+  /** The day job. The only kind whose minutes land somewhere other than the personal daily log. */
+  WORK,
+  /** Books, papers and RFCs. The lunch slot. */
+  READING,
+  /** Reading your own code rather than someone else's prose. Also the lunch slot. */
+  REVIEW;
+
+  /** True for the one kind that folds into {@code work_logs} rather than {@code daily_logs}. */
+  public boolean isDayJob() {
+    return this == WORK;
+  }
+
+  /**
+   * The lunch kinds, counted as their own streak.
+   *
+   * <p>Deliberately not "everything that isn't work": a long evening of cert prep must not be able
+   * to satisfy a lunch streak, or the streak stops measuring the habit it was added to protect.
+   */
+  public boolean isLunch() {
+    return this == READING || this == REVIEW;
+  }
 
   /** The over-the-wire and in-database spelling. */
   public String wireValue() {

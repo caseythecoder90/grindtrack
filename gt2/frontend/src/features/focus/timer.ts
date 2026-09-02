@@ -16,12 +16,20 @@ export interface TimerConfig {
   focusMin: number;
   breakMin: number;
   /**
-   * What a finished session counts as: "study" folds its minutes into
-   * daily_logs, "work" into work_logs. Part of the persisted config (not
-   * component state) so a timer restored after a reload still logs as the
+   * What a finished session counts as: "work" folds its minutes into
+   * work_logs, every other kind into daily_logs. Part of the persisted config
+   * (not component state) so a timer restored after a reload still logs as the
    * kind it was started as.
    */
   kind: FocusKind;
+  /**
+   * What the session is going into, persisted for the same reason as `kind`: a
+   * reload mid-session must not silently detach the minutes from the book they
+   * belong to. `planItemId` is null for a code review, whose subject is only
+   * ever the typed topic.
+   */
+  planItemId: number | null;
+  topic: string;
 }
 
 export interface TimerState {
@@ -54,7 +62,17 @@ export function decodeState(raw: string | null): TimerState | null {
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw) as TimerState;
-    return { ...parsed, config: { ...parsed.config, kind: parsed.config?.kind ?? "study" } };
+    // Defaults for every field added after this key was first written: a timer
+    // persisted by an older build must not come back with undefined in it.
+    return {
+      ...parsed,
+      config: {
+        ...parsed.config,
+        kind: parsed.config?.kind ?? "study",
+        planItemId: parsed.config?.planItemId ?? null,
+        topic: parsed.config?.topic ?? "",
+      },
+    };
   } catch {
     return null;
   }

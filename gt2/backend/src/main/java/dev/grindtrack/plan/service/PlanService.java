@@ -6,6 +6,7 @@ import dev.grindtrack.plan.domain.PlanQuarter;
 import dev.grindtrack.plan.domain.PlanQuarterRepository;
 import dev.grindtrack.plan.domain.PlanReference;
 import dev.grindtrack.plan.domain.PlanReferenceRepository;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,8 +60,14 @@ public class PlanService {
 
   /**
    * Replaces all plan content. Items are matched to existing rows by (type, title): matches keep
-   * the user's status, completion date, and notes, so re-importing an evolved workbook never loses
-   * progress. New items take the status the workbook declares.
+   * the user's status, completion date, notes <strong>and id</strong>, so re-importing an evolved
+   * workbook never loses progress. New items take the status the workbook declares; items the
+   * workbook no longer contains are removed.
+   *
+   * <p>Matched rows are updated in place rather than deleted and re-inserted. That is what makes a
+   * plan item's id durable, which anything referencing one — a focus session recording which book
+   * an hour went into — depends on. The old delete-all was safe only for as long as nothing pointed
+   * at these rows.
    */
   @Transactional
   public int importPlan(
@@ -69,17 +76,24 @@ public class PlanService {
     for (PlanItem existing : items.findAll()) {
       previous.put(key(existing), existing);
     }
+
+    List<PlanItem> toSave = new ArrayList<>(newItems.size());
     for (PlanItem incoming : newItems) {
-      PlanItem match = previous.get(key(incoming));
-      if (match != null) {
-        incoming.carryProgressFrom(match);
+      PlanItem match = previous.remove(key(incoming));
+      if (match == null) {
+        toSave.add(incoming);
+      } else {
+        match.replaceContentFrom(incoming);
+        toSave.add(match);
       }
     }
-    items.deleteAll();
+    // Whatever is left in `previous` was not in the workbook this time: the item is gone.
+    items.deleteAll(new ArrayList<>(previous.values()));
+    items.flush();
+    items.saveAll(toSave);
+
     quarters.deleteAll();
     references.deleteAll();
-    items.flush();
-    items.saveAll(newItems);
     quarters.saveAll(newQuarters);
     references.saveAll(newReferences);
     return newItems.size();

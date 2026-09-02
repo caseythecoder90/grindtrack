@@ -51,11 +51,26 @@ error.
 
 | Method | Path | Notes |
 |---|---|---|
-| POST | `/api/focus/sessions` | `{date, startedAt, durationMinutes, completed, kind}`. Records a pomodoro session and **atomically adds its minutes to that day's hours** (rounded to 0.1 h, day capped at 24). `kind` is `study` (default → `daily_logs.hours`) or `work` (→ `work_logs.hours`). `completed=false` marks an ended-early session; its partial minutes still count. |
-| GET | `/api/focus/sessions?date=YYYY-MM-DD[&kind=study\|work]` | That day's sessions, ordered by start time; optional `kind` filters to study or work |
+| POST | `/api/focus/sessions` | `{date, startedAt, durationMinutes, completed, kind, planItemId?, topic?}`. Records a pomodoro session and **atomically adds its minutes to that day's hours** (rounded to 0.1 h, day capped at 24). `completed=false` marks an ended-early session; its partial minutes still count. |
+| PATCH | `/api/focus/sessions/{id}/takeaway` | `{takeaway}` — the note written *after* the session, which is the only time you know it. Blank clears it. |
+| GET | `/api/focus/sessions?date=YYYY-MM-DD[&kind=…]` | That day's sessions, ordered by start time; optional `kind` filter |
+| GET | `/api/focus/reading` | The lunch dashboard: weekday streak, sessions and hours this week against the target, per-subject totals, and the recent takeaways |
 
-An absent `kind` on POST means `study`; anything that is not `study` or `work` is a 400. It used to
-be coerced to `study`, so a typo filed work hours as study time.
+**Kinds.** `study` (the 6–8am block), `work` (the day job), `reading` (books, papers, RFCs) and
+`review` (reading your own code). Only `work` folds into `work_logs.hours`; the other three go to
+`daily_logs.hours`, because they are all study. An absent `kind` means `study`; anything else is a
+400 — it used to be coerced to `study`, so a typo filed work hours as study time.
+
+**Subjects.** `reading` and `review` are the lunch kinds and carry what the session went into.
+`planItemId` links to a book/paper/module in the plan; `topic` is the label, snapshotted at write
+time so history stays readable if the workbook later renames or drops the item — and it is the only
+subject a `review` session has, since a repo is not a plan item. `/api/focus/reading` groups by
+item id when there is one and by lower-cased topic otherwise, so `Grindtrack` and `grindtrack` do
+not become two subjects.
+
+**The streak counts weekdays.** A weekend is skipped, not counted as a miss, and it is computed
+from lunch sessions only — a long evening of cert prep must not be able to satisfy it, or it stops
+measuring the habit it exists to protect.
 
 ## Plan (authenticated)
 

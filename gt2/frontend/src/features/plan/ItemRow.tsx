@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { PlanItem } from "../../lib/types";
+import type { PlanItem, ReadingSubject } from "../../lib/types";
 import { STATUS_LABEL } from "./planModel";
 
 interface Props {
@@ -8,10 +8,12 @@ interface Props {
   onToggle: () => void;
   onCycle: () => void;
   onSaveNotes: (item: PlanItem, notes: string) => void;
+  /** Lunch sessions banked against this item, when any. */
+  reading?: ReadingSubject;
 }
 
 /** One plan item: status chip, title row, and an expandable detail/notes editor. */
-export default function ItemRow({ item, expanded, onToggle, onCycle, onSaveNotes }: Props) {
+export default function ItemRow({ item, expanded, onToggle, onCycle, onSaveNotes, reading }: Props) {
   const [notes, setNotes] = useState(item.notes);
   return (
     <div className={"plan-item" + (item.status === "done" ? " is-done" : "")}>
@@ -25,6 +27,12 @@ export default function ItemRow({ item, expanded, onToggle, onCycle, onSaveNotes
           {item.title}
           {item.tier && <span className="muted"> · {item.tier}</span>}
         </span>
+        {reading && (
+          // The number that makes a 600-page book feel finishable.
+          <span className="muted small" title={`${reading.sessions} sessions, last ${reading.lastOn}`}>
+            {reading.hours.toFixed(1)}h · {reading.sessions}
+          </span>
+        )}
         <span className="plan-target">{item.targetLabel}</span>
         <button className="linkish" onClick={onToggle}>{expanded ? "▾" : "▸"}</button>
       </div>

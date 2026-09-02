@@ -117,12 +117,25 @@ with its stack trace intact — there is deliberately no `@ExceptionHandler(Exce
 ### `FocusController` — `/api/focus`
 | Method | Path | Notes |
 |---|---|---|
-| POST | `/sessions` | `{date,startedAt,durationMinutes(1–1440),completed,kind}`; `kind` study→`daily_logs`, work→`work_logs`, absent→study, anything else→400 |
+| POST | `/sessions` | `{date,startedAt,durationMinutes(1–1440),completed,kind,planItemId?,topic?}`; only `work` folds into `work_logs`, the rest into `daily_logs`; absent→study, unknown→400 |
+| PATCH | `/sessions/{id}/takeaway` | the note written after the session ends |
 | GET | `/sessions?date=[&kind=]` | that day's sessions, ordered by start; optional `kind` filter |
+| GET | `/reading` | `ReadingProgress`: weekday streak, week against target, per-subject totals, recent takeaways |
 
-`kind` is the `FocusKind` enum, stored lower-case through an `AttributeConverter` so existing rows
-and the frontend's `"study" | "work"` union are untouched. It used to be a bare string coerced to
-`"study"` when unrecognised, which meant a typo filed work hours as study time.
+`kind` is the `FocusKind` enum — `STUDY`, `WORK`, `READING`, `REVIEW` — stored lower-case through
+an `AttributeConverter` so existing rows and the frontend's union are untouched. It used to be a
+bare string coerced to `"study"` when unrecognised, which meant a typo filed work hours as study
+time.
+
+`READING` and `REVIEW` are the lunch kinds. They are separate constants from `STUDY` so the lunch
+streak can be counted apart from the 6–8am block, which would otherwise be satisfied by any long
+evening. `ReadingService` computes that streak over **weekdays**, skipping weekends rather than
+counting them as misses — the same reasoning that makes `StatsService` show the work scope
+days-this-month instead of a streak.
+
+A session records what it went into twice over: `plan_item_id` is the live link, and `topic` is the
+label snapshotted at write time. Both, deliberately — the snapshot keeps history readable when the
+workbook renames or drops an item, and a code-review session has no plan row to point at.
 
 `FocusService` deliberately depends on both `DailyLogRepository` and (cross-feature) `WorkLogRepository` so a work session's minutes fold into the work log in the same transaction.
 
@@ -148,6 +161,12 @@ from the closed set the schema allows — which is why it stays in the controlle
 | GET | `` | `{items,quarters,reference}` |
 | PATCH | `/items/{id}` | `{status,notes}`; 404 if missing; validates status ∈ {not_started,in_progress,done} |
 | POST | `/import` | bulk `{items[],quarters[],reference[]}` |
+
+Import matches by `(type, title)` and updates matched rows **in place**, so a plan item's id
+survives a re-import along with its status, notes and completion date. That matters because focus
+sessions reference those ids: the previous delete-all-and-reinsert was safe only for as long as
+nothing pointed at them. The workbook may seed `notes` onto an item that has none; it can never
+overwrite a note written in the app.
 
 ### `WorkController` — `/api/work`
 | Method | Path | Notes |

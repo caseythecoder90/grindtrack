@@ -17,6 +17,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import dev.grindtrack.tracking.domain.FocusKind;
 import dev.grindtrack.tracking.domain.FocusSession;
 import dev.grindtrack.tracking.service.FocusService;
+import dev.grindtrack.tracking.service.ReadingProgress;
+import dev.grindtrack.tracking.service.ReadingService;
 import dev.grindtrack.web.ApiExceptionHandler;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -40,17 +42,21 @@ class FocusControllerTest {
   private static final String STARTED_AT = "2026-08-26T19:00:00Z";
 
   private FocusService focusService;
+  private ReadingService readingService;
   private MockMvc mvc;
 
   @BeforeEach
   void setUp() {
     focusService = mock(FocusService.class);
+    readingService = mock(ReadingService.class);
+    when(readingService.progress(any()))
+        .thenReturn(new ReadingProgress(0, 0, 4, 0, 0, 0, List.of(), List.of()));
     mvc =
-        MockMvcBuilders.standaloneSetup(new FocusController(focusService))
+        MockMvcBuilders.standaloneSetup(new FocusController(focusService, readingService))
             .setControllerAdvice(new ApiExceptionHandler())
             .build();
 
-    when(focusService.record(any(), any(), anyInt(), anyBoolean(), any()))
+    when(focusService.record(any(), any(), anyInt(), anyBoolean(), any(), any(), any()))
         .thenReturn(
             new FocusSession(DATE, OffsetDateTime.parse(STARTED_AT), 25, true, FocusKind.STUDY));
     when(focusService.sessionsOn(any(), any())).thenReturn(List.of());
@@ -71,7 +77,8 @@ class FocusControllerTest {
         // The frontend's FocusKind union is "study" | "work"; the enum must not leak as STUDY.
         .andExpect(jsonPath("$.kind").value("study"));
 
-    verify(focusService).record(DATE, OffsetDateTime.parse(STARTED_AT), 25, true, FocusKind.STUDY);
+    verify(focusService)
+        .record(DATE, OffsetDateTime.parse(STARTED_AT), 25, true, FocusKind.STUDY, null, null);
   }
 
   @Test
@@ -84,7 +91,7 @@ class FocusControllerTest {
                         .formatted(STARTED_AT)))
         .andExpect(status().isOk());
 
-    verify(focusService).record(any(), any(), eq(25), eq(false), eq(FocusKind.STUDY));
+    verify(focusService).record(any(), any(), eq(25), eq(false), eq(FocusKind.STUDY), any(), any());
   }
 
   @Test
@@ -97,7 +104,7 @@ class FocusControllerTest {
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.error").value(containsString("kind")));
 
-    verify(focusService, never()).record(any(), any(), anyInt(), anyBoolean(), any());
+    verify(focusService, never()).record(any(), any(), anyInt(), anyBoolean(), any(), any(), any());
   }
 
   @Test
