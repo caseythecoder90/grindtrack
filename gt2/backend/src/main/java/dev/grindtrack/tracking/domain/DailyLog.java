@@ -92,15 +92,28 @@ public class DailyLog {
 
   private static final BigDecimal MAX_DAY_HOURS = BigDecimal.valueOf(24);
 
+  /**
+   * Sets the day's hours outright — the number a person typed into the form.
+   *
+   * <p>Separate from {@link #update} because two things write this column with different meanings:
+   * the form sets a total, the focus timer adds to one. Folding the absolute write in with the
+   * notes meant that saving a note re-sent a stale total and silently undid every focus session
+   * logged since the form was loaded — from a second device, that is a real lost update. Now a
+   * caller has to say which of the two it is doing.
+   */
+  public void setHours(BigDecimal hours) {
+    this.hours = hours;
+    this.updatedAt = OffsetDateTime.now();
+  }
+
+  /** The written entry. Deliberately does not touch hours — see {@link #setHours}. */
   public void update(
-      BigDecimal hours,
       List<String> categoryList,
       String focus,
       String did,
       String wins,
       String blockers,
       Integer energy) {
-    this.hours = hours;
     this.categories = categoryList == null ? "" : String.join(",", categoryList);
     this.focus = focus == null ? "" : focus;
     this.did = did == null ? "" : did;

@@ -64,8 +64,10 @@ public class TrackingService {
       String blockers,
       Integer energy) {
 
-    BigDecimal safeHours = hours == null ? BigDecimal.ZERO : hours;
-    if (safeHours.signum() < 0 || safeHours.doubleValue() > 24) {
+    // A null hours means "leave it alone", not zero. It used to mean zero, so any client that
+    // omitted the field wiped the day — and the form omits it now unless you actually edited it,
+    // precisely so that saving a note cannot undo a focus session logged from another device.
+    if (hours != null && (hours.signum() < 0 || hours.doubleValue() > 24)) {
       throw new IllegalArgumentException("hours must be 0-24");
     }
     if (energy != null && (energy < 1 || energy > 5)) {
@@ -79,7 +81,10 @@ public class TrackingService {
     }
 
     DailyLog log = dailyLogs.findById(date).orElseGet(() -> new DailyLog(date));
-    log.update(safeHours, categories, focus, did, wins, blockers, energy);
+    if (hours != null) {
+      log.setHours(hours);
+    }
+    log.update(categories, focus, did, wins, blockers, energy);
     return dailyLogs.save(log);
   }
 

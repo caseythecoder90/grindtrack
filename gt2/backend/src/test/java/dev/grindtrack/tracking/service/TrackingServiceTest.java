@@ -13,6 +13,7 @@ import dev.grindtrack.tracking.domain.WeeklyReviewRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -129,5 +130,36 @@ class TrackingServiceTest {
     assertThat(service.saveDay(DAY, new BigDecimal("3"), null, null, null, null, null, null))
         .isSameAs(existing);
     assertThat(existing.getHours()).isEqualByComparingTo("3");
+  }
+
+  @Test
+  void savingWithoutHoursLeavesTheStoredHoursAlone() {
+    // The lost update this guards: the form loads 2.0, a focus session pushes the stored value
+    // to 2.8, then the form saves a note. Re-sending the stale 2.0 used to wipe the session's
+    // contribution — and from a second device that is exactly what happened.
+    DailyLog existing = new DailyLog(DAY);
+    existing.setHours(new BigDecimal("2.8"));
+    when(dailyLogs.findById(DAY)).thenReturn(Optional.of(existing));
+    when(dailyLogs.save(any())).thenAnswer(i -> i.getArgument(0));
+
+    DailyLog saved =
+        service.saveDay(DAY, null, List.of("java"), "focus", "did", "wins", "blockers", 3);
+
+    assertThat(saved.getHours()).isEqualByComparingTo("2.8");
+    assertThat(saved.getDid()).isEqualTo("did");
+  }
+
+  @Test
+  void anExplicitHoursValueStillWins() {
+    // Typing in the box is a deliberate statement about the day's total, and must be honoured.
+    DailyLog existing = new DailyLog(DAY);
+    existing.setHours(new BigDecimal("2.8"));
+    when(dailyLogs.findById(DAY)).thenReturn(Optional.of(existing));
+    when(dailyLogs.save(any())).thenAnswer(i -> i.getArgument(0));
+
+    DailyLog saved =
+        service.saveDay(DAY, new BigDecimal("4.0"), null, null, null, null, null, null);
+
+    assertThat(saved.getHours()).isEqualByComparingTo("4.0");
   }
 }

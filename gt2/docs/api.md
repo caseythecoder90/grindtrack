@@ -40,12 +40,23 @@ error.
 |---|---|---|
 | GET | `/api/days?from=YYYY-MM-DD&to=YYYY-MM-DD` | Ordered range of daily logs |
 | GET | `/api/days/{date}` | Single day or `null` |
-| PUT | `/api/days/{date}` | Upsert: `{hours, categories[], focus, did, wins, blockers, energy}`. Validates hours 0–24, energy 1–5. |
+| PUT | `/api/days/{date}` | Upsert: `{hours?, categories[], focus, did, wins, blockers, energy}`. Validates hours 0–24, energy 1–5. **Omitting `hours` leaves the stored value alone** — see below. |
 | DELETE | `/api/days/{date}` | Remove a day |
 | GET | `/api/weeks/{date}` | Weekly review; any date normalizes to its Monday |
 | PUT | `/api/weeks/{date}` | Upsert review: `{summary, wins, blockers, adjustments, nextFocus, onTrack}` |
 | GET | `/api/stats` | `{study, work, all}`, each a scope of `{totalHours, daysLogged, streak, daysThisMonth, weeks[12], categories[], days[]}`. All three are computed per request so the UI switches scope without refetching. `days[]` is the 26-week heatmap series. Category hours are split evenly across a day's tags; in `all` the two scopes' category maps are **summed**, not recomputed over merged rows (see backend.md). |
 | GET | `/api/export` | Full JSON dump as a download |
+
+### Hours have two writers
+
+`hours` on a day (study or work) is written two ways with different meanings: the form sets a
+total, and a focus session **adds** to it. An absolute write that re-sends a stale total therefore
+undoes every session logged since the form loaded — across two devices, that is a silent lost
+update.
+
+So `hours` is optional on both upserts: **absent means unchanged**, and the forms omit it unless the
+box was actually edited. It previously meant *zero*, so any client omitting the field wiped the
+day's hours outright.
 
 ## Focus sessions (authenticated)
 
@@ -109,7 +120,7 @@ and lives only in the database — nothing is seeded (the repo is public).
 |---|---|---|
 | GET | `/api/work/days?from=YYYY-MM-DD&to=YYYY-MM-DD` | Ordered range of work-day logs |
 | GET | `/api/work/days/{date}` | Single work day or `null` |
-| PUT | `/api/work/days/{date}` | Upsert: `{hours, categories[], project, goals, did, blockers, learnings}`. Validates hours 0–24. |
+| PUT | `/api/work/days/{date}` | Upsert: `{hours?, categories[], project, goals, did, blockers, learnings}`. Validates hours 0–24. **Omitting `hours` leaves the stored value alone.** |
 | DELETE | `/api/work/days/{date}` | Remove a work day |
 | GET | `/api/work/skills` | Deliberate competency checklist, ordered by `sortOrder` then id |
 | POST | `/api/work/skills` | Create: `{name, category?, detail?}` — name required; status defaults to `not_started` |
