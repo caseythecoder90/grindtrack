@@ -143,4 +143,44 @@ class FocusServiceTest {
 
     assertThat(service.sessionsOn(DATE, FocusKind.WORK)).containsExactly(session);
   }
+
+  @Test
+  void aStudySessionNeverKeepsASubject() {
+    // The bug this guards: the subject lives in the browser's persisted timer config next to
+    // `kind`, and switching kind did not clear it — so an hour of CKAD prep was filed against
+    // a payments book picked for a reading session the day before.
+    when(dailyLogs.findById(DATE)).thenReturn(Optional.empty());
+
+    FocusSession session =
+        service.record(DATE, STARTED_AT, 60, true, FocusKind.STUDY, 7L, "Payments Systems");
+
+    assertThat(session.getPlanItemId()).isNull();
+    assertThat(session.getTopic()).isEmpty();
+  }
+
+  @Test
+  void aWorkSessionNeverKeepsASubjectEither() {
+    when(workLogs.findById(DATE)).thenReturn(Optional.empty());
+
+    FocusSession session =
+        service.record(DATE, STARTED_AT, 60, true, FocusKind.WORK, 7L, "Payments Systems");
+
+    assertThat(session.getPlanItemId()).isNull();
+    assertThat(session.getTopic()).isEmpty();
+  }
+
+  @Test
+  void aLunchSessionKeepsTheSubjectItWasGiven() {
+    when(dailyLogs.findById(DATE)).thenReturn(Optional.empty());
+
+    FocusSession reading =
+        service.record(DATE, STARTED_AT, 40, true, FocusKind.READING, 7L, "DDIA");
+    assertThat(reading.getPlanItemId()).isEqualTo(7L);
+    assertThat(reading.getTopic()).isEqualTo("DDIA");
+
+    FocusSession review =
+        service.record(DATE, STARTED_AT, 40, true, FocusKind.REVIEW, null, "grindtrack");
+    assertThat(review.getPlanItemId()).isNull();
+    assertThat(review.getTopic()).isEqualTo("grindtrack");
+  }
 }

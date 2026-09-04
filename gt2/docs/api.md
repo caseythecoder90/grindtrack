@@ -72,7 +72,13 @@ day's hours outright.
 `daily_logs.hours`, because they are all study. An absent `kind` means `study`; anything else is a
 400 — it used to be coerced to `study`, so a typo filed work hours as study time.
 
-**Subjects.** `reading` and `review` are the lunch kinds and carry what the session went into.
+**Subjects belong to the lunch kinds only.** A `planItemId` or `topic` sent with a `study` or
+`work` session is dropped, not rejected — the service enforces it, so the rule holds however the
+call arrives. The browser sent exactly this once: the subject is persisted in the timer config
+next to `kind` so a reload cannot detach a session from its book, and switching kind did not
+clear it, which filed an hour of cert prep against a payments book.
+
+`reading` and `review` carry what the session went into.
 `planItemId` links to a book/paper/module in the plan; `topic` is the label, snapshotted at write
 time so history stays readable if the workbook later renames or drops the item — and it is the only
 subject a `review` session has, since a repo is not a plan item. `/api/focus/reading` groups by

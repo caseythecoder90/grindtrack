@@ -73,8 +73,15 @@ export const SCOPE_LABELS: Record<Scope, string> = {
  */
 export type FocusKind = "study" | "work" | "reading" | "review";
 
-/** The two lunch kinds, which get their own streak and weekly target. */
-export const LUNCH_KINDS: FocusKind[] = ["reading", "review"];
+/**
+ * The two lunch kinds: they get their own streak and weekly target, and they are the
+ * only kinds that carry a subject. Mirrors FocusKind.isLunch() on the backend, which
+ * enforces the same rule — this copy decides what the UI offers, that one decides what
+ * is stored.
+ */
+export function isLunchKind(kind: FocusKind): boolean {
+  return kind === "reading" || kind === "review";
+}
 
 export const FOCUS_KIND_LABEL: Record<FocusKind, string> = {
   study: "study",

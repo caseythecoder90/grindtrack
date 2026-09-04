@@ -33,3 +33,5 @@ databaseChangeLog:
       file: db/changelog/016-finance-retirement-accounts.sql
   - include:
       file: db/changelog/017-focus-reading.sql
+  - include:
+      file: db/changelog/018-focus-subject-lunch-only.sql
