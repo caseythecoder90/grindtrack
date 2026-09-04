@@ -56,7 +56,15 @@ public class FocusService {
     // be called by any future importer; a null kind must not decide it is the day job.
     FocusKind resolved = kind == null ? FocusKind.STUDY : kind;
     FocusSession session = new FocusSession(date, startedAt, durationMinutes, completed, resolved);
-    session.setSubject(planItemId, topic);
+    // Only a lunch session has a subject. Dropped rather than rejected: a client holding a
+    // stale subject is not making a mistake the user can act on, and a 400 there would block
+    // a session that is otherwise perfectly valid. Enforced here rather than in the controller
+    // because it is a fact about a focus session, not about a request -- the browser sent
+    // exactly this for a study session once, and filed an hour of CKAD prep against a
+    // payments book.
+    if (resolved.isLunch()) {
+      session.setSubject(planItemId, topic);
+    }
     session = sessions.save(session);
     BigDecimal hours = BigDecimal.valueOf(durationMinutes).divide(SIXTY, 1, RoundingMode.HALF_UP);
     if (resolved.isDayJob()) {

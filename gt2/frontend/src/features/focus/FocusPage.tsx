@@ -8,6 +8,7 @@ import { todayISO } from "../../lib/dates";
 import { getPlan } from "../plan/planApi";
 import {
   FOCUS_KIND_LABEL,
+  isLunchKind,
   LUNCH_DEFAULTS,
   type FocusKind,
   type FocusSession,
@@ -24,10 +25,6 @@ interface Props {
 
 /** Books, papers and modules still open — the only plan types you read at a desk. */
 const READABLE_TYPES = ["book", "paper", "module"];
-
-function isLunch(kind: FocusKind): boolean {
-  return kind === "reading" || kind === "review";
-}
 
 /**
  * Pomodoro timer screen. Timer mechanics live in timer.ts (pure state machine) and
@@ -85,11 +82,13 @@ export default function FocusPage({ onLogged }: Props) {
           durationMinutes: minutes,
           completed,
           kind: k,
-          planItemId: subject.current.planItemId,
-          topic: subject.current.topic,
+          // Guarded rather than trusted: a config persisted by a build before the fix
+          // above still holds a stale subject, and it must not reach a study session.
+          planItemId: isLunchKind(k) ? subject.current.planItemId : null,
+          topic: isLunchKind(k) ? subject.current.topic : "",
         });
         setError("");
-        if (isLunch(k)) {
+        if (isLunchKind(k)) {
           setPending(saved);
           setTakeaway("");
           loadProgress();
@@ -122,11 +121,20 @@ export default function FocusPage({ onLogged }: Props) {
   }
 
   /** Switching to or from a lunch kind also switches the shape of the session. */
+  /**
+   * Switching kind always clears the subject.
+   *
+   * The subject lives in the persisted timer config, alongside `kind`, so that a reload
+   * mid-session cannot detach the minutes from the book they belong to. The cost of that
+   * is that it also survives a change of kind — so picking a book for a reading session
+   * and later starting a study session filed the study session against the book, and
+   * showed its title on the running timer. Changing what a session is changes what it is
+   * about, and a reading subject is meaningless to a code review anyway.
+   */
   function changeKind(next: FocusKind) {
+    const cleared = { kind: next, planItemId: null, topic: "" };
     timer.setConfig(
-      isLunch(next) && !isLunch(kind)
-        ? { kind: next, ...LUNCH_DEFAULTS }
-        : { kind: next },
+      isLunchKind(next) && !isLunchKind(kind) ? { ...cleared, ...LUNCH_DEFAULTS } : cleared,
     );
   }
 
@@ -170,7 +178,7 @@ export default function FocusPage({ onLogged }: Props) {
               ]}
             />
 
-            {isLunch(kind) && (
+            {isLunchKind(kind) && (
               <LunchSubject
                 kind={kind}
                 planItemId={cfg.planItemId}
@@ -213,7 +221,9 @@ export default function FocusPage({ onLogged }: Props) {
                 ? `${FOCUS_KIND_LABEL[kind]} · session ${state.sessionIndex + 1} of ${cfg.sessions}${paused ? " · paused" : ""}`
                 : "break — step away from the desk"}
             </div>
-            {cfg.topic && <div className="muted small">{cfg.topic}</div>}
+            {isLunchKind(kind) && cfg.topic && (
+              <div className="muted small">{cfg.topic}</div>
+            )}
             <div className={"timer" + (state.phase === "break" ? " break" : "")}>{clock}</div>
             <div className="dots">
               {Array.from({ length: cfg.sessions }, (_, i) => (
@@ -275,15 +285,21 @@ export default function FocusPage({ onLogged }: Props) {
         ) : (
           <table>
             <thead>
-              <tr><th style={{ width: 110 }}>started</th><th style={{ width: 80 }}>minutes</th><th>status</th></tr>
+              <tr>
+                <th style={{ width: 110 }}>started</th>
+                <th style={{ width: 80 }}>minutes</th>
+                <th>subject</th>
+                <th style={{ width: 110 }}>status</th>
+              </tr>
             </thead>
             <tbody>
               {sessions.map((s) => (
                 <tr key={s.id}>
                   <td className="num">{new Date(s.startedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</td>
                   <td className="num">{s.durationMinutes}</td>
+                  <td>{s.topic || <span className="muted">—</span>}</td>
                   <td className={s.completed ? "" : "muted"}>
-                    {s.topic || (s.completed ? "completed" : "ended early")}
+                    {s.completed ? "completed" : "ended early"}
                   </td>
                 </tr>
               ))}
