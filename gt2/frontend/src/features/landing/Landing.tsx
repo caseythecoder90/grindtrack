@@ -19,7 +19,7 @@ export default function Landing({ onLoginClick }: Props) {
   return (
     <>
       <p className="sub">
-        A 4-year engineering study plan, tracked in public: Kubernetes → protocols → distributed
+        A 5-year engineering study plan, tracked in public: Kubernetes → protocols → distributed
         systems → payments. Green squares are hours logged before work and on weekends.
       </p>
       {stats && (

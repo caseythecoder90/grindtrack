@@ -11,8 +11,8 @@ import java.time.OffsetDateTime;
 
 /**
  * A single actionable item, tagged {@code work} or {@code personal} so the list can be filtered to
- * one side of the day. Deliberately separate from {@code plan_items}: those are the fixed 4-year
- * roadmap (certs, books, projects), while these are short-lived and user-created.
+ * one side of the day. Deliberately separate from {@code plan_items}: those are the fixed
+ * multi-year roadmap (certs, books, projects), while these are short-lived and user-created.
  */
 @Entity
 @Table(name = "todos")

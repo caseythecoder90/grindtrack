@@ -1,6 +1,6 @@
 import type { PlanItem, PlanQuarter, ReadingSubject } from "../../lib/types";
 import ItemRow from "./ItemRow";
-import { byTarget, doneCount, progressPercent, YEAR_WINDOW } from "./planModel";
+import { byTarget, doneCount, progressPercent, yearWindow } from "./planModel";
 
 interface Props {
   year: number;
@@ -34,7 +34,7 @@ export default function YearPanel({
   return (
     <div className="panel yearpanel">
       <h2>
-        year {year} · {YEAR_WINDOW[year]} · {yearDone}/{allYear.length} done
+        year {year} · {yearWindow(year)} · {yearDone}/{allYear.length} done
       </h2>
       <div className="progress">
         <i style={{ width: `${progressPercent(yearDone, allYear.length)}%` }} />

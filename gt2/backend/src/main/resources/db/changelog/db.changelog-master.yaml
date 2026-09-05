@@ -35,3 +35,5 @@ databaseChangeLog:
       file: db/changelog/017-focus-reading.sql
   - include:
       file: db/changelog/018-focus-subject-lunch-only.sql
+  - include:
+      file: db/changelog/019-plan-year5.sql

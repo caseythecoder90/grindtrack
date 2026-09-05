@@ -16,12 +16,29 @@ export const TYPE_LABEL: Record<PlanItemType, string> = {
 
 export const TYPES = Object.keys(TYPE_LABEL) as PlanItemType[];
 
-export const YEAR_WINDOW: Record<number, string> = {
-  1: "Jul 2026 – Jun 2027",
-  2: "Jul 2027 – Jun 2028",
-  3: "Jul 2028 – Jun 2029",
-  4: "Jul 2029 – Jun 2030",
-};
+/** Plan year 1 is Jul 2026 – Jun 2027; every later year is the same window shifted. */
+export const PLAN_START_YEAR = 2026;
+
+export function yearWindow(year: number): string {
+  const from = PLAN_START_YEAR + year - 1;
+  return `Jul ${from} – Jun ${from + 1}`;
+}
+
+/**
+ * The plan years to render, 1..N, where N is the highest year any item or quarter
+ * carries. The workbook decides how long the plan is; the UI does not hardcode it.
+ */
+export function planYears(
+  items: { yearNum: number | null }[],
+  quarters: { yearNum: number }[],
+): number[] {
+  const last = Math.max(
+    0,
+    ...items.map((i) => i.yearNum ?? 0),
+    ...quarters.map((q) => q.yearNum),
+  );
+  return Array.from({ length: last }, (_, i) => i + 1);
+}
 
 /** Clicking a status chip advances not_started → in_progress → done → not_started. */
 export const NEXT_STATUS: Record<PlanStatus, PlanStatus> = {

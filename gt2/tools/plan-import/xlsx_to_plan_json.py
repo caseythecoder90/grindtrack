@@ -1,4 +1,4 @@
-"""Converts the 4-Year Engineering Career Plan workbook into plan.json for POST /api/plan/import.
+"""Converts the Engineering Career Plan workbook (any number of plan years) into plan.json for POST /api/plan/import.
 
 Usage:
     pip install openpyxl
@@ -124,7 +124,7 @@ def main():
             year = None
             if target_date:
                 y, m = int(target_date[:4]), int(target_date[5:7])
-                year = min(3, max(1, (y - PLAN_START[0]) + (1 if m >= 7 else 0)))
+                year = max(1, (y - PLAN_START[0]) + (1 if m >= 7 else 0))
             add("cert", r[0], details, r[1], target_date, year, None, None, status_of(r[6]))
 
     # --- Protocols & Security: Module | When | Concepts | RFCs | Lab | Ties Into | Status

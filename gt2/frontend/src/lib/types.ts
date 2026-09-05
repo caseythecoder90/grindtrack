@@ -147,7 +147,7 @@ export const FOCUS_DEFAULTS = {
 /** A lunch break is one session, and it is shorter than a study block. */
 export const LUNCH_DEFAULTS = { sessions: 1, focusMin: 40, breakMin: 5 };
 
-// --- 4-year plan ------------------------------------------------------------
+// --- multi-year plan ---------------------------------------------------------
 
 export type PlanItemType = "milestone" | "cert" | "module" | "book" | "paper" | "project";
 export type PlanStatus = "not_started" | "in_progress" | "done";
