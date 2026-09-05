@@ -108,7 +108,7 @@ runtime via the import endpoint from a locally generated `plan.json`
 ## Todos (authenticated)
 
 Short-lived actionable items, tagged `work` or `personal` so the list can be filtered to one side
-of the day. Separate from the Plan, which is the fixed 4-year roadmap.
+of the day. Separate from the Plan, which is the fixed multi-year roadmap.
 
 | Method | Path | Notes |
 |---|---|---|

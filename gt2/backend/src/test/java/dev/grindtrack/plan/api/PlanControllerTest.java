@@ -93,9 +93,9 @@ class PlanControllerTest {
   void importRejectsAQuarterOutOfRange() throws Exception {
     postImport(
             "{\"items\": [{\"type\": \"cert\", \"title\": \"T\"}],"
-                + " \"quarters\": [{\"qtr\": 17, \"windowLabel\": \"W\"}]}")
+                + " \"quarters\": [{\"qtr\": 21, \"windowLabel\": \"W\"}]}")
         .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.error").value("quarters need qtr 1-16 and a windowLabel"));
+        .andExpect(jsonPath("$.error").value("quarters need qtr 1-20 and a windowLabel"));
   }
 
   @Test

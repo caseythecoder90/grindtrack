@@ -321,6 +321,7 @@ Schema **`grindtrack`**; Hibernate is `validate`-only, so Liquibase is the singl
   - `003-focus-sessions.sql` — `focus_sessions` (CHECK duration 1–1440, + index)
   - `004-plan.sql` — `plan_quarters`, `plan_items` (CHECKs + index), `plan_reference`
   - `005-plan-year4.sql` — widen year/qtr CHECKs to 4 years / 16 quarters
+  - `019-plan-year5.sql` — widen them again to 5 years / 20 quarters
   - `006-plan-paper.sql` — add `paper` to the `plan_items` item_type CHECK
   - `007-work.sql` — `work_logs` (CHECK hours 0–24), `work_skills` (status CHECK)
   - `008-focus-kind.sql` — add `kind` (study/work) to `focus_sessions` (CHECK)

@@ -31,7 +31,7 @@ function dueLabel(dueDate: string): string {
 /**
  * The todo list. Short-lived items tagged work or personal, so the same list can
  * be narrowed to whichever half of the day you're in — separate from the Plan
- * tab, which is the fixed 4-year roadmap.
+ * tab, which is the fixed multi-year roadmap.
  */
 export default function TodoPage() {
   const [todos, setTodos] = useState<Todo[]>([]);

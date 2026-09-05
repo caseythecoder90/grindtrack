@@ -10,10 +10,10 @@ import ItemRow from "./ItemRow";
 import PlanHeader from "./PlanHeader";
 import Reference from "./Reference";
 import YearPanel from "./YearPanel";
-import { byTarget, NEXT_STATUS } from "./planModel";
+import { byTarget, NEXT_STATUS, planYears } from "./planModel";
 
 /**
- * 4-year plan tracker. Loads the imported plan, then delegates rendering to
+ * Multi-year plan tracker. Loads the imported plan, then delegates rendering to
  * PlanHeader (progress + filters), YearPanel (one per year), and ItemRow;
  * all mutations (status cycling, notes, re-import) live here.
  */
@@ -128,7 +128,7 @@ export default function PlanPage() {
         <Reference sheets={data.reference} />
       ) : (
         <>
-          {[1, 2, 3, 4].map((year) => (
+          {planYears(items, data.quarters).map((year) => (
             <YearPanel key={year} year={year} shown={shown} all={items}
               quarters={data.quarters} quartersOpen={openQuarters}
               onToggleQuarters={() => setOpenQuarters(!openQuarters)}

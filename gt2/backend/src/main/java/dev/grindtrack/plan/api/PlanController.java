@@ -36,6 +36,10 @@ public class PlanController {
   private static final Set<String> ITEM_TYPES =
       Set.of("milestone", "cert", "module", "book", "paper", "project");
   private static final Set<String> STATUSES = Set.of("not_started", "in_progress", "done");
+
+  /** Five plan years of four quarters — the widest the schema allows (migration 019). */
+  private static final int MAX_QUARTERS = 20;
+
   private static final int MAX_NOTES_CHARS = 10_000;
 
   private final PlanService planService;
@@ -120,8 +124,8 @@ public class PlanController {
     }
     List<PlanQuarter> result = new ArrayList<>();
     for (ImportQuarter q : quarters) {
-      if (q.qtr() == null || q.qtr() < 1 || q.qtr() > 16 || q.windowLabel() == null) {
-        throw new BadRequestException("quarters need qtr 1-16 and a windowLabel");
+      if (q.qtr() == null || q.qtr() < 1 || q.qtr() > MAX_QUARTERS || q.windowLabel() == null) {
+        throw new BadRequestException("quarters need qtr 1-" + MAX_QUARTERS + " and a windowLabel");
       }
       result.add(
           new PlanQuarter(

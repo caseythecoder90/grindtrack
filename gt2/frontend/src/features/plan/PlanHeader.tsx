@@ -1,5 +1,5 @@
 import type { PlanItem, PlanItemType } from "../../lib/types";
-import { doneCount, progressPercent, TYPE_LABEL, TYPES } from "./planModel";
+import { doneCount, planYears, progressPercent, TYPE_LABEL, TYPES } from "./planModel";
 
 interface Props {
   items: PlanItem[];
@@ -17,10 +17,11 @@ export default function PlanHeader({
   const done = doneCount(items);
   const milestones = items.filter((i) => i.type === "milestone");
   const milestonesDone = doneCount(milestones);
+  const years = planYears(items, []).length;
 
   return (
     <div className="panel">
-      <h2>4-year plan · {milestonesDone}/{milestones.length} milestones · {done}/{items.length} items done</h2>
+      <h2>{years}-year plan · {milestonesDone}/{milestones.length} milestones · {done}/{items.length} items done</h2>
       <div className="progress">
         <i style={{ width: `${progressPercent(done, items.length)}%` }} />
       </div>
