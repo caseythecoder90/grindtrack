@@ -24,16 +24,21 @@ import org.springframework.transaction.annotation.Transactional;
 public class AuthService {
 
   /**
-   * How long after a rotation the superseded token is still treated as a race rather than as theft.
+   * How long after a rotation the superseded token is still accepted as a race rather than treated
+   * as theft.
    *
-   * <p>A legitimate client presents an already-rotated token in two ordinary situations: two
-   * windows sharing one cookie jar refresh at the same moment, and a rotation whose response never
-   * reached the client (a pod replaced mid-deploy, a phone suspended). Both land within a second or
-   * two of the rotation they lost. A replay by someone holding a stolen cookie has no such
-   * deadline, so a minute separates the two cases with room to spare while leaving the cascade in
-   * force for anything later.
+   * <p>Generous, and it can afford to be now that rotation happens once a day rather than on every
+   * renewal. What a client actually does when a rotation goes wrong is hold the old token until the
+   * next time it needs one, and "the next time" can be tomorrow morning. A minute covered two
+   * browser windows racing each other and nothing else -- not a phone that suspended mid-request,
+   * and not a rotation whose response died with the pod that was being replaced.
+   *
+   * <p>What is given up is narrow: someone holding a stolen cookie who replays it inside a day of
+   * its rotation gets a session. They would have had one anyway, because the cookie they stole was
+   * live until it rotated. What is bought is that the honest owner is not signed out of every
+   * device by a dropped packet.
    */
-  private static final Duration ROTATION_GRACE = Duration.ofMinutes(1);
+  private static final Duration ROTATION_GRACE = Duration.ofHours(24);
 
   private final UserRepository users;
   private final RefreshTokenRepository refreshTokens;
@@ -73,44 +78,75 @@ public class AuthService {
   }
 
   /**
-   * Rotation: validate the presented token, revoke it, issue a replacement.
+   * Renew a session from the token presented in the cookie.
    *
-   * <p>A refresh token is single-use. Presenting one that has already been rotated away is treated
-   * as theft once it is outside {@link #ROTATION_GRACE}: every live token for that user is revoked,
-   * forcing a fresh password+TOTP login everywhere. Inside the window it is treated as the race it
-   * almost certainly is, and the caller gets a token of its own.
+   * <p>Renewing is not the same as rotating, and conflating them is what made this app ask for a
+   * password and a TOTP code every day or so. The access cookie lasts minutes and the session lasts
+   * months, but the only way to mint a new access cookie was to spend the session token -- so an
+   * ordinary day burned dozens of rotations, and every one of them was a chance for the response to
+   * be lost and the client to be left holding something the server had already revoked. A phone
+   * suspending mid-request or a pod replaced mid-deploy was enough.
+   *
+   * <p>So a renewal now slides the session's expiry and hands the same token back. The token is
+   * only replaced once it is older than {@code refresh-rotate-hours}, which turns thousands of
+   * rotations a year into a few hundred, each one far likelier to complete. This is the ordinary
+   * shape of a first-party web session: use it and it stays alive, abandon it for the whole window
+   * and it dies.
+   *
+   * <p>Rotation is kept rather than dropped because it still bounds how long a token that leaked is
+   * worth anything, and because the session is revocable either way -- it is a hash in a table, not
+   * a bearer JWT.
    */
   @Transactional
-  public Optional<RotatedTokens> rotate(String presentedToken) {
-    return refreshTokens.findByTokenHash(sha256(presentedToken)).flatMap(this::rotateStoredToken);
+  public Optional<RenewedSession> renew(String presentedToken) {
+    return refreshTokens
+        .findByTokenHash(sha256(presentedToken))
+        .flatMap(stored -> renewStored(stored, presentedToken));
   }
 
-  private Optional<RotatedTokens> rotateStoredToken(RefreshToken stored) {
+  private Optional<RenewedSession> renewStored(RefreshToken stored, String presentedToken) {
     if (stored.isRevoked()) {
       if (!withinRotationGrace(stored)) {
         revokeAllForUser(stored.getUserId());
         return Optional.empty();
       }
-      // The loser of a rotation race gets a token of its own rather than the winner's: only the
-      // hash of a token is stored, so the winner's cannot be handed out a second time even in
-      // principle. Several live tokens for one user is already the normal state across devices.
+      // Lost the race, or never heard the answer to the rotation it won. Give it one of its own:
+      // only the hash of a token is stored, so the successor cannot be handed out twice even in
+      // principle, and several live tokens for one user is already normal across devices.
       return issueFor(stored.getUserId());
     }
     if (isExpired(stored)) {
       return Optional.empty();
     }
-    stored.markRotated(OffsetDateTime.now());
+    if (dueForRotation(stored)) {
+      stored.markRotated(OffsetDateTime.now());
+      refreshTokens.save(stored);
+      return issueFor(stored.getUserId());
+    }
+    stored.renewUntil(OffsetDateTime.now().plusDays(props.refreshTokenDays()));
     refreshTokens.save(stored);
-    return issueFor(stored.getUserId());
-  }
-
-  private Optional<RotatedTokens> issueFor(Long userId) {
-    return users.findById(userId).map(u -> new RotatedTokens(u, issueRefreshToken(u)));
+    return users.findById(stored.getUserId()).map(u -> new RenewedSession(u, presentedToken));
   }
 
   /**
-   * True for a token rotated away moments ago. A token revoked by logout carries no rotation
-   * instant and is never in grace: presenting one is not a race.
+   * Age, not use. Rotating on a clock rather than on every renewal is the whole point: it makes the
+   * number of rotations a function of how long you have been signed in rather than of how often you
+   * open the app.
+   */
+  private boolean dueForRotation(RefreshToken stored) {
+    OffsetDateTime issuedAt = stored.getCreatedAt();
+    // A row from before this column was written by the application. Rotate it and move on.
+    return issuedAt == null
+        || issuedAt.plusHours(props.refreshRotateHours()).isBefore(OffsetDateTime.now());
+  }
+
+  private Optional<RenewedSession> issueFor(Long userId) {
+    return users.findById(userId).map(u -> new RenewedSession(u, issueRefreshToken(u)));
+  }
+
+  /**
+   * True for a token rotated away recently. A token revoked by logout carries no rotation instant
+   * and is never in grace: presenting one is not a race.
    */
   private static boolean withinRotationGrace(RefreshToken stored) {
     OffsetDateTime rotatedAt = stored.getRotatedAt();
@@ -153,5 +189,9 @@ public class AuthService {
     }
   }
 
-  public record RotatedTokens(User user, String newRefreshToken) {}
+  /**
+   * @param sessionToken what belongs in the cookie now -- the same token when the session was
+   *     merely renewed, a new one when it was rotated. The caller does not need to know which.
+   */
+  public record RenewedSession(User user, String sessionToken) {}
 }

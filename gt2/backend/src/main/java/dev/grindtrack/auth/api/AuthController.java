@@ -66,8 +66,8 @@ public class AuthController {
       return unauthorized("No refresh token.");
     }
     return authService
-        .rotate(presented)
-        .map(rotated -> sessionResponse(rotated.user(), rotated.newRefreshToken()))
+        .renew(presented)
+        .map(renewed -> sessionResponse(renewed.user(), renewed.sessionToken()))
         .orElseGet(() -> unauthorized("Refresh token invalid."));
   }
 

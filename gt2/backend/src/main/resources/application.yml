@@ -29,8 +29,18 @@ preliquibase:
 
 grindtrack:
   jwt-secret: ${JWT_SECRET:dev-only-secret-change-me-dev-only-secret-change-me}
-  access-token-minutes: 15
-  refresh-token-days: 14
+  # The access cookie is the one on the wire constantly, so it stays short. Thirty minutes
+  # rather than fifteen halves the renewals without meaningfully widening the window in which a
+  # stolen access token is worth anything -- it is not revocable, which is why it expires fast.
+  access-token-minutes: 30
+  # The session. Sliding: every renewal pushes it out again, so an app opened most days never
+  # expires and one abandoned for three months does. Fourteen days meant a fortnight away from
+  # the ThinkPad cost a full password and TOTP login on it.
+  refresh-token-days: 90
+  # How old a session token gets before it is replaced rather than merely renewed. Daily, so a
+  # leaked token stops working within a day, while an ordinary week costs seven rotations instead
+  # of several hundred.
+  refresh-rotate-hours: 24
   cookie-secure: ${COOKIE_SECURE:false}
   bootstrap-username: ${GRINDTRACK_USERNAME:}
   bootstrap-password: ${GRINDTRACK_PASSWORD:}
