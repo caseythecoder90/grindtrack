@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import BottomNav from "./components/BottomNav";
 import Heatmap from "./components/Heatmap";
 import StatBar from "./components/StatBar";
 import { logout as endSession, me } from "./features/auth/authApi";
@@ -15,12 +16,10 @@ import Week from "./features/tracking/Week";
 import TodoPage from "./features/todo/TodoPage";
 import WorkPage from "./features/work/WorkPage";
 import { AuthError } from "./lib/api";
+import { TABS, type Tab } from "./lib/tabs";
 import type { Scope, Stats } from "./lib/types";
 
 type View = "landing" | "login" | "app";
-type Tab = "today" | "focus" | "todos" | "plan" | "work" | "money" | "us" | "week" | "stats";
-
-const TABS: Tab[] = ["today", "focus", "todos", "plan", "work", "money", "us", "week", "stats"];
 
 const SCOPE_KEY = "gt-scope";
 
@@ -92,6 +91,9 @@ export default function App() {
               <Heatmap study={stats.study.days} work={stats.work.days} scope={scope} />
             </>
           )}
+          {/* Two navigations, one at a time: styles.css shows the strip to a mouse
+              and the bar to a thumb. Both render, so neither needs a resize listener,
+              and display:none keeps the hidden one out of the accessibility tree. */}
           <nav className="tabs" aria-label="Sections">
             {TABS.map((t) => (
               <button key={t} className={tab === t ? "active" : ""}
@@ -110,6 +112,7 @@ export default function App() {
           {tab === "us" && <RelationshipPage />}
           {tab === "week" && <Week />}
           {tab === "stats" && stats && <StatsPage stats={stats} scope={scope} />}
+          <BottomNav tab={tab} onTab={setTab} />
         </>
       )}
     </div>
