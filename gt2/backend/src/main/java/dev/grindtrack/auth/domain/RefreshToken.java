@@ -32,6 +32,15 @@ public class RefreshToken {
   @Column(nullable = false)
   private boolean revoked;
 
+  /**
+   * When this token was exchanged for a successor, or null if it is live or was revoked by an
+   * explicit logout. Rotation and logout both set {@code revoked}; only rotation sets this, and
+   * only rotation earns the grace window in {@link
+   * dev.grindtrack.auth.service.AuthService#rotate(String)}.
+   */
+  @Column(name = "rotated_at")
+  private OffsetDateTime rotatedAt;
+
   protected RefreshToken() {}
 
   public RefreshToken(Long userId, String tokenHash, OffsetDateTime expiresAt) {
@@ -53,7 +62,24 @@ public class RefreshToken {
     return revoked;
   }
 
+  public OffsetDateTime getRotatedAt() {
+    return rotatedAt;
+  }
+
+  /** Ends the token for good: an explicit logout, or the reuse cascade. No grace follows. */
   public void revoke() {
     this.revoked = true;
+  }
+
+  /**
+   * Ends the token because a successor was issued for it.
+   *
+   * <p>Separate from {@link #revoke()} on purpose. Both leave the token unusable, but only this one
+   * records an instant, and only tokens with that instant are eligible for the grace window.
+   * Presenting a logged-out token is not a race and must not be treated as one.
+   */
+  public void markRotated(OffsetDateTime at) {
+    this.revoked = true;
+    this.rotatedAt = at;
   }
 }
