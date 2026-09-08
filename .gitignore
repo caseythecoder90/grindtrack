@@ -37,3 +37,7 @@ node_modules/
 # Claude Design working files. The canvas lives on the published artifact; the seeded
 # .html carries a ~2 MB editor payload that has no business in git history.
 .design/
+
+# Standalone tool deps. Each tool under gt2/tools/ installs its own; the frontend
+# and backend builds must not pay for them.
+gt2/tools/*/node_modules/

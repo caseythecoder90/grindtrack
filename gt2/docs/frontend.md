@@ -263,10 +263,19 @@ Three rules in there are not obvious and should not be "tidied up":
   tall as its own text: a 28px target inside a 52px row, with dead space above and below that
   looked tappable and was not.
 
-Verified by measuring the rendered page rather than reading the CSS: 627 interactive elements
-across all nine tabs at 390×844 with touch emulation, all at or above 44px, and the same probe at
-1440×900 with a fine pointer confirming desktop sizing is unchanged. The only elements below the
-floor are the native checkboxes at 22×22, whose 254×44 label is the actual target.
+Verified by measuring the rendered page rather than reading the CSS. That check is committed as
+[`gt2/tools/touch-audit`](../tools/touch-audit/README.md) — it drives the running app in a phone
+context, measures every interactive element on every tab, and exits non-zero on anything under the
+floor:
+
+```
+cd gt2/tools/touch-audit && npm install && npx playwright install chromium
+GT_USERNAME=… GT_PASSWORD=… GT_TOTP_SECRET=… npm run audit
+```
+
+It lives in its own package rather than in `frontend/` because Playwright downloads a browser on
+install and the frontend's `npm ci` runs on every CI build. It is not wired into CI: it needs a
+running app and real credentials.
 
 ## Installable app (PWA)
 
