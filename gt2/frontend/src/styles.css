@@ -715,6 +715,34 @@ h4 { font-size: var(--fs-small); font-weight: 600; color: var(--muted); margin: 
      status-and-kind on the left, when-it-is-due on the right. */
   .plan-target { margin-left: auto; }
 
+  /* --- tables --------------------------------------------------------------
+     A four-column table in 323px gives each column about eighty pixels, and
+     eighty pixels of a sentence is twelve lines of one or two words. Measured
+     on the week view: every row 236px tall, every cell wrapped twelve times.
+
+     Marked tables become one block per row instead, each cell on its own full
+     width line with its column name in front of it. The header row goes,
+     because it has been moved into the rows themselves.
+
+     Opt-in rather than applied to every table: the money tables are columns of
+     right-aligned figures that genuinely want to stay a grid, and would read
+     worse stacked. */
+  table.stacked, table.stacked tbody, table.stacked tr, table.stacked td { display: block; }
+  table.stacked thead { display: none; }
+  table.stacked tr { border-bottom: 1px solid var(--line); padding: 9px 0; }
+  table.stacked tr:last-child { border-bottom: none; }
+  table.stacked td { border: none; padding: 2px 0; }
+  /* The column name, from the markup rather than from the vanished header. A cell with
+     nothing to say is dropped entirely rather than left as a stray label. */
+  table.stacked td[data-label]::before {
+    content: attr(data-label) " ";
+    font-family: var(--mono); font-size: var(--fs-label); letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  table.stacked td:empty { display: none; }
+  /* The first cell is the row's name — day, time, subject — so it leads without a label. */
+  table.stacked td:first-child { font-weight: 600; padding-bottom: 4px; }
+
   /* Fixed at 38px wide, which is narrower than the floor and the only reason
      these were ever hard to hit. Filling the row is both bigger and tidier. */
   .energy button { width: auto; flex: 1; min-width: 44px; }
@@ -808,7 +836,13 @@ h4 { font-size: var(--fs-small); font-weight: 600; color: var(--muted); margin: 
   /* The swap. The strip goes, the bar arrives, and .wrap gives back the height
      the bar now covers — a fixed element is out of flow, so without this the last
      panel on every page sits underneath it. */
-  nav.tabs { display: none; }
+  /* Only the top-level strip, which the bar replaces. `nav.tabs` also matches the work
+     page's own day/week/skills navigation (`tabs sub`), and hiding that left the work tab
+     showing the daily log with no way to reach the week or the skills list at all. */
+  nav.tabs:not(.sub) { display: none; }
+  /* The sub-nav stays, and gets room to be tapped. */
+  nav.tabs.sub { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  nav.tabs.sub button { min-height: 44px; padding: 0 14px; }
   .bottomnav {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
     display: grid; grid-template-columns: repeat(5, 1fr);

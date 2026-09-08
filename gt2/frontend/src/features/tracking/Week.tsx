@@ -64,7 +64,7 @@ export default function Week() {
         <button onClick={() => setWeekStart(mondayOf(todayISO()))}>this week</button>
       </div>
       <WeekTotals weekStart={weekStart} />
-      <table>
+      <table className="stacked">
         <thead>
           <tr><th style={{ width: 110 }}>day</th><th style={{ width: 60 }}>hrs</th>
             <th style={{ width: 180 }}>categories</th><th>what happened</th></tr>
@@ -76,9 +76,9 @@ export default function Week() {
             return (
               <tr key={date} className={date === todayISO() ? "today-row" : ""}>
                 <td className="num">{name} <span className="muted">{date.slice(5)}</span></td>
-                <td className="num">{d ? d.hours.toFixed(1) : "—"}</td>
-                <td className="muted">{d?.categories.join(", ") ?? ""}</td>
-                <td>{(d?.did || d?.focus || "").slice(0, 140)}</td>
+                <td className="num" data-label="hrs">{d ? d.hours.toFixed(1) : "—"}</td>
+                <td className="muted" data-label="categories">{d?.categories.join(", ") ?? ""}</td>
+                <td data-label="did">{(d?.did || d?.focus || "").slice(0, 140)}</td>
               </tr>
             );
           })}

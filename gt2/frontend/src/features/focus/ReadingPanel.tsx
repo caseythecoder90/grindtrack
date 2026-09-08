@@ -56,7 +56,7 @@ export default function ReadingPanel({ progress }: Props) {
       {progress.subjects.length === 0 ? (
         <div className="empty">nothing yet — start a reading or review session</div>
       ) : (
-        <table>
+        <table className="stacked">
           <thead>
             <tr>
               <th>subject</th>
@@ -74,9 +74,9 @@ export default function ReadingPanel({ progress }: Props) {
                   </span>{" "}
                   {s.label}
                 </td>
-                <td className="num">{s.sessions}</td>
-                <td className="num">{s.hours.toFixed(1)}</td>
-                <td className="muted num">{s.lastOn}</td>
+                <td className="num" data-label="sessions">{s.sessions}</td>
+                <td className="num" data-label="hours">{s.hours.toFixed(1)}</td>
+                <td className="muted num" data-label="last">{s.lastOn}</td>
               </tr>
             ))}
           </tbody>

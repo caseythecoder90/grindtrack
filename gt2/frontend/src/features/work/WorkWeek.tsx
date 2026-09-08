@@ -39,7 +39,7 @@ export default function WorkWeek() {
         <button onClick={() => setWeekStart(mondayOf(todayISO()))}>this week</button>
       </div>
       <WeekTotals weekStart={weekStart} />
-      <table>
+      <table className="stacked">
         <thead>
           <tr>
             <th style={{ width: 110 }}>day</th>
@@ -55,9 +55,9 @@ export default function WorkWeek() {
             return (
               <tr key={date} className={date === todayISO() ? "today-row" : ""}>
                 <td className="num">{name} <span className="muted">{date.slice(5)}</span></td>
-                <td className="num">{d ? d.hours.toFixed(1) : "—"}</td>
-                <td className="muted">{d?.project ?? ""}</td>
-                <td>{(d?.did || d?.goals || "").slice(0, 140)}</td>
+                <td className="num" data-label="hrs">{d ? d.hours.toFixed(1) : "—"}</td>
+                <td className="muted" data-label="project">{d?.project ?? ""}</td>
+                <td data-label="did">{(d?.did || d?.goals || "").slice(0, 140)}</td>
               </tr>
             );
           })}
