@@ -49,7 +49,12 @@
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: var(--fs-body); line-height: 1.5; }
-.wrap { max-width: 1040px; margin: 0 auto; padding: 20px 20px 64px; }
+/* The top inset is zero everywhere except an installed iOS app: `black-translucent`
+   (index.html) hands the web view the whole screen, status bar included, so
+   without this the brand line renders underneath the clock. Safari itself keeps
+   the inset at 0 in portrait, because its own chrome already covers that strip. */
+.wrap { max-width: 1040px; margin: 0 auto;
+  padding: calc(20px + env(safe-area-inset-top)) 20px 64px; }
 
 /* Ink for text that names a series beside a coloured mark. */
 .study-ink { color: var(--study); }
@@ -162,6 +167,21 @@ select { cursor: pointer; }
 
 input[type="checkbox"] { width: auto; accent-color: var(--cyan); cursor: pointer; }
 
+/* Safari draws its own control inside a date or time input unless the appearance
+   is reset, sized by its own metrics rather than the border we drew around it —
+   which is why the date bar hangs out of its box on an iPhone and looks fine in
+   every desktop browser. min-width:0 is the other half: a grid item defaults to
+   min-width:auto, so the native control's intrinsic width, larger than Blink's,
+   pushes the whole field past its track. */
+input[type="date"], input[type="time"], input[type="datetime-local"] {
+  -webkit-appearance: none; appearance: none; min-width: 0;
+}
+/* The shadow element holding the value. Safari centres it and gives it a margin
+   of its own, which is the rest of the misalignment. */
+input[type="date"]::-webkit-date-and-time-value,
+input[type="time"]::-webkit-date-and-time-value,
+input[type="datetime-local"]::-webkit-date-and-time-value { text-align: left; margin: 0; }
+
 /* The native "Choose File" button can't inherit color like a normal button, so it needs its own
    rule -- ::file-selector-button is the one hook browsers give for restyling it. */
 input[type="file"] { font-family: var(--mono); font-size: 12px; color: var(--muted); padding: 6px 8px; }
@@ -174,6 +194,9 @@ input[type="file"]::file-selector-button:hover { border-color: var(--cyan); }
 textarea { min-height: 64px; resize: vertical; }
 .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .row3 { display: grid; grid-template-columns: minmax(140px, 1fr) minmax(96px, 0.6fr) minmax(160px, 2fr); gap: 16px; align-items: end; }
+/* Same min-width:auto trap as above: without this a single wide child — a date
+   field, a long unbroken word — widens its track instead of wrapping inside it. */
+.row > *, .row3 > * { min-width: 0; }
 @media (max-width: 700px) { .row, .row3 { grid-template-columns: 1fr; } }
 
 /* Chips set a value on the record you're editing. Buttons, so they're reachable
@@ -733,10 +756,24 @@ h4 { font-size: var(--fs-small); font-weight: 600; color: var(--muted); margin: 
   .stat.primary { grid-column: 1 / -1; }
   .stat.primary .v.hero { font-size: 26px; margin: 2px 0 8px; }
   .stat.primary .split { margin-top: 7px; }
-  .stat:not(.primary) { display: flex; align-items: baseline; justify-content: space-between;
-    gap: 8px; padding: 9px 11px; }
-  .stat:not(.primary) .k { display: inline; font-size: 10px; }
-  .stat:not(.primary) .v { display: inline; font-size: 14px; margin-top: 0; }
+  /* :has() scopes the row treatment to the two-part stats it was written for.
+     A stat that also carries a caption line — the lunch habit's three do — has a
+     third child, and three flex items sharing a third of a phone screen overlap
+     into something unreadable. A browser without :has() drops these three rules
+     and gets the stacked desktop layout: roomier, never broken. */
+  .stat:not(.primary):not(:has(.split)) { display: flex; align-items: baseline;
+    justify-content: space-between; gap: 8px; padding: 9px 11px; }
+  .stat:not(.primary):not(:has(.split)) .k { display: inline; font-size: 10px; }
+  .stat:not(.primary):not(:has(.split)) .v { display: inline; font-size: 14px; margin-top: 0; }
+
+  /* The captioned ones take the whole row instead — label and value on the first
+     line, caption on the second. "weekends don't break it" needs four wrapped
+     lines in a 100px column and one here. */
+  .stat:not(.primary):has(.split) { grid-column: 1 / -1; display: flex; flex-wrap: wrap;
+    align-items: baseline; gap: 0 8px; padding: 9px 12px; }
+  .stat:not(.primary):has(.split) .k { font-size: 10px; }
+  .stat:not(.primary):has(.split) .v { margin: 0 0 0 auto; font-size: 15px; }
+  .stat:not(.primary):has(.split) .split { flex-basis: 100%; margin-top: 2px; }
 
   /* 26 weeks still fit — at 9px a column, 26 of them plus gaps come to 309px of
      the 326 available. Shrinking beats truncating: a shorter window would hide
@@ -763,5 +800,6 @@ h4 { font-size: var(--fs-small); font-weight: 600; color: var(--muted); margin: 
      focus form's last input finishing 6px above it: legible, and still tappable —
      the bar wins on z-index, which the audit now asserts rather than assumes — but
      close enough to read as a mistake. */
-  .wrap { padding: 12px 16px calc(104px + env(safe-area-inset-bottom)); }
+  .wrap { padding: calc(12px + env(safe-area-inset-top)) 16px
+    calc(104px + env(safe-area-inset-bottom)); }
 }
