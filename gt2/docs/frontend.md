@@ -27,6 +27,12 @@ src/
 │   └── WeekTotals.tsx  study · work · total for one week, on both week tabs
 ├── features/
 │   ├── auth/Login.tsx           username + password + TOTP form
+│   ├── calendar/
+│   │   ├── CalendarPage.tsx     month + selected day + upkeep, one request per month
+│   │   ├── MonthGrid.tsx        six-week grid with per-day density dots
+│   │   ├── DaySheet.tsx         the selected day's entries, all-day first
+│   │   ├── EventForm.tsx        add one entry; the plan select only shows for a study block
+│   │   └── UpkeepPanel.tsx      what is due, grouped overdue / this week / later
 │   ├── landing/Landing.tsx      public read-only view
 │   ├── focus/
 │   │   ├── FocusPage.tsx        session list + POST wiring + JSX

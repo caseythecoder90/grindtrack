@@ -22,6 +22,12 @@ const PATHS: Record<Tab | "more", JSX.Element> = {
       <path d="M18 6l2 2 3-3.5" />
     </>
   ),
+  cal: (
+    <>
+      <rect x="3" y="5" width="18" height="16" rx="2" />
+      <path d="M3 10h18M8 3v4M16 3v4" />
+    </>
+  ),
   // Descending rules: a roadmap narrowing to what is next.
   plan: <path d="M4 6h16M4 12h10M4 18h13" />,
   work: (

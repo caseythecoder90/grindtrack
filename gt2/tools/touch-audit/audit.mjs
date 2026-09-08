@@ -33,7 +33,7 @@ const SECRET = process.env.GT_TOTP_SECRET;
 const FLOOR = 44;
 
 /** The tabs to walk, in nav order. */
-const TABS = ["today", "focus", "todos", "plan", "work", "money", "us", "week", "stats"];
+const TABS = ["today", "focus", "cal", "todos", "plan", "work", "money", "us", "week", "stats"];
 
 /**
  * Anything a finger is meant to hit. `.chip` and `.linkish` are buttons already,
