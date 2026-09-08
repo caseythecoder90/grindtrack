@@ -105,6 +105,44 @@ runtime via the import endpoint from a locally generated `plan.json`
 | PATCH | `/api/plan/items/{id}` | `{status?, notes?}` — status ∈ `not_started/in_progress/done`; transitioning to done stamps `completedAt` |
 | POST | `/api/plan/import` | Full plan.json replace. Items matched by (type, title) **keep their status, completedAt, and notes** — re-importing an evolved workbook never loses progress. |
 
+## Assistant (authenticated)
+
+The read surface an assistant reasons over. **Read-only, and completely so** — every endpoint is a
+GET and there is no write path, because the first thing an assistant with one does wrong is mark
+the wrong plan item done, and unlike a wrong sentence that is invisible until the next review.
+
+**Nothing here calls a model.** The context is useful on its own: fetch it, paste it into a
+conversation, ask for a week. Wiring it to an API is a separate change with a separate cost, and
+this half has to be right either way.
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/assistant/context[?today=YYYY-MM-DD]` | The whole picture in one request, ~1.5k tokens. `today` is for reproducing a Friday review on a Saturday, and for tests |
+| GET | `/api/assistant/tools` | The read tools, described — generated from the app so it cannot drift from it |
+
+The context carries, in order: the current quarter, this week against its targets, planned versus
+actual study hours, the lunch streak, in-flight and upcoming plan items, the next 14 days of
+calendar, overdue and due-soon upkeep, open todos, and the last 14 logged days with what was
+written on them.
+
+Two rules govern what is in it:
+
+- **Compact.** 194 plan items is most of a context window spent on rows that are years away, so
+  only what is in flight or lands within 90 days is included.
+- **Every actual arrives next to its target.** "14.5 hours" reads very differently against 20 than
+  against 10, and a number with nothing to compare it to invites the model to invent the
+  comparison.
+
+**`plannedVsActual` is the one figure nothing else in the app computes**: study-block hours booked
+this week against study hours logged. It is why the calendar records a plan item at all. Only
+blocks with both a start and an end count — an all-day study block is an intention without a
+duration, and counting it as zero understates the plan while counting it as a whole day overstates
+it by an order of magnitude.
+
+`quarter` is derived from today's date against the plan's own quarters, and is **null outside
+them** rather than clamped to the nearest — before the plan starts and after it ends are both real
+states, and neither should be reported as "you are in Q1".
+
 ## Calendar (authenticated)
 
 Things that happen on a day. A **date plus an optional time**, not a timestamp: "09:00 on Sep 12"
