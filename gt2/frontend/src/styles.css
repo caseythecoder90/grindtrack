@@ -488,6 +488,52 @@ h4 { font-size: var(--fs-small); font-weight: 600; color: var(--muted); margin: 
   .us .section-head > div { flex-wrap: wrap; }
 }
 
+/* --- bottom navigation (phones) --------------------------------------------
+   The phone gets a bar; the mouse keeps the tab strip. Both are in the DOM on
+   every screen and the query below picks one, so there is no resize listener and
+   no layout shift on rotate — and display:none keeps the hidden one out of the
+   accessibility tree rather than merely off screen.
+
+   Hidden by default. The `pointer: coarse` block at the end of this file is the
+   only thing that reveals it, for the same reason the touch sizes live there: the
+   question is what the primary input device is, not how wide the window happens
+   to be. */
+.bottomnav { display: none; }
+
+.bottomnav button {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 4px; border: none; background: none; border-radius: 0;
+  color: var(--muted); font-family: var(--mono); font-size: 10px; letter-spacing: 0.02em;
+  padding: 8px 2px; min-height: 56px;
+}
+.bottomnav button.active { color: var(--cyan); }
+.bottomnav button:hover { border-color: transparent; }
+/* The bar is the one place a focus ring must sit inside the element: an outline
+   offset past the top edge would be clipped by the border. */
+.bottomnav button:focus-visible { outline: 2px solid var(--cyan); outline-offset: -3px; }
+.bottomnav button span { text-overflow: ellipsis; overflow: hidden; max-width: 100%; white-space: nowrap; }
+
+.sheet-backdrop {
+  position: fixed; inset: 0; z-index: 40;
+  background: rgba(6, 15, 26, 0.66);
+  display: flex; align-items: flex-end;
+}
+.sheet {
+  width: 100%; background: var(--panel);
+  border-top: 1px solid var(--line); border-radius: 14px 14px 0 0;
+  padding: 10px 16px calc(18px + env(safe-area-inset-bottom));
+  max-height: 76vh; overflow-y: auto;
+}
+.sheet-grip { width: 34px; height: 4px; border-radius: 2px; background: var(--line); margin: 0 auto 14px; }
+.sheet-items { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.sheet-item {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px;
+  background: var(--panel2); border: 1px solid var(--line); border-radius: 10px;
+  color: var(--muted); font-family: var(--mono); font-size: 12px; padding: 16px 6px;
+}
+.sheet-item.active { border-color: var(--cyan); color: var(--cyan); background: rgba(127, 209, 255, 0.1); }
+.sheet-close { width: 100%; margin-top: 12px; }
+
 /* --- touch targets ----------------------------------------------------------
    Everything above this line is sized for a mouse: a 13px button with 7px of
    padding is 31px tall, which is fine for a cursor and too small for a thumb.
@@ -566,4 +612,16 @@ h4 { font-size: var(--fs-small); font-weight: 600; color: var(--muted); margin: 
   /* The rows that carry a tap target need room for it, or the target overflows
      its own cell. */
   td { padding: 10px 8px; }
+
+  /* The swap. The strip goes, the bar arrives, and .wrap gives back the height
+     the bar now covers — a fixed element is out of flow, so without this the last
+     panel on every page sits underneath it. */
+  nav.tabs { display: none; }
+  .bottomnav {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+    display: grid; grid-template-columns: repeat(5, 1fr);
+    background: var(--panel); border-top: 1px solid var(--line);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .wrap { padding-bottom: calc(80px + env(safe-area-inset-bottom)); }
 }

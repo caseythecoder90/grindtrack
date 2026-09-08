@@ -15,7 +15,11 @@ src/
 ├── App.tsx             top-level shell: view/tab state machine, session probe, header
 ├── styles.css          single global stylesheet (dstyle palette; no CSS framework)
 ├── vite-env.d.ts       pulls in vite/client types (import.meta.env)
+├── lib/tabs.ts         the section list, and which four the bottom bar shows
 ├── components/         shared, presentational
+│   ├── BottomNav.tsx   the phone's navigation: 4 sections + a "more" sheet
+│   ├── MoreSheet.tsx   modal sheet holding the sections the bar cannot fit
+│   ├── TabIcon.tsx     the inline SVG icon set, one per section
 │   ├── Heatmap.tsx     26-week contribution grid, per-scope ramp (used by Landing + App)
 │   ├── Meter.tsx       the split study/work bar against a target — the app's one recurring device
 │   ├── Segmented.tsx   accessible one-of-N control for switching what you're looking at
@@ -237,6 +241,36 @@ Worth understanding because it's the trickiest screen:
   copies `dist/` into the Spring Boot `static/` in stage 2 — so in production there is a **single
   origin**: Spring serves both the SPA and `/api/**`. That single-origin fact is exactly why the
   httpOnly + `SameSite=Strict` cookie model works with no CORS. See [architecture.md](architecture.md).
+
+## Navigation: two, one at a time
+
+`App.tsx` renders **both** navigations on every screen and `styles.css` shows exactly one:
+
+- **`nav.tabs`** — the horizontal strip, all nine sections. What a mouse gets.
+- **`BottomNav`** — a fixed bar with four sections plus a **more** sheet. What a thumb gets.
+
+The switch is the same `@media (pointer: coarse)` query the touch sizes use, so a phone gets the
+bar at any width and a laptop keeps the strip even in a half-width window. Rendering both and
+letting CSS choose means no resize listener, no `matchMedia` state, and no flash of the wrong
+navigation on first paint; `display: none` also keeps the hidden one out of the accessibility
+tree, so screen readers see one navigation rather than two.
+
+**Which four are primary** lives in `lib/tabs.ts` as `PRIMARY_TABS`, not inside either component.
+Today it is `today · focus · todos · plan` — the two write paths the app exists for, plus what
+those hours are against. When the calendar lands it takes a slot and `todos` moves into the sheet;
+that is a one-line change to the array.
+
+Two details worth not undoing:
+
+- **`viewport-fit=cover`** in `index.html` is what makes `env(safe-area-inset-bottom)` non-zero.
+  The bar pads itself by that amount, and `.wrap` pads by the bar's height plus it — a fixed
+  element is out of flow, so without that the last panel on every page hides underneath it.
+- **The "more" button relabels itself** to the open section when that section lives in the sheet.
+  Otherwise the bar shows nothing selected while you are looking at `money`, and the app reads as
+  though it has lost its place.
+
+The sheet is modal: Escape and the backdrop close it, `Tab` is trapped inside it, focus moves in
+on open and back to the more button on close.
 
 ## Touch targets
 

@@ -86,18 +86,35 @@ try {
   await page.fill("#p", PASSWORD);
   await page.fill("#o", totp(SECRET));
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForSelector("nav.tabs, .bottomnav", { timeout: 15000 });
+  await page.waitForSelector(".bottomnav", { timeout: 15000 });
   await page.waitForTimeout(1200);
+
+  /**
+   * Reach a tab the way a thumb would. Four sections are in the bar; the rest are
+   * behind "more", whose own label becomes the open section's name — so match the
+   * primaries by position rather than by text, or "money" matches the more button.
+   */
+  async function goTo(tab) {
+    const bar = page.locator(".bottomnav button");
+    const slots = await bar.count();
+    for (let i = 0; i < slots - 1; i += 1) {
+      if ((await bar.nth(i).innerText()).trim() === tab) {
+        await bar.nth(i).click();
+        await page.waitForTimeout(700);
+        return;
+      }
+    }
+    await bar.nth(slots - 1).click();
+    await page.waitForTimeout(400);
+    await page.locator(".sheet-item", { hasText: new RegExp(`^${tab}$`) }).click();
+    await page.waitForTimeout(700);
+  }
 
   let checked = 0;
   const failures = [];
 
   for (const tab of TABS) {
-    const target = page.locator(`nav button`, { hasText: new RegExp(`^${tab}$`) });
-    if (await target.count()) {
-      await target.first().click();
-      await page.waitForTimeout(700);
-    }
+    await goTo(tab);
     // The plan tab hides most of its rows behind a disclosure; open it or the
     // densest screen in the app is measured almost empty.
     if (tab === "plan") {
@@ -148,7 +165,30 @@ try {
     console.log(`${flag} ${tab.padEnd(6)} ${String(found.length).padStart(3)} interactive, ${bad.length} failing`);
   }
 
-  console.log(`\n${checked} interactive elements measured across ${TABS.length} tabs`);
+  // The sheet is a screen of its own and is only reachable while open.
+  await page.locator(".bottomnav button").last().click();
+  await page.waitForTimeout(400);
+  const sheet = await page.evaluate(
+    ({ floor }) =>
+      [...document.querySelectorAll(".sheet button")].map((el) => {
+        const box = el.getBoundingClientRect();
+        return {
+          tag: "button",
+          cls: String(el.className || "").slice(0, 32),
+          text: el.innerText.trim().slice(0, 28),
+          h: Math.round(box.height),
+          short: box.height < floor - 0.5,
+          zoomy: false,
+        };
+      }),
+    { floor: FLOOR },
+  );
+  checked += sheet.length;
+  const sheetBad = sheet.filter((r) => r.short);
+  for (const b of sheetBad) failures.push({ tab: "sheet", ...b });
+  console.log(`${sheetBad.length ? "FAIL" : "ok  "} ${"sheet".padEnd(6)} ${String(sheet.length).padStart(3)} interactive, ${sheetBad.length} failing`);
+
+  console.log(`\n${checked} interactive elements measured across ${TABS.length} tabs and the more sheet`);
   if (failures.length) {
     console.log(`\n${failures.length} below the ${FLOOR}px floor or under 16px type:\n`);
     for (const f of failures) {
