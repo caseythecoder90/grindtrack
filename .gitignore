@@ -33,3 +33,7 @@ node_modules/
 
 # Logs
 *.log
+
+# Claude Design working files. The canvas lives on the published artifact; the seeded
+# .html carries a ~2 MB editor payload that has no business in git history.
+.design/

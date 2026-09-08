@@ -29,6 +29,12 @@ public class SecurityConfig {
     "/vite.svg",
     "/favicon.ico",
     "/favicon.svg",
+    // PWA shell. All of these are fetched before anyone logs in — the worker registers on
+    // the landing page, and the install prompt reads the manifest and icons while logged out.
+    "/manifest.webmanifest",
+    "/sw.js",
+    "/apple-touch-icon.png",
+    "/icon-*.png",
     "/api/public/**",
     "/api/auth/login",
     "/api/auth/refresh",
