@@ -4,6 +4,7 @@ import { errorMessage } from "../../lib/api";
 import { createTodo, deleteTodo, getTodos, updateTodo } from "./todoApi";
 import { todayISO } from "../../lib/dates";
 import type { Todo, TodoKind } from "../../lib/types";
+import { useAppResume } from "../../lib/resume";
 
 type Filter = "all" | TodoKind;
 
@@ -49,6 +50,9 @@ export default function TodoPage() {
       setError(errorMessage(e, "could not load the list"));
     }
   }, []);
+
+  // Anything ticked off on another device since this screen loaded.
+  useAppResume(() => load(filter));
 
   useEffect(() => {
     load(filter);

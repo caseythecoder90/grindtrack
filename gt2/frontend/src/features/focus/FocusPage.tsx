@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Segmented from "../../components/Segmented";
-import { errorMessage } from "../../lib/api";
+import { errorMessage, OfflineError } from "../../lib/api";
+import { useAppResume } from "../../lib/resume";
 import { getReadingProgress, getSessions, recordSession as postSession, saveTakeaway } from "./focusApi";
 import { todayISO } from "../../lib/dates";
 // The plan is another feature's data, but a reading session files itself against a plan
@@ -16,6 +17,7 @@ import {
   type ReadingProgress,
 } from "../../lib/types";
 import LunchSubject from "./LunchSubject";
+import { enqueue, flush, pendingCount, type PendingSession } from "./sessionOutbox";
 import ReadingPanel from "./ReadingPanel";
 import { useFocusTimer } from "./useFocusTimer";
 
@@ -42,6 +44,7 @@ export default function FocusPage({ onLogged }: Props) {
   const [pending, setPending] = useState<FocusSession | null>(null);
   const [takeaway, setTakeaway] = useState("");
   const [error, setError] = useState("");
+  const [queued, setQueued] = useState(pendingCount);
 
   // The timer keeps `record` for the life of the component, so it must not close over the
   // subject — a ref lets it read whatever is configured at the moment a session finishes.
@@ -75,18 +78,19 @@ export default function FocusPage({ onLogged }: Props) {
   const record = useCallback(
     async (startedAt: string, minutes: number, completed: boolean, k: FocusKind) => {
       if (minutes < 1) return;
+      const body: PendingSession = {
+        date: todayISO(),
+        startedAt,
+        durationMinutes: minutes,
+        completed,
+        kind: k,
+        // Guarded rather than trusted: a config persisted by a build before the fix
+        // above still holds a stale subject, and it must not reach a study session.
+        planItemId: isLunchKind(k) ? subject.current.planItemId : null,
+        topic: isLunchKind(k) ? subject.current.topic : "",
+      };
       try {
-        const saved = await postSession({
-          date: todayISO(),
-          startedAt,
-          durationMinutes: minutes,
-          completed,
-          kind: k,
-          // Guarded rather than trusted: a config persisted by a build before the fix
-          // above still holds a stale subject, and it must not reach a study session.
-          planItemId: isLunchKind(k) ? subject.current.planItemId : null,
-          topic: isLunchKind(k) ? subject.current.topic : "",
-        });
+        const saved = await postSession(body);
         setError("");
         if (isLunchKind(k)) {
           setPending(saved);
@@ -96,6 +100,14 @@ export default function FocusPage({ onLogged }: Props) {
         onLogged();
         loadSessions(k);
       } catch (e) {
+        // An unreachable server is not a lost hour. Keep the block and say so; it goes
+        // out on the next resume, or the next time anything else succeeds.
+        if (e instanceof OfflineError) {
+          enqueue(body);
+          setQueued(pendingCount());
+          setError("");
+          return;
+        }
         setError(errorMessage(e, "could not save session"));
       }
     },
@@ -107,6 +119,32 @@ export default function FocusPage({ onLogged }: Props) {
   const cfg = state.config;
   const kind = cfg.kind;
   subject.current = { planItemId: cfg.planItemId, topic: cfg.topic };
+
+  /**
+   * Send anything the queue is holding, then show what landed. Runs on mount and on every
+   * return to the foreground, so a block saved on a train reaches the server when the
+   * train does.
+   */
+  const drain = useCallback(async () => {
+    if (pendingCount() === 0) return;
+    const saved = await flush();
+    setQueued(pendingCount());
+    if (saved > 0) {
+      onLogged();
+      loadSessions(kind);
+      loadProgress();
+    }
+  }, [onLogged, loadSessions, loadProgress, kind]);
+
+  useAppResume(() => {
+    void drain();
+    loadSessions(kind);
+    loadProgress();
+  });
+
+  useEffect(() => {
+    void drain();
+  }, [drain]);
 
   async function submitTakeaway() {
     if (!pending) return;
@@ -276,6 +314,15 @@ export default function FocusPage({ onLogged }: Props) {
         )}
 
         {error && <div className="error" style={{ marginTop: 10 }}>{error}</div>}
+        {/* Not an error: the block is safe on this device and goes out on its own. Said
+            out loud anyway, because a queue you cannot see is barely better than a
+            session you never had. */}
+        {queued > 0 && (
+          <div className="pending-note" style={{ marginTop: 10 }}>
+            {queued === 1 ? "1 session saved on this device" : `${queued} sessions saved on this device`}
+            {" — waiting for the server"}
+          </div>
+        )}
 
         <h2 style={{ marginTop: 24 }}>
           today's {FOCUS_KIND_LABEL[kind]} sessions · {(focusedMin / 60).toFixed(1)}h focused

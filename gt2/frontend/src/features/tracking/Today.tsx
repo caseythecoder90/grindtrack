@@ -1,8 +1,10 @@
 
 import { useCallback, useEffect, useState } from "react";
+import { errorMessage } from "../../lib/api";
 import { getDay, saveDay } from "./trackingApi";
 import { todayISO } from "../../lib/dates";
 import { CATEGORIES } from "../../lib/types";
+import { useAppResume } from "../../lib/resume";
 
 interface Props {
   onSaved: () => void;
@@ -26,18 +28,32 @@ export default function Today({ onSaved }: Props) {
    * silently undo any session logged since — including one logged on the other device.
    */
   const [hoursEdited, setHoursEdited] = useState(false);
+  const [loadError, setLoadError] = useState("");
 
+  /**
+   * A failed load left every field showing the previous day's values with nothing to
+   * say why -- and threw, uncaught, on the way out. An unreachable server is worth a
+   * line of text; it is not worth silently pretending the day is empty.
+   */
   const load = useCallback(async () => {
-    const d = await getDay(date);
-    setHours(String(d?.hours ?? 0));
-    setCats(new Set(d?.categories ?? []));
-    setEnergy(d?.energy ?? null);
-    setFocus(d?.focus ?? "");
-    setDid(d?.did ?? "");
-    setWins(d?.wins ?? "");
-    setBlockers(d?.blockers ?? "");
-    setHoursEdited(false);
+    setLoadError("");
+    try {
+      const d = await getDay(date);
+      setHours(String(d?.hours ?? 0));
+      setCats(new Set(d?.categories ?? []));
+      setEnergy(d?.energy ?? null);
+      setFocus(d?.focus ?? "");
+      setDid(d?.did ?? "");
+      setWins(d?.wins ?? "");
+      setBlockers(d?.blockers ?? "");
+      setHoursEdited(false);
+    } catch (e) {
+      setLoadError(errorMessage(e, "could not load this day"));
+    }
   }, [date]);
+
+  // Anything logged on another device since this screen loaded.
+  useAppResume(() => load());
 
   useEffect(() => {
     load();
@@ -127,6 +143,7 @@ export default function Today({ onSaved }: Props) {
           </div>
         </div>
       </details>
+      {loadError && <div className="error">{loadError}</div>}
       <div className="actions">
         <button className="primary" onClick={save}>Save day</button>
         <span className={"toast" + (toast ? " show" : "")}>saved ✓</span>

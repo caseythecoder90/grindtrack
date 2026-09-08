@@ -17,6 +17,7 @@ import ReviewInbox from "./ReviewInbox";
 import SavingsGoalCard from "./SavingsGoalCard";
 import SpendingPanel from "./SpendingPanel";
 import { money, moneyWhole, signed } from "./money";
+import { useAppResume } from "../../lib/resume";
 
 const TXN_TYPES: TxnType[] = ["SPEND", "INCOME", "TRANSFER", "PAYMENT"];
 
@@ -87,6 +88,9 @@ export default function FinancePage() {
       setError(errorMessage(e, "could not load your finances"));
     }
   }, []);
+
+  // Anything logged on another device since this screen loaded.
+  useAppResume(() => load());
 
   useEffect(() => {
     load();

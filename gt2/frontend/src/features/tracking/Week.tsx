@@ -1,9 +1,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import WeekTotals from "../../components/WeekTotals";
+import { errorMessage } from "../../lib/api";
 import { getDays, getWeek, saveWeek } from "./trackingApi";
 import { addDays, mondayOf, todayISO } from "../../lib/dates";
 import type {DayLog} from "../../lib/types";
+import { useAppResume } from "../../lib/resume";
 
 const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -17,18 +19,28 @@ export default function Week() {
   const [nextFocus, setNextFocus] = useState("");
   const [onTrack, setOnTrack] = useState<boolean | null>(null);
   const [toast, setToast] = useState(false);
+  const [loadError, setLoadError] = useState("");
 
+  /** Same reasoning as Today: an unreachable server says so rather than showing an empty week. */
   const load = useCallback(async () => {
-    const end = addDays(weekStart, 6);
-    setDays(await getDays(weekStart, end));
-    const review = await getWeek(weekStart);
-    setSummary(review?.summary ?? "");
-    setWins(review?.wins ?? "");
-    setBlockers(review?.blockers ?? "");
-    setAdjustments(review?.adjustments ?? "");
-    setNextFocus(review?.nextFocus ?? "");
-    setOnTrack(review?.onTrack ?? null);
+    setLoadError("");
+    try {
+      const end = addDays(weekStart, 6);
+      setDays(await getDays(weekStart, end));
+      const review = await getWeek(weekStart);
+      setSummary(review?.summary ?? "");
+      setWins(review?.wins ?? "");
+      setBlockers(review?.blockers ?? "");
+      setAdjustments(review?.adjustments ?? "");
+      setNextFocus(review?.nextFocus ?? "");
+      setOnTrack(review?.onTrack ?? null);
+    } catch (e) {
+      setLoadError(errorMessage(e, "could not load this week"));
+    }
   }, [weekStart]);
+
+  // Anything logged on another device since this screen loaded.
+  useAppResume(() => load());
 
   useEffect(() => {
     load();
@@ -94,6 +106,7 @@ export default function Week() {
         <button type="button" className="chip" aria-pressed={onTrack === false}
           onClick={() => setOnTrack(onTrack === false ? null : false)}>no — adjust</button>
       </div>
+      {loadError && <div className="error">{loadError}</div>}
       <div className="actions">
         <button className="primary" onClick={save}>Save review</button>
         <span className={"toast" + (toast ? " show" : "")}>saved ✓</span>

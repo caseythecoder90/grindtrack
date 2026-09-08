@@ -41,3 +41,7 @@ node_modules/
 # Standalone tool deps. Each tool under gt2/tools/ installs its own; the frontend
 # and backend builds must not pay for them.
 gt2/tools/*/node_modules/
+
+# Built UI staged into the jar. The Dockerfile copies frontend/dist here at image build
+# time; a local jar build does the same. It is output, and it must never be committed.
+gt2/backend/src/main/resources/static/
