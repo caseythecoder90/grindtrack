@@ -114,7 +114,12 @@ export default function App() {
           {tab === "us" && <RelationshipPage />}
           {tab === "week" && <Week />}
           {tab === "stats" && stats && <StatsPage stats={stats} scope={scope} />}
-          <BottomNav tab={tab} onTab={setTab} />
+          <BottomNav
+            tab={tab}
+            onTab={setTab}
+            onExport={() => (window.location.href = EXPORT_URL)}
+            onLogout={logout}
+          />
         </>
       )}
     </div>

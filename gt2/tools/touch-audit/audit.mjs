@@ -95,19 +95,35 @@ try {
    * primaries by position rather than by text, or "money" matches the more button.
    */
   async function goTo(tab) {
-    const bar = page.locator(".bottomnav button");
-    const slots = await bar.count();
-    for (let i = 0; i < slots - 1; i += 1) {
-      if ((await bar.nth(i).innerText()).trim() === tab) {
-        await bar.nth(i).click();
-        await page.waitForTimeout(700);
-        return;
+    // From the top, always. The bar is fixed, so mid-scroll a form field can sit
+    // under it — the bar still wins on z-index, but a click driven from an
+    // arbitrary scroll position is testing the scroll position as much as the
+    // navigation. `barIsOnTop` below is what actually checks the layering.
+    await page.evaluate(() => scrollTo(0, 0));
+    await page.waitForTimeout(150);
+    // Navigation is mechanism, so it dispatches the click on the element itself
+    // rather than going through a synthetic tap. Whether a slot is actually
+    // reachable by a finger is a separate question, and `covered` below is the
+    // check that answers it — a flaky click is a bad way to assert layering.
+    const pressed = await page.evaluate((wanted) => {
+      const slots = [...document.querySelectorAll(".bottomnav button")];
+      const primary = slots.slice(0, -1).find((b) => b.innerText.trim() === wanted);
+      if (primary) {
+        primary.click();
+        return true;
       }
+      slots[slots.length - 1].click();
+      return false;
+    }, tab);
+    await page.waitForTimeout(pressed ? 700 : 400);
+    if (!pressed) {
+      await page.evaluate((wanted) => {
+        [...document.querySelectorAll(".sheet-item")]
+          .find((b) => b.innerText.trim() === wanted)
+          ?.click();
+      }, tab);
+      await page.waitForTimeout(700);
     }
-    await bar.nth(slots - 1).click();
-    await page.waitForTimeout(400);
-    await page.locator(".sheet-item", { hasText: new RegExp(`^${tab}$`) }).click();
-    await page.waitForTimeout(700);
   }
 
   let checked = 0;
@@ -158,6 +174,24 @@ try {
       { selector: INTERACTIVE, floor: FLOOR },
     );
 
+    // The bar is drawn over content by design. If anything ever lands on top of a
+    // slot, that slot silently stops being tappable — the tap goes to whatever is
+    // above it instead, which on the focus page is a number input.
+    const covered = await page.evaluate(() => {
+      const bar = document.querySelector(".bottomnav");
+      if (!bar || getComputedStyle(bar).display === "none") return [];
+      const blocked = [];
+      for (const slot of bar.children) {
+        const r = slot.getBoundingClientRect();
+        const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        if (top && !bar.contains(top)) {
+          blocked.push(`${slot.innerText.trim()} covered by ${top.tagName.toLowerCase()}${top.id ? "#" + top.id : ""}`);
+        }
+      }
+      return blocked;
+    });
+    for (const c of covered) failures.push({ tab, tag: "bottomnav", cls: "", text: c, h: 0, short: true, zoomy: false });
+
     checked += found.length;
     const bad = found.filter((r) => r.short || r.zoomy);
     for (const b of bad) failures.push({ tab, ...b });
@@ -192,7 +226,12 @@ try {
   if (failures.length) {
     console.log(`\n${failures.length} below the ${FLOOR}px floor or under 16px type:\n`);
     for (const f of failures) {
-      const why = f.short ? `${f.h}px tall` : `${f.fs}px type (iOS will zoom)`;
+      const why =
+        f.tag === "bottomnav"
+          ? "nav slot covered"
+          : f.short
+            ? `${f.h}px tall`
+            : `${f.fs}px type (iOS will zoom)`;
       console.log(`  ${f.tab.padEnd(6)} ${why.padEnd(24)} ${f.tag}.${f.cls}  "${f.text}"`);
     }
     process.exitCode = 1;

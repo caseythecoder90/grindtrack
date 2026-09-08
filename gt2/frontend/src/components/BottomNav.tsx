@@ -6,6 +6,8 @@ import { PRIMARY_TABS, SECONDARY_TABS, shortLabel, type Tab } from "../lib/tabs"
 interface Props {
   tab: Tab;
   onTab: (tab: Tab) => void;
+  onExport: () => void;
+  onLogout: () => void;
 }
 
 /**
@@ -16,7 +18,7 @@ interface Props {
  * `@media (pointer: coarse)` in styles.css, not by a width, because a half-width
  * browser on a laptop is still a mouse.
  */
-export default function BottomNav({ tab, onTab }: Props) {
+export default function BottomNav({ tab, onTab, onExport, onLogout }: Props) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const moreButton = useRef<HTMLButtonElement>(null);
   const inSheet = SECONDARY_TABS.includes(tab);
@@ -32,7 +34,15 @@ export default function BottomNav({ tab, onTab }: Props) {
 
   return (
     <>
-      {sheetOpen && <MoreSheet current={tab} onPick={onTab} onClose={close} />}
+      {sheetOpen && (
+        <MoreSheet
+          current={tab}
+          onPick={onTab}
+          onClose={close}
+          onExport={onExport}
+          onLogout={onLogout}
+        />
+      )}
       <nav className="bottomnav" aria-label="Sections">
         {PRIMARY_TABS.map((t) => (
           <button

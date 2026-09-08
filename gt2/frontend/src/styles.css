@@ -488,6 +488,15 @@ h4 { font-size: var(--fs-small); font-weight: 600; color: var(--muted); margin: 
   .us .section-head > div { flex-wrap: wrap; }
 }
 
+/* --- disclosure ------------------------------------------------------------- */
+.fold { border-top: 1px solid var(--line2); margin-top: 14px; padding-top: 4px; }
+.fold > summary { font-family: var(--mono); font-size: 12px; color: var(--muted);
+  cursor: pointer; padding: 9px 2px; list-style: none; display: flex; align-items: center; gap: 8px; }
+.fold > summary::-webkit-details-marker { display: none; }
+.fold > summary::before { content: "▸"; font-size: 10px; }
+.fold[open] > summary::before { content: "▾"; }
+.fold > summary:hover { color: var(--text); }
+
 /* --- calendar --------------------------------------------------------------- */
 .calnav { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
 .calnav h2 { margin: 0; min-width: 8.5em; }
@@ -614,7 +623,9 @@ h4 { font-size: var(--fs-small); font-weight: 600; color: var(--muted); margin: 
   color: var(--muted); font-family: var(--mono); font-size: 12px; padding: 16px 6px;
 }
 .sheet-item.active { border-color: var(--cyan); color: var(--cyan); background: rgba(127, 209, 255, 0.1); }
-.sheet-close { width: 100%; margin-top: 12px; }
+.sheet-actions { display: flex; gap: 8px; margin-top: 12px; }
+.sheet-actions button { flex: 1; }
+.sheet-close { width: 100%; margin-top: 8px; }
 
 /* --- touch targets ----------------------------------------------------------
    Everything above this line is sized for a mouse: a 13px button with 7px of
@@ -695,6 +706,49 @@ h4 { font-size: var(--fs-small); font-weight: 600; color: var(--muted); margin: 
      its own cell. */
   td { padding: 10px 8px; }
 
+  /* --- density -------------------------------------------------------------
+     Measured before any of this: the first content panel began at 708px in a
+     660px viewport. Every pixel above it was chrome, so on a phone you scrolled
+     past the whole header to reach the form you opened the app to fill in.
+
+     Nothing below removes information. It moves what is static or occasional,
+     and tightens what stays. The desktop layout is untouched — it has the room,
+     and its content already starts at 528px of 900. */
+
+  /* Static text you cannot act on: the plan's window and the weekly budget never
+     change, and they cost two wrapped lines at this width. */
+  header .sub { display: none; }
+  /* Neither of these is a daily action; the more sheet is where they now live. */
+  header > button { display: none; }
+  header { gap: 8px; margin-bottom: 2px; }
+  .brand { font-size: 17px; }
+
+  /* The hero number and its meter earn their space. The three tiles under it are
+     reference figures — they become one strip of label-and-value pairs rather
+     than three stacked cards with their own borders and padding. */
+  .statbar { margin: 10px 0 8px; }
+  .scopebar { margin-bottom: 8px; }
+  .stats { grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .stat { padding: 8px 11px; }
+  .stat.primary { grid-column: 1 / -1; }
+  .stat.primary .v.hero { font-size: 26px; margin: 2px 0 8px; }
+  .stat.primary .split { margin-top: 7px; }
+  .stat:not(.primary) { display: flex; align-items: baseline; justify-content: space-between;
+    gap: 8px; padding: 9px 11px; }
+  .stat:not(.primary) .k { display: inline; font-size: 10px; }
+  .stat:not(.primary) .v { display: inline; font-size: 14px; margin-top: 0; }
+
+  /* 26 weeks still fit — at 9px a column, 26 of them plus gaps come to 309px of
+     the 326 available. Shrinking beats truncating: a shorter window would hide
+     the part of the streak worth looking at. The day-of-week rail goes because
+     it costs horizontal room the cells need, and the combined-scope footnote
+     because it explains a split you cannot see at this size anyway. */
+  .heatwrap { padding: 10px 12px; margin-bottom: 12px; --cell: 9px; }
+  .heatdows { display: none; }
+  .heatgrid { grid-template-columns: 1fr; gap: 4px 0; }
+  .heatnote { display: none; }
+  .heathead { margin-bottom: 7px; }
+
   /* The swap. The strip goes, the bar arrives, and .wrap gives back the height
      the bar now covers — a fixed element is out of flow, so without this the last
      panel on every page sits underneath it. */
@@ -705,5 +759,9 @@ h4 { font-size: var(--fs-small); font-weight: 600; color: var(--muted); margin: 
     background: var(--panel); border-top: 1px solid var(--line);
     padding-bottom: env(safe-area-inset-bottom);
   }
-  .wrap { padding-bottom: calc(80px + env(safe-area-inset-bottom)); }
+  /* The bar is 57px and fixed, so this is its height plus clearance. 80px left the
+     focus form's last input finishing 6px above it: legible, and still tappable —
+     the bar wins on z-index, which the audit now asserts rather than assumes — but
+     close enough to read as a mistake. */
+  .wrap { padding: 12px 16px calc(104px + env(safe-area-inset-bottom)); }
 }

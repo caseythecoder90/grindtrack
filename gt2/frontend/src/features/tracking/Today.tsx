@@ -110,17 +110,23 @@ export default function Today({ onSaved }: Props) {
           <textarea id="d-did" value={did} onChange={(e) => setDid(e.target.value)} />
         </div>
       </div>
-      <div className="row">
-        <div>
-          <label htmlFor="d-wins">Wins</label>
-          <textarea id="d-wins" value={wins} onChange={(e) => setWins(e.target.value)}
-            placeholder="Work wins here are Impact Log material" />
+      {/* Folded away, and open when either has content so nothing is ever hidden.
+          These two get written on a Friday, not on a Tuesday morning — and four
+          stacked textareas is most of a phone screen for the two you use daily. */}
+      <details className="fold" open={Boolean(wins || blockers)}>
+        <summary>wins &amp; blockers</summary>
+        <div className="row">
+          <div>
+            <label htmlFor="d-wins">Wins</label>
+            <textarea id="d-wins" value={wins} onChange={(e) => setWins(e.target.value)}
+              placeholder="Work wins here are Impact Log material" />
+          </div>
+          <div>
+            <label htmlFor="d-blockers">Blockers / notes</label>
+            <textarea id="d-blockers" value={blockers} onChange={(e) => setBlockers(e.target.value)} />
+          </div>
         </div>
-        <div>
-          <label htmlFor="d-blockers">Blockers / notes</label>
-          <textarea id="d-blockers" value={blockers} onChange={(e) => setBlockers(e.target.value)} />
-        </div>
-      </div>
+      </details>
       <div className="actions">
         <button className="primary" onClick={save}>Save day</button>
         <span className={"toast" + (toast ? " show" : "")}>saved ✓</span>
