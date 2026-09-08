@@ -3,6 +3,7 @@ import BottomNav from "./components/BottomNav";
 import Heatmap from "./components/Heatmap";
 import StatBar from "./components/StatBar";
 import { logout as endSession, me } from "./features/auth/authApi";
+import CalendarPage from "./features/calendar/CalendarPage";
 import Login from "./features/auth/Login";
 import FinancePage from "./features/finance/FinancePage";
 import FocusPage from "./features/focus/FocusPage";
@@ -105,6 +106,7 @@ export default function App() {
           </nav>
           {tab === "today" && <Today onSaved={refreshHeader} />}
           {tab === "focus" && <FocusPage onLogged={refreshHeader} />}
+          {tab === "cal" && <CalendarPage />}
           {tab === "todos" && <TodoPage />}
           {tab === "plan" && <PlanPage />}
           {tab === "work" && <WorkPage onSaved={refreshHeader} />}

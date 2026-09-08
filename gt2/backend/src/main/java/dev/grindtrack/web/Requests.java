@@ -1,6 +1,7 @@
 package dev.grindtrack.web;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.YearMonth;
 import java.time.format.DateTimeParseException;
@@ -46,6 +47,24 @@ public final class Requests {
 
   public static LocalDate optionalDate(String value) {
     return optionalDate(value, "dates must be YYYY-MM-DD");
+  }
+
+  /**
+   * A wall-clock time of day, as {@code HH:mm} or {@code HH:mm:ss}.
+   *
+   * <p>Separate from {@link #optionalInstant} on purpose: a calendar block at 09:00 is 09:00 where
+   * you are, not an instant that moves with a zone. Parsing it as a time keeps the zone out of a
+   * value that never had one.
+   */
+  public static LocalTime optionalTime(String value, String message) {
+    if (value == null || value.isBlank()) {
+      return null;
+    }
+    try {
+      return LocalTime.parse(value.trim());
+    } catch (DateTimeParseException e) {
+      throw new BadRequestException(message);
+    }
   }
 
   /**

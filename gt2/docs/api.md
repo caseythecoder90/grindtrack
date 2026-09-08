@@ -105,6 +105,55 @@ runtime via the import endpoint from a locally generated `plan.json`
 | PATCH | `/api/plan/items/{id}` | `{status?, notes?}` — status ∈ `not_started/in_progress/done`; transitioning to done stamps `completedAt` |
 | POST | `/api/plan/import` | Full plan.json replace. Items matched by (type, title) **keep their status, completedAt, and notes** — re-importing an evolved workbook never loses progress. |
 
+## Calendar (authenticated)
+
+Things that happen on a day. A **date plus an optional time**, not a timestamp: "09:00 on Sep 12"
+on a personal calendar means wall clock, and it must not move when a server's zone does. A null
+`startTime` is what all-day means — `allDay` is derived from it, so the two can never disagree.
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/calendar[?month=YYYY-MM]` | Whole month, day order, all-day entries first. Defaults to the current month |
+| GET | `/api/calendar?from=&to=` | An explicit range, for the week view and the assistant. `to` before `from` → 400 |
+| POST | `/api/calendar` | `{title, kind, date, startTime?, endTime?, planItemId?, notes?}`. `kind` ∈ `appointment/study_block/work_block/personal` |
+| PATCH | `/api/calendar/{id}` | Partial. `clearTimes: true` makes it all-day; `clearPlanItem: true` unlinks. 404 if missing |
+| DELETE | `/api/calendar/{id}` | Remove an event |
+
+**Only a study block carries a plan item.** A `planItemId` sent with any other kind is **dropped,
+not rejected** — the same rule a focus session follows for its reading subject, and for the same
+reason: a stale link from an older client is not a mistake the user can act on, but hours filed
+against a dentist are ones they would never see.
+
+That link is recorded **intent** and is deliberately not a focus session's subject. This column
+says what a morning was booked for; `focus_sessions` say what actually happened. Keeping them
+separate is what makes planned-versus-actual answerable at all.
+
+**An end time needs a start and must come after it** — enforced on the entity and by a CHECK, so
+a service cannot build an impossible event and find out from the database.
+
+## Upkeep (authenticated)
+
+Recurring maintenance: the dog's flea and tick, the HVAC filter, an oil change. The question is
+"when did I last", and the one it is asked is "what is overdue" — both the same fact read two ways.
+
+**`nextDue` is derived, never stored.** It is `lastDoneOn + intervalDays`, computed per request. A
+stored copy is one write away from disagreeing with the field it came from, and a reminder that is
+wrong once is not trusted again. A task never done is due **today**, not at some epoch date, so it
+sits at the top of the list without claiming to be twenty thousand days late.
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/upkeep` | `{due, archived}`. `due` is active tasks, most overdue first |
+| POST | `/api/upkeep` | `{title, category, intervalDays, lastDoneOn?, notes?}`. `category` ∈ `pet/home/health/car/other`; `intervalDays` 1–3650; a future `lastDoneOn` → 400 |
+| POST | `/api/upkeep/{id}/done` | One tap. Logs a completion and rolls the clock **from the date it was done**, not from when it was due — otherwise the drift compounds every cycle. A second tap the same day is not a second completion. 404 if missing |
+| PATCH | `/api/upkeep/{id}` | Partial `{title?, category?, intervalDays?, notes?, active?, lastDoneOn?}`. Setting `lastDoneOn` here is a **correction** and logs nothing: fixing a typo is not the same act as doing the task |
+| DELETE | `/api/upkeep/{id}` | Remove a task and its completions |
+| GET | `/api/upkeep/{id}/history` | Every completion, newest first |
+
+`state` is one of `overdue` / `due_soon` (within 7 days) / `later`, and `daysOverdue` is negative
+before the due date, zero on the day, positive once late — one number a screen can render rather
+than three booleans it has to reconcile.
+
 ## Todos (authenticated)
 
 Short-lived actionable items, tagged `work` or `personal` so the list can be filtered to one side

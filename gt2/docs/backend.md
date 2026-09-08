@@ -20,6 +20,7 @@ Each feature is a top-level package split into layer subpackages:
 | `domain` | JPA entities + Spring Data repositories | — |
 | `security` | (auth only) the JWT filter | `service` |
 | `web` | shared, feature-agnostic: request parsing, exception→status mapping | — |
+| `calendar` | events on days, and recurring upkeep | `/api/calendar`, `/api/upkeep` |
 | `config` | cross-cutting: `SecurityConfig`, `StaticContentConfig`, `AppProperties` | — |
 
 Full inventory:
@@ -323,6 +324,7 @@ Schema **`grindtrack`**; Hibernate is `validate`-only, so Liquibase is the singl
   - `004-plan.sql` — `plan_quarters`, `plan_items` (CHECKs + index), `plan_reference`
   - `005-plan-year4.sql` — widen year/qtr CHECKs to 4 years / 16 quarters
   - `019-plan-year5.sql` — widen them again to 5 years / 20 quarters
+  - `020-calendar.sql` — `calendar_events`, `recurring_tasks`, `recurring_task_completions`
   - `006-plan-paper.sql` — add `paper` to the `plan_items` item_type CHECK
   - `007-work.sql` — `work_logs` (CHECK hours 0–24), `work_skills` (status CHECK)
   - `008-focus-kind.sql` — add `kind` (study/work) to `focus_sessions` (CHECK)

@@ -641,3 +641,64 @@ export interface RelationshipSummary {
   readyIdeas: Idea[];
   lately: Moment[];
 }
+
+// --- calendar and upkeep -----------------------------------------------------
+
+/**
+ * What a calendar entry is. Only a study block may carry a plan item — the backend
+ * drops the link on anything else rather than rejecting it, so a stale one from an
+ * older client cannot file hours against a dentist.
+ */
+export type EventKind = "appointment" | "study_block" | "work_block" | "personal";
+
+export const EVENT_KIND_LABEL: Record<EventKind, string> = {
+  appointment: "appointment",
+  study_block: "study block",
+  work_block: "work block",
+  personal: "personal",
+};
+
+export interface CalendarEvent {
+  id: number;
+  title: string;
+  kind: EventKind;
+  /** YYYY-MM-DD. A date, not an instant: 09:00 means 09:00 where you are. */
+  date: string;
+  /** HH:mm:ss, or null — which is what all-day means. */
+  startTime: string | null;
+  endTime: string | null;
+  allDay: boolean;
+  planItemId: number | null;
+  notes: string;
+}
+
+export type TaskCategory = "pet" | "home" | "health" | "car" | "other";
+
+export const TASK_CATEGORIES: TaskCategory[] = ["pet", "home", "health", "car", "other"];
+
+/** Three buckets, because the list groups by them. The boundary lives on the server. */
+export type UpkeepState = "overdue" | "due_soon" | "later";
+
+export interface UpkeepTask {
+  id: number;
+  title: string;
+  category: TaskCategory;
+  intervalDays: number;
+  lastDoneOn: string | null;
+  nextDue: string;
+  /** Negative before it is due, zero on the day, positive once it is late. */
+  daysOverdue: number;
+  state: UpkeepState;
+  notes: string;
+  active: boolean;
+}
+
+export interface UpkeepList {
+  due: UpkeepTask[];
+  archived: UpkeepTask[];
+}
+
+export interface UpkeepCompletion {
+  id: number;
+  doneOn: string;
+}
