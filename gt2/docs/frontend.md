@@ -238,6 +238,36 @@ Worth understanding because it's the trickiest screen:
   origin**: Spring serves both the SPA and `/api/**`. That single-origin fact is exactly why the
   httpOnly + `SameSite=Strict` cookie model works with no CORS. See [architecture.md](architecture.md).
 
+## Touch targets
+
+`styles.css` ends with a `@media (pointer: coarse)` block that raises every interactive element
+to a 44px floor. The rest of the file is sized for a mouse — a 13px button with 7px of padding is
+31px tall, which is fine for a cursor and too small for a thumb.
+
+**The query asks about the pointer, not the width.** A phone gets the larger targets at any width;
+the ThinkPad keeps the dense layout even in a half-width window, which is a normal way to work on
+a laptop and has nothing to do with fingers. Nothing in the block changes a colour, a border or a
+font family — it is height, padding, and the two touch behaviours browsers get wrong by default
+(`touch-action: manipulation` to drop the 300ms double-tap wait, and a real `:active` state to
+replace Safari's grey tap flash).
+
+Three rules in there are not obvious and should not be "tidied up":
+
+- **`input:not([type="checkbox"])`** — a `min-height` beats a checkbox's `height`, so including it
+  stretches every checkbox into a 22×44 rectangle.
+- **`font-size: 16px` on fields** — not a type choice. iOS zooms the viewport when a focused field
+  is smaller and leaves you scrolled sideways. Two fields (`.todoadd input[type="date"]` and
+  `input[type="file"]`) set a smaller size earlier in the file and win on specificity, so they are
+  named again explicitly.
+- **`.todolist label { min-height: 44px }`** — the label is what toggles a todo, and it was only as
+  tall as its own text: a 28px target inside a 52px row, with dead space above and below that
+  looked tappable and was not.
+
+Verified by measuring the rendered page rather than reading the CSS: 627 interactive elements
+across all nine tabs at 390×844 with touch emulation, all at or above 44px, and the same probe at
+1440×900 with a fine pointer confirming desktop sizing is unchanged. The only elements below the
+floor are the native checkboxes at 22×22, whose 254×44 label is the actual target.
+
 ## Installable app (PWA)
 
 The app installs to a phone home screen and to the Windows/Linux taskbar. Three files carry it,

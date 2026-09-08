@@ -487,3 +487,83 @@ h4 { font-size: var(--fs-small); font-weight: 600; color: var(--muted); margin: 
 @media (max-width: 620px) {
   .us .section-head > div { flex-wrap: wrap; }
 }
+
+/* --- touch targets ----------------------------------------------------------
+   Everything above this line is sized for a mouse: a 13px button with 7px of
+   padding is 31px tall, which is fine for a cursor and too small for a thumb.
+   These rules raise every interactive element to the 44px floor.
+
+   The query is `pointer: coarse` rather than a width breakpoint on purpose. It
+   asks what the primary input device actually is, so a phone gets the larger
+   targets at any width and the ThinkPad keeps the dense layout even in a narrow
+   window — which is what you want on a laptop, where a half-width browser is a
+   normal way to work and has nothing to do with fingers.
+
+   Nothing here changes a colour, a border or a font family. It is padding,
+   height, and the two touch behaviours browsers get wrong by default. */
+@media (pointer: coarse) {
+  /* The default 300ms wait for a possible double-tap-to-zoom makes every button
+     feel broken before it has done anything. */
+  button, input, select, textarea, label, summary, a { touch-action: manipulation; }
+
+  /* Safari paints a grey box over anything tapped. Removing it without putting
+     something back would make taps feel dead, so :active does the job instead —
+     and it fires on the real press rather than after the tap resolves. */
+  button, .chip, .status-chip { -webkit-tap-highlight-color: transparent; }
+  button:active, .chip:active { filter: brightness(1.25); }
+
+  button { min-height: 44px; padding: 11px 16px; }
+
+  /* Icon-weight buttons (the × on a row) are the hardest things in the app to
+     hit today at 25×24. Square them off. */
+  button.ghost { min-width: 44px; padding: 10px; }
+
+  /* Text actions inside table cells. They keep their quiet look; only the box
+     around them grows, and inline-flex is what keeps the label centred in it. */
+  .linkish { min-height: 44px; display: inline-flex; align-items: center; }
+
+  /* These sit inside a 2px-padded track. The track is not the target — a thumb
+     hits one segment — so the segment gets the 44px and the control lands at 50. */
+  .seg button, .subtabs button { min-height: 44px; padding: 11px 14px; }
+
+  nav.tabs button { min-height: 44px; padding: 12px 16px; }
+
+  .chip { min-height: 44px; padding: 12px 16px; display: inline-flex; align-items: center; }
+
+  /* 96×25 today. The width is left alone — it is what keeps the three states
+     from reflowing the row as the label changes length. */
+  .status-chip { min-height: 44px; }
+
+  /* Fixed at 38px wide, which is narrower than the floor and the only reason
+     these were ever hard to hit. Filling the row is both bigger and tidier. */
+  .energy button { width: auto; flex: 1; min-width: 44px; }
+
+  /* 16px is not a type choice: iOS zooms the whole viewport when a focused
+     field is smaller, and then leaves you scrolled sideways. Every form in the
+     app hit this. */
+  input:not([type="checkbox"]), select, textarea { font-size: 16px; min-height: 44px; padding: 11px 12px; }
+  textarea { min-height: 96px; }
+
+  /* A native checkbox does not grow with padding — width and height are the only
+     handles, which is why the rule above skips it: a min-height beats its height
+     and stretches it into a 22×44 rectangle. The label beside it is already the
+     wider target, and it toggles the box. */
+  input[type="checkbox"], .todolist input[type="checkbox"] { width: 22px; height: 22px; }
+
+  /* The label is what toggles a todo, and it was only as tall as its own text —
+     a 28px target sitting inside a 52px row, with dead space above and below it
+     that looked tappable and was not. Give the height to the label and take it
+     off the row so the list does not grow. */
+  .todolist li { padding: 4px 2px; }
+  .todolist label { min-height: 44px; }
+
+  /* Two fields set their own smaller size further up the file and so win on
+     specificity. They need naming or they keep triggering the iOS zoom. */
+  .todoadd input[type="date"], input[type="file"] { font-size: 16px; }
+  input[type="file"] { min-height: 44px; }
+  input[type="file"]::file-selector-button { min-height: 36px; padding: 8px 12px; }
+
+  /* The rows that carry a tap target need room for it, or the target overflows
+     its own cell. */
+  td { padding: 10px 8px; }
+}
