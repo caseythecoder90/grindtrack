@@ -1,4 +1,4 @@
-import type { PlanItem, PlanItemType, PlanStatus } from "../../lib/types";
+import type { PlanItem, PlanItemType, PlanQuarter, PlanStatus } from "../../lib/types";
 
 /**
  * Framework-free plan vocabulary and helpers: display labels, the status
@@ -22,6 +22,24 @@ export const PLAN_START_YEAR = 2026;
 export function yearWindow(year: number): string {
   const from = PLAN_START_YEAR + year - 1;
   return `Jul ${from} – Jun ${from + 1}`;
+}
+
+/** July, zero-indexed. Plan year 1 runs Jul 2026 – Jun 2027, so quarter 1 starts in July. */
+const PLAN_START_MONTH = 6;
+
+/**
+ * Which quarter today falls in, or null if today is outside the plan entirely.
+ *
+ * <p>Derived from the date rather than stored, so it cannot go stale, and looked up against the
+ * quarters that actually exist rather than clamped to the nearest. Before the plan starts and
+ * after it ends are both real answers, and neither should be reported as "you are in Q1" —
+ * the same rule the assistant's context service follows on the server.
+ */
+export function currentQuarter(quarters: PlanQuarter[], today = new Date()): PlanQuarter | null {
+  const months =
+    (today.getFullYear() - PLAN_START_YEAR) * 12 + (today.getMonth() - PLAN_START_MONTH);
+  if (months < 0) return null;
+  return quarters.find((q) => q.qtr === Math.floor(months / 3) + 1) ?? null;
 }
 
 /**

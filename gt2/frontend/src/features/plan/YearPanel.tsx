@@ -11,6 +11,11 @@ interface Props {
   quarters: PlanQuarter[];
   quartersOpen: boolean;
   onToggleQuarters: () => void;
+  /** Whether this year's items are showing. See PlanPage for what decides the default. */
+  open: boolean;
+  onToggle: () => void;
+  /** True for the year today falls in — worth marking even when it is collapsed. */
+  current: boolean;
   expandedId: number | null;
   onToggleExpand: (id: number) => void;
   onCycle: (item: PlanItem) => void;
@@ -19,9 +24,10 @@ interface Props {
   reading: Map<number, ReadingSubject>;
 }
 
-/** One plan year: progress bar, collapsible quarter roadmap, and its item rows. */
+/** One plan year: a header that opens it, a progress bar, the quarter roadmap, and its items. */
 export default function YearPanel({
   year, shown, all, quarters, quartersOpen, onToggleQuarters,
+  open, onToggle, current,
   expandedId, onToggleExpand, onCycle, onSaveNotes, reading,
 }: Props) {
   const yearItems = shown.filter((i) => i.yearNum === year).sort(byTarget);
@@ -32,13 +38,24 @@ export default function YearPanel({
     .sort((a, b) => a.qtr - b.qtr);
 
   return (
-    <div className="panel yearpanel">
-      <h2>
-        year {year} · {yearWindow(year)} · {yearDone}/{allYear.length} done
-      </h2>
+    <div className={"panel yearpanel" + (current ? " is-current" : "")}>
+      {/* The whole header is the control. A chevron alone is a small target for a thumb, and
+          the year line is the obvious thing to reach for. */}
+      <button type="button" className="yearhead" onClick={onToggle} aria-expanded={open}>
+        <span className="chev">{open ? "▾" : "▸"}</span>
+        <span className="yearname">
+          year {year} · {yearWindow(year)}
+          {current && <span className="badge badge-cert">now</span>}
+        </span>
+        <span className="yearcount">{yearDone}/{allYear.length} done</span>
+      </button>
+      {/* Outside the collapse on purpose: how far along a year is, is exactly what you want
+          to see from a list of closed years. */}
       <div className="progress">
         <i style={{ width: `${progressPercent(yearDone, allYear.length)}%` }} />
       </div>
+      {!open ? null : (
+      <>
       {yearQuarters.length > 0 && (
         <>
           <button className="linkish" onClick={onToggleQuarters}>
@@ -63,6 +80,8 @@ export default function YearPanel({
           reading={reading.get(item.id)} />
       ))}
       {yearItems.length === 0 && <div className="empty">nothing in this filter</div>}
+      </>
+      )}
     </div>
   );
 }

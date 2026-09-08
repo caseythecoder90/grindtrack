@@ -288,6 +288,38 @@ tr.today-row td { background: rgba(127, 209, 255, 0.06); }
 
 /* --- plan ------------------------------------------------------------------ */
 .yearpanel { margin-top: 14px; }
+
+/* The year header is a control, not a heading, so it is a button — but it should read as the
+   h2 it replaced rather than as a form control. */
+.yearhead {
+  display: flex; align-items: baseline; gap: 10px; width: 100%;
+  background: none; border: none; padding: 0; text-align: left; cursor: pointer;
+  /* Matches the h2 it replaced: same family, size, weight, colour and tracking. */
+  font-family: var(--mono); font-size: 14px; font-weight: 600; color: var(--cyan);
+  letter-spacing: 0.05em; text-transform: lowercase; margin-bottom: 8px;
+}
+.yearhead:hover { border-color: transparent; color: var(--text); }
+.yearhead .chev { color: var(--muted); font-size: 13px; }
+.yearhead .yearname { flex: 1; }
+.yearhead .yearcount { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.yearhead .badge { margin-left: 8px; vertical-align: middle; }
+/* The year you are in keeps an edge even when it is closed, so a list of folded years still
+   answers "which one is mine" without opening anything. */
+.yearpanel.is-current { border-color: rgba(127, 209, 255, 0.45); }
+
+/* --- you are here ---------------------------------------------------------
+   The plan is five years and 194 items. Before this, the answer to "what am I
+   meant to be working on" was somewhere in the middle of that, and finding it
+   meant scrolling past everything either side. */
+.youarehere { border-color: var(--cyan); }
+.youarehere .yah-kicker {
+  font-family: var(--mono); font-size: var(--fs-label); letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--cyan); margin-bottom: 4px;
+}
+.youarehere h2 { margin-top: 0; }
+.youarehere .yah-body { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.youarehere .yah-body b { color: var(--muted); font-weight: 600; margin-right: 6px; }
+.youarehere button { margin-top: 12px; }
 .qcard { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 8px 0; font-size: 13px; }
 .qcard .qhead { font-family: var(--mono); color: var(--cyan); font-size: 12px; margin-bottom: 6px; }
 .qcard b { color: var(--muted); font-weight: 600; }
