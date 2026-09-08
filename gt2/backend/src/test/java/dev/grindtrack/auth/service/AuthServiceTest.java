@@ -151,6 +151,83 @@ class AuthServiceTest {
   }
 
   @Test
+  void rotateWithinTheGraceWindowIssuesAnotherTokenInsteadOfRevokingEverything() {
+    // The loser of a rotation race: two windows sharing a cookie jar, or a client that never
+    // received the response to the rotation it won. Both present a token rotated seconds ago.
+    String presented = "raced-token";
+    RefreshToken stored =
+        new RefreshToken(USER_ID, AuthService.sha256(presented), OffsetDateTime.now().plusDays(5));
+    stored.markRotated(OffsetDateTime.now().minusSeconds(2));
+    when(refreshTokens.findByTokenHash(AuthService.sha256(presented)))
+        .thenReturn(Optional.of(stored));
+    User user = userWithId();
+    when(users.findById(USER_ID)).thenReturn(Optional.of(user));
+
+    Optional<AuthService.RotatedTokens> rotated = service.rotate(presented);
+
+    assertThat(rotated).isPresent();
+    assertThat(rotated.get().user()).isSameAs(user);
+    ArgumentCaptor<RefreshToken> saved = ArgumentCaptor.forClass(RefreshToken.class);
+    verify(refreshTokens).save(saved.capture());
+    assertThat(saved.getValue().isRevoked()).isFalse();
+    assertThatStoredHashMatches(saved.getValue(), rotated.get().newRefreshToken());
+    verify(refreshTokens, never()).findByUserIdAndRevokedFalse(anyLong());
+    verify(refreshTokens, never()).saveAll(any());
+  }
+
+  @Test
+  void rotateOutsideTheGraceWindowStillRevokesEveryLiveTokenForTheUser() {
+    String presented = "replayed-token";
+    RefreshToken stored =
+        new RefreshToken(USER_ID, AuthService.sha256(presented), OffsetDateTime.now().plusDays(5));
+    stored.markRotated(OffsetDateTime.now().minusMinutes(30));
+    when(refreshTokens.findByTokenHash(AuthService.sha256(presented)))
+        .thenReturn(Optional.of(stored));
+    RefreshToken live = new RefreshToken(USER_ID, "h1", OffsetDateTime.now().plusDays(5));
+    when(refreshTokens.findByUserIdAndRevokedFalse(USER_ID)).thenReturn(List.of(live));
+
+    assertThat(service.rotate(presented)).isEmpty();
+    assertThat(live.isRevoked()).isTrue();
+    verify(refreshTokens).saveAll(List.of(live));
+    verify(refreshTokens, never()).save(any());
+  }
+
+  @Test
+  void rotateOfATokenRevokedByLogoutGetsNoGraceHoweverRecentTheLogout() {
+    // revoke() records no instant, deliberately: presenting a logged-out token is not a race, so
+    // it must trip the cascade even a second later.
+    String presented = "logged-out-token";
+    RefreshToken stored =
+        new RefreshToken(USER_ID, AuthService.sha256(presented), OffsetDateTime.now().plusDays(5));
+    stored.revoke();
+    when(refreshTokens.findByTokenHash(AuthService.sha256(presented)))
+        .thenReturn(Optional.of(stored));
+    RefreshToken live = new RefreshToken(USER_ID, "h1", OffsetDateTime.now().plusDays(5));
+    when(refreshTokens.findByUserIdAndRevokedFalse(USER_ID)).thenReturn(List.of(live));
+
+    assertThat(service.rotate(presented)).isEmpty();
+    assertThat(stored.getRotatedAt()).isNull();
+    assertThat(live.isRevoked()).isTrue();
+    verify(refreshTokens, never()).save(any());
+  }
+
+  @Test
+  void rotateRecordsWhenTheTokenWasRotatedAwaySoTheGraceWindowCanBeMeasured() {
+    String presented = "presented-token";
+    RefreshToken stored =
+        new RefreshToken(USER_ID, AuthService.sha256(presented), OffsetDateTime.now().plusDays(5));
+    when(refreshTokens.findByTokenHash(AuthService.sha256(presented)))
+        .thenReturn(Optional.of(stored));
+    User user = userWithId();
+    when(users.findById(USER_ID)).thenReturn(Optional.of(user));
+
+    service.rotate(presented);
+
+    assertThat(stored.getRotatedAt())
+        .isBetween(OffsetDateTime.now().minusMinutes(1), OffsetDateTime.now());
+  }
+
+  @Test
   void rotateRejectsExpiredTokenWithoutRevokingAnything() {
     String presented = "old-token";
     RefreshToken stored =
