@@ -10,8 +10,15 @@ import ItemRow from "./ItemRow";
 import PlanHeader from "./PlanHeader";
 import Reference from "./Reference";
 import YearPanel from "./YearPanel";
-import { byTarget, NEXT_STATUS, planYears } from "./planModel";
+import { byTarget, currentQuarter, NEXT_STATUS, planYears } from "./planModel";
 import { useAppResume } from "../../lib/resume";
+
+/**
+ * True when the primary input is a finger. Read once: a device does not become a laptop
+ * halfway through a session, and the same question decides the layout in styles.css.
+ */
+const COARSE =
+  typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches === true;
 
 /**
  * Multi-year plan tracker. Loads the imported plan, then delegates rendering to
@@ -24,6 +31,13 @@ export default function PlanPage() {
   const [view, setView] = useState<"tracker" | "reference">("tracker");
   const [expanded, setExpanded] = useState<number | null>(null);
   const [openQuarters, setOpenQuarters] = useState(false);
+  /**
+   * Which years are showing their items, or null while the default still applies.
+   *
+   * <p>Null rather than a computed initial value because the default depends on the plan,
+   * which has not loaded yet on the first render. Once you touch a year, your choice sticks.
+   */
+  const [openYears, setOpenYears] = useState<number[] | null>(null);
   const [reading, setReading] = useState<Map<number, ReadingSubject>>(new Map());
   const [error, setError] = useState("");
 
@@ -121,6 +135,29 @@ export default function PlanPage() {
   const ongoing = shown.filter((i) => i.yearNum === null);
   const toggleExpand = (id: number) => setExpanded(expanded === id ? null : id);
 
+  const years = planYears(items, data.quarters);
+  const here = currentQuarter(data.quarters);
+  const currentYear = here?.yearNum ?? null;
+
+  /**
+   * Five years of a 194-item plan is a very long page, and on a phone it was the whole page:
+   * no way to look at one year without scrolling through the ones either side of it.
+   *
+   * <p>A phone opens the year you are in and nothing else, and opening another closes it —
+   * an accordion, because two open years is already more than the screen holds. A desktop
+   * opens everything, as it always did, but each year can now be folded away.
+   */
+  const firstOpen = currentYear ?? years[0];
+  // firstOpen is undefined only when every item is an ongoing/anytime one, in which case there
+  // are no year panels to open and the list is correctly empty rather than holding a hole.
+  const open = openYears ?? (COARSE ? (firstOpen ? [firstOpen] : []) : years);
+  function toggleYear(year: number) {
+    const isOpen = open.includes(year);
+    setOpenYears(
+      COARSE ? (isOpen ? [] : [year]) : isOpen ? open.filter((y) => y !== year) : [...open, year],
+    );
+  }
+
   return (
     <>
       <PlanHeader items={items} filter={filter} onFilter={setFilter}
@@ -132,10 +169,31 @@ export default function PlanPage() {
         <Reference sheets={data.reference} />
       ) : (
         <>
-          {planYears(items, data.quarters).map((year) => (
+          {here && (
+            /* Where you actually are, before five years of everything else. The plan is long
+               enough that the answer to "what am I meant to be doing" was several screens of
+               scrolling away, and it is the one thing this page is opened to find out. */
+            <div className="panel youarehere">
+              <div className="yah-kicker">you are here</div>
+              <h2>Q{here.qtr} · {here.windowLabel}</h2>
+              <div className="yah-body">
+                <div><b>Primary</b> {here.primaryFocus}</div>
+                {here.secondaryFocus && <div><b>Secondary</b> {here.secondaryFocus}</div>}
+                {here.deliverables && <div><b>Deliverables</b> {here.deliverables}</div>}
+              </div>
+              {!open.includes(here.yearNum) && (
+                <button type="button" onClick={() => toggleYear(here.yearNum)}>
+                  open year {here.yearNum}
+                </button>
+              )}
+            </div>
+          )}
+          {years.map((year) => (
             <YearPanel key={year} year={year} shown={shown} all={items}
               quarters={data.quarters} quartersOpen={openQuarters}
               onToggleQuarters={() => setOpenQuarters(!openQuarters)}
+              open={open.includes(year)} onToggle={() => toggleYear(year)}
+              current={year === currentYear}
               expandedId={expanded} onToggleExpand={toggleExpand}
               onCycle={cycleStatus} onSaveNotes={saveNotes} reading={reading} />
           ))}
