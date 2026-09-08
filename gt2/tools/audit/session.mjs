@@ -9,39 +9,16 @@
  * retried.
  */
 import { chromium } from "playwright";
+import { checker, credentials, totp } from "./lib.mjs";
 
 const URL = process.env.GT_URL ?? "http://localhost:8080";
-const { GT_USERNAME, GT_PASSWORD, GT_TOTP_SECRET, GT_CHROMIUM } = process.env;
-if (!GT_USERNAME || !GT_PASSWORD || !GT_TOTP_SECRET) {
-  console.error("GT_USERNAME, GT_PASSWORD and GT_TOTP_SECRET are required. See README.md.");
-  process.exit(2);
-}
-
-/** RFC 6238, six digits, thirty-second step -- the same scheme TotpService implements. */
-async function totp(base32) {
-  const { createHmac } = await import("node:crypto");
-  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-  let bits = "";
-  for (const ch of base32.replace(/=+$/, "").toUpperCase()) {
-    bits += alphabet.indexOf(ch).toString(2).padStart(5, "0");
-  }
-  const key = Buffer.from((bits.match(/.{8}/g) ?? []).map((b) => parseInt(b, 2)));
-  const counter = Buffer.alloc(8);
-  counter.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 1000 / 30)));
-  const mac = createHmac("sha1", key).update(counter).digest();
-  const offset = mac[19] & 0x0f;
-  return String((mac.readUInt32BE(offset) & 0x7fffffff) % 1e6).padStart(6, "0");
-}
+const { GT_CHROMIUM } = process.env;
+const { username, password, secret } = credentials();
 
 const today = () => new Date().toISOString().slice(0, 10);
 
-let failures = 0;
-function check(name, actual, expected) {
-  const ok = JSON.stringify(actual) === JSON.stringify(expected);
-  if (!ok) failures++;
-  console.log(`${ok ? "PASS" : "FAIL"} ${name.padEnd(48, ".")} ` +
-    `got=${JSON.stringify(actual)} want=${JSON.stringify(expected)}`);
-}
+const audit = checker();
+const check = audit.check;
 
 const browser = await chromium.launch({
   executablePath: GT_CHROMIUM,
@@ -54,9 +31,9 @@ page.on("pageerror", (e) => rejections.push(e.message));
 
 await page.goto(URL, { waitUntil: "domcontentloaded" });
 await page.click("button:has-text('Owner login')");
-await page.fill("#u", GT_USERNAME);
-await page.fill("#p", GT_PASSWORD);
-await page.fill("#o", await totp(GT_TOTP_SECRET));
+await page.fill("#u", username);
+await page.fill("#p", password);
+await page.fill("#o", totp(secret));
 await page.click("button:has-text('Sign in')");
 await page.waitForSelector(".statbar", { timeout: 20000 });
 await page.click(".tabs button:has-text('focus')");
@@ -142,5 +119,5 @@ check("a genuine 401 does log you out",
 check("no unhandled rejections", rejections, []);
 
 await browser.close();
-console.log(failures ? `\n${failures} FAILED` : "\nall checks passed");
-process.exit(failures ? 1 : 0);
+console.log(audit.failures ? `\n${audit.failures} FAILED` : "\nall checks passed");
+process.exit(audit.failures ? 1 : 0);

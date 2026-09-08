@@ -696,6 +696,25 @@ h4 { font-size: var(--fs-small); font-weight: 600; color: var(--muted); margin: 
      from reflowing the row as the label changes length. */
   .status-chip { min-height: 44px; }
 
+  /* --- plan rows ------------------------------------------------------------
+     A plan item is a chip, a type badge, a title, sometimes banked hours, a
+     target date and a chevron. On a desktop that is one comfortable row. On a
+     phone the fixed 96px chip, the badge, the date and the chevron leave the
+     title about eighty pixels of the three-twenty available, so every title --
+     and they are sentences, not labels -- wrapped four or five times.
+
+     The title takes its own full-width line and everything else becomes a meta
+     strip underneath it. No markup changed: `order` moves the title in front of
+     the siblings that precede it in the DOM, and a 100% basis makes the rest
+     wrap after it. The chip loses its fixed width because a phone has no room
+     to spend on centring three words in ninety-six pixels. */
+  .plan-row { flex-wrap: wrap; gap: 8px; align-items: center; }
+  .plan-title { order: -1; flex: 1 1 100%; font-size: 15px; line-height: 1.35; }
+  .status-chip { width: auto; padding: 4px 14px; }
+  /* Pushes the date and the chevron to the right edge, so the strip reads
+     status-and-kind on the left, when-it-is-due on the right. */
+  .plan-target { margin-left: auto; }
+
   /* Fixed at 38px wide, which is narrower than the floor and the only reason
      these were ever hard to hit. Filling the row is both bigger and tidier. */
   .energy button { width: auto; flex: 1; min-width: 44px; }

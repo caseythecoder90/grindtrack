@@ -41,6 +41,10 @@ grindtrack:
   # leaked token stops working within a day, while an ordinary week costs seven rotations instead
   # of several hundred.
   refresh-rotate-hours: 24
+  # How long a browser is remembered as having already passed the second factor. Thirty days is
+  # the usual figure, and it slides on every sign-in, so a machine in regular use stays trusted.
+  # The password is still required every time; only the authenticator code is skipped.
+  trusted-device-days: 30
   cookie-secure: ${COOKIE_SECURE:false}
   bootstrap-username: ${GRINDTRACK_USERNAME:}
   bootstrap-password: ${GRINDTRACK_PASSWORD:}

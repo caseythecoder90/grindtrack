@@ -39,7 +39,7 @@ class AuthServiceTest {
 
   @BeforeEach
   void setUp() {
-    AppProperties props = new AppProperties("secret", 15, 30, 24, true, null, null);
+    AppProperties props = new AppProperties("secret", 15, 30, 24, 30, true, null, null);
     service = new AuthService(users, refreshTokens, passwordEncoder, totpService, props);
   }
 
@@ -86,6 +86,55 @@ class AuthServiceTest {
     when(totpService.verify("SECRET", "000000")).thenReturn(false);
 
     assertThat(service.authenticate("casey", "pw", "000000")).isEmpty();
+  }
+
+  @Test
+  void aTrustedDeviceSkipsTheCodeButNeverThePassword() {
+    User user = new User("casey", "hash", "SECRET");
+    when(users.findByUsername("casey")).thenReturn(Optional.of(user));
+    when(passwordEncoder.matches("wrong", "hash")).thenReturn(false);
+
+    // The device belongs to this user and the code is absent -- and it still fails, because the
+    // password did. A device token is not a credential.
+    assertThat(service.authenticate("casey", "wrong", "", USER_ID)).isEmpty();
+    verify(totpService, never()).verify(any(), any());
+  }
+
+  @Test
+  void aTrustedDeviceLetsACorrectPasswordInWithoutACode() {
+    User user = mock(User.class);
+    when(user.getId()).thenReturn(USER_ID);
+    when(user.getPasswordHash()).thenReturn("hash");
+    when(users.findByUsername("casey")).thenReturn(Optional.of(user));
+    when(passwordEncoder.matches("pw", "hash")).thenReturn(true);
+
+    assertThat(service.authenticate("casey", "pw", "", USER_ID)).contains(user);
+    verify(totpService, never()).verify(any(), any());
+  }
+
+  @Test
+  void aDeviceTrustedByADifferentUserDoesNotWaiveAnything() {
+    // The check that must not be a boolean. A device trusted for user 99 offers user 7 nothing,
+    // so the code is still demanded -- and here it is wrong.
+    User user = mock(User.class);
+    when(user.getId()).thenReturn(USER_ID);
+    when(user.getPasswordHash()).thenReturn("hash");
+    when(user.getTotpSecret()).thenReturn("SECRET");
+    when(users.findByUsername("casey")).thenReturn(Optional.of(user));
+    when(passwordEncoder.matches("pw", "hash")).thenReturn(true);
+    when(totpService.verify("SECRET", "000000")).thenReturn(false);
+
+    assertThat(service.authenticate("casey", "pw", "000000", 99L)).isEmpty();
+  }
+
+  @Test
+  void anUntrustedBrowserStillNeedsTheCode() {
+    User user = new User("casey", "hash", "SECRET");
+    when(users.findByUsername("casey")).thenReturn(Optional.of(user));
+    when(passwordEncoder.matches("pw", "hash")).thenReturn(true);
+    when(totpService.verify("SECRET", "")).thenReturn(false);
+
+    assertThat(service.authenticate("casey", "pw", "", null)).isEmpty();
   }
 
   @Test

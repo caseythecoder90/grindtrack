@@ -15,6 +15,7 @@ import dev.grindtrack.auth.service.AuthService;
 import dev.grindtrack.auth.service.AuthService.RenewedSession;
 import dev.grindtrack.auth.service.JwtService;
 import dev.grindtrack.auth.service.LoginRateLimiter;
+import dev.grindtrack.auth.service.TrustedDeviceService;
 import dev.grindtrack.config.AppProperties;
 import jakarta.servlet.http.Cookie;
 import java.util.List;
@@ -34,13 +35,14 @@ class AuthControllerTest {
   @Mock private AuthService authService;
   @Mock private JwtService jwtService;
   @Mock private LoginRateLimiter rateLimiter;
+  @Mock private TrustedDeviceService trustedDevices;
 
   private AuthController controller;
 
   @BeforeEach
   void setUp() {
-    AppProperties props = new AppProperties("secret", 15, 30, 24, true, null, null);
-    controller = new AuthController(authService, jwtService, rateLimiter, props);
+    AppProperties props = new AppProperties("secret", 15, 30, 24, 30, true, null, null);
+    controller = new AuthController(authService, jwtService, rateLimiter, trustedDevices, props);
   }
 
   private static MockHttpServletRequest requestFrom(String ip) {
@@ -63,12 +65,13 @@ class AuthControllerTest {
   void loginSetsAccessAndRefreshCookiesOnSuccess() {
     when(rateLimiter.allow("1.2.3.4")).thenReturn(true);
     User user = userNamed("casey");
-    when(authService.authenticate("casey", "pw", "123456")).thenReturn(Optional.of(user));
+    when(trustedDevices.trustedUserFor(null)).thenReturn(Optional.empty());
+    when(authService.authenticate("casey", "pw", "123456", null)).thenReturn(Optional.of(user));
     when(authService.issueRefreshToken(user)).thenReturn("refresh-token");
     when(jwtService.issueAccessToken("casey")).thenReturn("access.jwt");
 
     ResponseEntity<?> response =
-        controller.login(new LoginRequest("casey", "pw", "123456"), requestFrom("1.2.3.4"));
+        controller.login(new LoginRequest("casey", "pw", "123456", false), requestFrom("1.2.3.4"));
 
     assertThat(response.getStatusCode().value()).isEqualTo(200);
     assertThat(response.getBody()).isEqualTo(new SessionResponse("casey"));
@@ -93,10 +96,11 @@ class AuthControllerTest {
   @Test
   void loginReturns401WithoutCookiesOnBadCredentials() {
     when(rateLimiter.allow("1.2.3.4")).thenReturn(true);
-    when(authService.authenticate("casey", "bad", "000000")).thenReturn(Optional.empty());
+    when(trustedDevices.trustedUserFor(null)).thenReturn(Optional.empty());
+    when(authService.authenticate("casey", "bad", "000000", null)).thenReturn(Optional.empty());
 
     ResponseEntity<?> response =
-        controller.login(new LoginRequest("casey", "bad", "000000"), requestFrom("1.2.3.4"));
+        controller.login(new LoginRequest("casey", "bad", "000000", false), requestFrom("1.2.3.4"));
 
     assertThat(response.getStatusCode().value()).isEqualTo(401);
     assertThat(setCookies(response)).isNull();
@@ -108,7 +112,7 @@ class AuthControllerTest {
     when(rateLimiter.allow("1.2.3.4")).thenReturn(false);
 
     ResponseEntity<?> response =
-        controller.login(new LoginRequest("casey", "pw", "123456"), requestFrom("1.2.3.4"));
+        controller.login(new LoginRequest("casey", "pw", "123456", false), requestFrom("1.2.3.4"));
 
     assertThat(response.getStatusCode().value()).isEqualTo(429);
     verifyNoInteractions(authService, jwtService);
@@ -121,7 +125,7 @@ class AuthControllerTest {
     when(rateLimiter.allow("9.9.9.9")).thenReturn(false);
 
     ResponseEntity<?> response =
-        controller.login(new LoginRequest("casey", "pw", "123456"), request);
+        controller.login(new LoginRequest("casey", "pw", "123456", false), request);
 
     assertThat(response.getStatusCode().value()).isEqualTo(429);
     verify(rateLimiter).allow("9.9.9.9");

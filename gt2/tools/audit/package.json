@@ -3,10 +3,11 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "Browser audits against a running instance: touch targets, and session durability.",
+  "description": "Browser audits against a running instance: touch targets, session durability, device trust.",
   "scripts": {
     "touch": "node touch.mjs",
-    "session": "node session.mjs"
+    "session": "node session.mjs",
+    "trust": "node trust.mjs"
   },
   "devDependencies": {
     "playwright": "^1.63.0"
