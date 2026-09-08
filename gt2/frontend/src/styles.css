@@ -803,3 +803,7 @@ h4 { font-size: var(--fs-small); font-weight: 600; color: var(--muted); margin: 
   .wrap { padding: calc(12px + env(safe-area-inset-top)) 16px
     calc(104px + env(safe-area-inset-bottom)); }
 }
+
+/* A queued write, which is neither an error nor a success. Amber rather than red: the
+   session is safe, it just is not on the server yet, and red would say it was lost. */
+.pending-note { font-family: var(--mono); font-size: 12px; color: var(--yellow); }

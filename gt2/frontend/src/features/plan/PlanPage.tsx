@@ -11,6 +11,7 @@ import PlanHeader from "./PlanHeader";
 import Reference from "./Reference";
 import YearPanel from "./YearPanel";
 import { byTarget, NEXT_STATUS, planYears } from "./planModel";
+import { useAppResume } from "../../lib/resume";
 
 /**
  * Multi-year plan tracker. Loads the imported plan, then delegates rendering to
@@ -33,6 +34,9 @@ export default function PlanPage() {
       setError(errorMessage(e, "could not load plan"));
     }
   }, []);
+
+  // Anything logged on another device since this screen loaded.
+  useAppResume(() => load());
 
   useEffect(() => {
     load();

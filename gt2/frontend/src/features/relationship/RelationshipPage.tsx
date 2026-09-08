@@ -8,6 +8,7 @@ import IdeasPanel from "./IdeasPanel";
 import OccasionsPanel from "./OccasionsPanel";
 import ReadingPanel from "./ReadingPanel";
 import { daysAgo, inDays, MOMENT_KINDS, MOMENT_LABEL } from "./kinds";
+import { useAppResume } from "../../lib/resume";
 
 /** Per-device, remembered locally. Laptops get opened on kitchen tables. */
 const DISCREET_KEY = "gt-us-discreet";
@@ -47,6 +48,9 @@ export default function RelationshipPage() {
       setError(errorMessage(e, "could not load this tab"));
     }
   }, []);
+
+  // Anything logged on another device since this screen loaded.
+  useAppResume(() => load());
 
   useEffect(() => {
     load();

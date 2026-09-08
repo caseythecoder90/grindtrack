@@ -1,0 +1,14 @@
+{
+  "name": "grindtrack-audit",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Browser audits against a running instance: touch targets, and session durability.",
+  "scripts": {
+    "touch": "node touch.mjs",
+    "session": "node session.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.63.0"
+  }
+}

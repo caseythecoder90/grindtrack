@@ -17,6 +17,7 @@ import Week from "./features/tracking/Week";
 import TodoPage from "./features/todo/TodoPage";
 import WorkPage from "./features/work/WorkPage";
 import { AuthError } from "./lib/api";
+import { useAppResume } from "./lib/resume";
 import { TABS, type Tab } from "./lib/tabs";
 import type { Scope, Stats } from "./lib/types";
 
@@ -50,15 +51,37 @@ export default function App() {
     localStorage.setItem(SCOPE_KEY, next);
   }, []);
 
-  useEffect(() => {
-    // If a valid session exists (cookie), land directly in the app.
-    me()
-      .then(() => {
-        setView("app");
-        refreshHeader();
-      })
-      .catch(() => setView("landing"));
+  /**
+   * Is there still a session? Only a refused one sends you to the landing page.
+   *
+   * <p>This used to be `.catch(() => setView("landing"))`, which could not tell a
+   * refusal from an unreachable server — so a redeploy or a sleeping wifi looked
+   * exactly like being logged out, right down to the login form.
+   */
+  const checkSession = useCallback(async () => {
+    try {
+      await me();
+      setView("app");
+      refreshHeader();
+    } catch (e) {
+      // Never over the top of a login the user has already started. This check is async
+      // and the answer arrives a round trip late, so on a cold load it can land after a
+      // click on "Owner login" and wipe the half-filled form.
+      if (e instanceof AuthError) setView((v) => (v === "login" ? v : "landing"));
+      // Anything else is the network. Whatever is on screen stays on screen, and the
+      // next resume tries again.
+    }
   }, [refreshHeader]);
+
+  useEffect(() => {
+    checkSession();
+  }, [checkSession]);
+
+  // Coming back to a window that has been open since this morning: re-check the session
+  // (a laptop that woke with no network recovers here) and refresh the header numbers.
+  useAppResume(() => {
+    void checkSession();
+  });
 
   async function logout() {
     await endSession();

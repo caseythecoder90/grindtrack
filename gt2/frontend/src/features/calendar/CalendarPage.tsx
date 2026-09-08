@@ -8,6 +8,7 @@ import { getPlan } from "../plan/planApi";
 import { errorMessage } from "../../lib/api";
 import { addMonths, monthOf, todayISO } from "../../lib/dates";
 import type { CalendarEvent, PlanItem, UpkeepTask } from "../../lib/types";
+import { useAppResume } from "../../lib/resume";
 
 const MONTH_NAME = new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" });
 
@@ -40,6 +41,12 @@ export default function CalendarPage() {
       setError(errorMessage(e, "could not load upkeep"));
     }
   }, []);
+
+  // Anything added or ticked off on another device since this screen loaded.
+  useAppResume(() => {
+    void loadMonth(month);
+    void loadUpkeep();
+  });
 
   useEffect(() => {
     loadMonth(month);

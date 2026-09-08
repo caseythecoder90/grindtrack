@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { keepSessionAlive } from "../../lib/api";
 import { FOCUS_DEFAULTS, type FocusKind } from "../../lib/types";
 import { chime, notify, requestNotifyPermission } from "./alerts";
 import {
@@ -21,6 +22,9 @@ import {
   type TimerConfig,
   type TimerState,
 } from "./timer";
+
+/** Comfortably inside the fifteen-minute access cookie, even if a tick is throttled or missed. */
+const KEEPALIVE_MS = 10 * 60 * 1000;
 
 export interface FocusTimer {
   state: TimerState;
@@ -104,6 +108,20 @@ export function useFocusTimer(
   useEffect(() => {
     if (!running) return;
     const id = setInterval(() => setNowMs(Date.now()), 500);
+    return () => clearInterval(id);
+  }, [running]);
+
+  // A running timer is the one part of this app that goes a long time without making a
+  // request: an hour of focus, and the access cookie lasts fifteen minutes. So every
+  // block longer than that used to finish by discovering its cookie was gone and racing
+  // a refresh — at the exact moment there was finally a session worth saving, and with
+  // no second chance if that refresh hit a redeploy or a sleeping network.
+  //
+  // Refreshing on a schedule instead means the save lands on a cookie that is already
+  // live. It costs one request per ten minutes, only while a timer is actually running.
+  useEffect(() => {
+    if (!running) return;
+    const id = setInterval(() => void keepSessionAlive(), KEEPALIVE_MS);
     return () => clearInterval(id);
   }, [running]);
 
