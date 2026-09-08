@@ -20,7 +20,7 @@ Each feature is a top-level package split into layer subpackages:
 | `domain` | JPA entities + Spring Data repositories | — |
 | `security` | (auth only) the JWT filter | `service` |
 | `web` | shared, feature-agnostic: request parsing, exception→status mapping | — |
-| `config` | cross-cutting: `SecurityConfig`, `AppProperties` | — |
+| `config` | cross-cutting: `SecurityConfig`, `StaticContentConfig`, `AppProperties` | — |
 
 Full inventory:
 
@@ -29,7 +29,8 @@ dev.grindtrack
 ├── GrindtrackApplication.java
 ├── config/
 │   ├── AppProperties.java        record, @ConfigurationProperties(prefix="grindtrack")
-│   └── SecurityConfig.java       @EnableWebSecurity, SecurityFilterChain + PasswordEncoder beans
+│   ├── SecurityConfig.java       @EnableWebSecurity, SecurityFilterChain + PasswordEncoder beans
+│   └── StaticContentConfig.java  Tomcat MIME mapping for .webmanifest (the PWA manifest)
 ├── web/                          the shared HTTP edge — no feature may duplicate it
 │   ├── Requests.java             requireDate/optionalDate/monthOrNow/requireText/enumValue/…
 │   ├── Responses.java            Deleted, Saved — the two acknowledgement bodies
@@ -372,7 +373,8 @@ materialized only during the Docker build. Stage 3 runs `java -jar app.jar` on
 1. **Dispatch** — request hits Tomcat on `:8080`, gets a **virtual thread**; Spring Security's
    filter chain runs first.
 2. **`JwtAuthFilter`** — reads `gt_access`; on a valid JWT, populates `SecurityContextHolder`.
-3. **Authorization** (`SecurityConfig`) — static assets + `/api/public/**` + login/refresh/logout
+3. **Authorization** (`SecurityConfig`) — static assets + the PWA shell (`/manifest.webmanifest`,
+   `/sw.js`, icons) + `/api/public/**` + login/refresh/logout
    bypass; anything else needs an authentication or the entry point writes **401** and stops.
 4. **`DispatcherServlet` → controller** — e.g. `PUT /api/days/{date}` → `TrackingController`,
    which parses/validates path + body and returns `badRequest()` on failure.

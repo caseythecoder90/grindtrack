@@ -11,9 +11,10 @@ remote state is local `useState`. The whole thing is one component tree in `App.
 
 ```
 src/
-├── main.tsx            React 18 root bootstrap (StrictMode, imports styles.css)
+├── main.tsx            React 18 root bootstrap (StrictMode, imports styles.css, registers the SW)
 ├── App.tsx             top-level shell: view/tab state machine, session probe, header
 ├── styles.css          single global stylesheet (dstyle palette; no CSS framework)
+├── vite-env.d.ts       pulls in vite/client types (import.meta.env)
 ├── components/         shared, presentational
 │   ├── Heatmap.tsx     26-week contribution grid, per-scope ramp (used by Landing + App)
 │   ├── Meter.tsx       the split study/work bar against a target — the app's one recurring device
@@ -236,3 +237,50 @@ Worth understanding because it's the trickiest screen:
   copies `dist/` into the Spring Boot `static/` in stage 2 — so in production there is a **single
   origin**: Spring serves both the SPA and `/api/**`. That single-origin fact is exactly why the
   httpOnly + `SameSite=Strict` cookie model works with no CORS. See [architecture.md](architecture.md).
+
+## Installable app (PWA)
+
+The app installs to a phone home screen and to the Windows/Linux taskbar. Three files carry it,
+all under `public/` so Vite copies them verbatim to the root of `dist/`:
+
+| File | Role |
+|---|---|
+| `manifest.webmanifest` | name, `display: standalone`, `#0d1b2a` theme, the icon set |
+| `sw.js` | the service worker (below) |
+| `icon-192/512.png`, `icon-maskable-512.png`, `apple-touch-icon.png` | generated, see below |
+
+**The service worker is a speed feature, not an offline mode.** Every screen renders server data,
+so an app that opened without a network would have nothing to show. It does two things:
+
+- **Navigations** are network-first with the cached `index.html` as a fallback, so a deploy is
+  picked up immediately and a flaky connection still opens the app.
+- **Static assets** (`/assets/**`, icons, fonts) are stale-while-revalidate. Vite content-hashes
+  those filenames, so a cache hit is always the right bytes for that URL.
+
+**`/api` is never intercepted.** Auth rides in httpOnly cookies with a rotating refresh token, and
+the responses are the most personal data in the app; neither belongs in Cache Storage, and a stale
+authed response served from a cache is a bug with no upside. Those requests fall through to the
+network untouched, exactly as if no worker were installed.
+
+**Cache invalidation:** `sw.js` contains a `__BUILD_ID__` placeholder that the `pwaBuildId` plugin
+in `vite.config.ts` replaces at build time with a hash of the emitted filenames. Cache names carry
+that id, so every deploy gets fresh caches and `activate` deletes the previous ones. The placeholder
+is mandatory — the plugin throws if it is missing, because a constant cache name would silently
+serve the previous build's assets forever.
+
+**Icons are generated, not committed by hand.** `tools/make_icons.py` renders them from the same
+geometry as `favicon.svg` using only `zlib` and `struct` — no image dependency, and the mark stays
+in step with the favicon. Re-run it after editing either:
+
+```
+cd gt2/frontend && python3 tools/make_icons.py
+```
+
+**Two server-side requirements**, both in the backend:
+
+- `SecurityConfig.PUBLIC_PATHS` allows `/manifest.webmanifest`, `/sw.js` and the icons. All of them
+  are fetched before login — the worker registers on the landing page, and the install prompt reads
+  the manifest while logged out.
+- `StaticContentConfig` teaches Tomcat the `.webmanifest` extension. Its defaults predate the type,
+  so the manifest would otherwise serve as `application/octet-stream`; browsers are inconsistent
+  about accepting that, and when one rejects it the install prompt simply never appears.
