@@ -15,6 +15,8 @@ import java.util.Base64;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +24,16 @@ import org.springframework.transaction.annotation.Transactional;
 /** Login (password + TOTP), refresh-token issuance, rotation, and revocation. */
 @Service
 public class AuthService {
+
+  /**
+   * Every path that ends a session says so, at a level worth waking up for.
+   *
+   * <p>Added because "I was logged out again, I think it was the deploy" could not be answered from
+   * anything the app recorded. The cascade is the only thing that signs every device out at once,
+   * so if it fires there is now a line saying so, and if it did not the question moves on rather
+   * than being guessed at.
+   */
+  private static final Logger log = LoggerFactory.getLogger(AuthService.class);
 
   /**
    * How long after a rotation the superseded token is still accepted as a race rather than treated
@@ -123,23 +135,40 @@ public class AuthService {
    */
   @Transactional
   public Optional<RenewedSession> renew(String presentedToken) {
-    return refreshTokens
-        .findByTokenHash(sha256(presentedToken))
-        .flatMap(stored -> renewStored(stored, presentedToken));
+    Optional<RefreshToken> stored = refreshTokens.findByTokenHash(sha256(presentedToken));
+    if (stored.isEmpty()) {
+      // Not a token this server ever issued: a stale cookie from before the database was reset,
+      // or a different deployment. Distinct from a revoked one, and worth telling apart.
+      log.info("Refresh presented a token that is not on file.");
+      return Optional.empty();
+    }
+    return stored.flatMap(t -> renewStored(t, presentedToken));
   }
 
   private Optional<RenewedSession> renewStored(RefreshToken stored, String presentedToken) {
     if (stored.isRevoked()) {
       if (!withinRotationGrace(stored)) {
+        log.warn(
+            "Refresh token reuse for user {}: rotated at {}, outside the {} grace. "
+                + "Revoking every session for this user.",
+            stored.getUserId(),
+            stored.getRotatedAt(),
+            ROTATION_GRACE);
         revokeAllForUser(stored.getUserId());
         return Optional.empty();
       }
+      log.info(
+          "Refresh token for user {} was rotated at {}, inside the grace window: "
+              + "issuing a replacement rather than treating it as reuse.",
+          stored.getUserId(),
+          stored.getRotatedAt());
       // Lost the race, or never heard the answer to the rotation it won. Give it one of its own:
       // only the hash of a token is stored, so the successor cannot be handed out twice even in
       // principle, and several live tokens for one user is already normal across devices.
       return issueFor(stored.getUserId());
     }
     if (isExpired(stored)) {
+      log.info("Session for user {} expired at {}.", stored.getUserId(), stored.getExpiresAt());
       return Optional.empty();
     }
     if (dueForRotation(stored)) {

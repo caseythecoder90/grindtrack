@@ -330,7 +330,7 @@ export default function FocusPage({ onLogged }: Props) {
         {sessions.length === 0 ? (
           <div className="empty">none yet — start the timer</div>
         ) : (
-          <table>
+          <table className="stacked">
             <thead>
               <tr>
                 <th style={{ width: 110 }}>started</th>
@@ -343,9 +343,9 @@ export default function FocusPage({ onLogged }: Props) {
               {sessions.map((s) => (
                 <tr key={s.id}>
                   <td className="num">{new Date(s.startedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</td>
-                  <td className="num">{s.durationMinutes}</td>
-                  <td>{s.topic || <span className="muted">—</span>}</td>
-                  <td className={s.completed ? "" : "muted"}>
+                  <td className="num" data-label="minutes">{s.durationMinutes}</td>
+                  <td data-label="subject">{s.topic || <span className="muted">—</span>}</td>
+                  <td data-label="status" className={s.completed ? "" : "muted"}>
                     {s.completed ? "completed" : "ended early"}
                   </td>
                 </tr>
