@@ -9,6 +9,8 @@ interface Props {
   /** The header's actions. They have no room in a 390px header, and they belong here. */
   onExport: () => void;
   onLogout: () => void;
+  onForgetDevices: () => void;
+  forgetLabel: string;
 }
 
 /**
@@ -19,7 +21,15 @@ interface Props {
  * focus moves in on open and back to the button that opened it on close, because a
  * dialog that strands the keyboard behind a backdrop is worse than no dialog.
  */
-export default function MoreSheet({ current, onPick, onClose, onExport, onLogout }: Props) {
+export default function MoreSheet({
+  current,
+  onPick,
+  onClose,
+  onExport,
+  onLogout,
+  onForgetDevices,
+  forgetLabel,
+}: Props) {
   const panel = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -84,6 +94,11 @@ export default function MoreSheet({ current, onPick, onClose, onExport, onLogout
             log out
           </button>
         </div>
+        {/* Sits apart from the two above because it is the only one that changes the account
+            rather than this browser: after it, every device asks for the authenticator again. */}
+        <button type="button" className="sheet-close" onClick={onForgetDevices}>
+          {forgetLabel}
+        </button>
         <button type="button" className="sheet-close" onClick={onClose}>
           close
         </button>

@@ -10,7 +10,7 @@ class JwtServiceTest {
   private static final String SECRET = "0123456789abcdef0123456789abcdef"; // 256-bit HS256 key
 
   private static JwtService serviceWithTtlMinutes(int minutes) {
-    return new JwtService(new AppProperties(SECRET, minutes, 30, 24, true, null, null));
+    return new JwtService(new AppProperties(SECRET, minutes, 30, 24, 30, true, null, null));
   }
 
   @Test
@@ -40,7 +40,8 @@ class JwtServiceTest {
   void rejectsTokenSignedWithDifferentKey() {
     JwtService signer =
         new JwtService(
-            new AppProperties("another-secret-key-32-bytes-long!!", 15, 30, 24, true, null, null));
+            new AppProperties(
+                "another-secret-key-32-bytes-long!!", 15, 30, 24, 30, true, null, null));
     JwtService verifier = serviceWithTtlMinutes(15);
     assertThat(verifier.validate(signer.issueAccessToken("casey"))).isEmpty();
   }

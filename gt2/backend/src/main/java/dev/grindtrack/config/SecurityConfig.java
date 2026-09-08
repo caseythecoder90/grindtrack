@@ -39,6 +39,10 @@ public class SecurityConfig {
     "/api/auth/login",
     "/api/auth/refresh",
     "/api/auth/logout",
+    // Asked by the login form before anyone has signed in, to decide whether to show the
+    // authenticator field. It reports only whether this browser holds a live device cookie --
+    // never who, and never anything that gets you in without the password.
+    "/api/auth/device",
   };
 
   @Bean

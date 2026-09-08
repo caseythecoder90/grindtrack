@@ -9,8 +9,25 @@ import { api, jsonInit } from "../../lib/api";
 
 export const me = () => api<{ username: string }>("/api/auth/me");
 
-export const login = (username: string, password: string, otp: string) =>
-  api<{ username: string }>("/api/auth/login", jsonInit("POST", { username, password, otp }));
+export const login = (username: string, password: string, otp: string, trustDevice: boolean) =>
+  api<{ username: string }>(
+    "/api/auth/login",
+    jsonInit("POST", { username, password, otp, trustDevice }),
+  );
+
+/**
+ * Whether this browser still needs an authenticator code.
+ *
+ * <p>Asked before anything is typed so the form can drop the field rather than ask for something
+ * the server will not check. The device cookie is HttpOnly, so this is the only way the page can
+ * know -- and it is the server's answer either way, since the form's opinion decides nothing.
+ */
+export const deviceTrusted = () =>
+  api<{ trusted: boolean; count: number }>("/api/auth/device");
+
+/** Forget every remembered device. The answer to a lost phone. */
+export const forgetDevices = () =>
+  api<{ trusted: boolean; count: number }>("/api/auth/devices/forget", { method: "POST" });
 
 export const logout = () =>
   fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" });

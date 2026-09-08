@@ -8,6 +8,8 @@ interface Props {
   onTab: (tab: Tab) => void;
   onExport: () => void;
   onLogout: () => void;
+  onForgetDevices: () => void;
+  forgetLabel: string;
 }
 
 /**
@@ -18,7 +20,14 @@ interface Props {
  * `@media (pointer: coarse)` in styles.css, not by a width, because a half-width
  * browser on a laptop is still a mouse.
  */
-export default function BottomNav({ tab, onTab, onExport, onLogout }: Props) {
+export default function BottomNav({
+  tab,
+  onTab,
+  onExport,
+  onLogout,
+  onForgetDevices,
+  forgetLabel,
+}: Props) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const moreButton = useRef<HTMLButtonElement>(null);
   const inSheet = SECONDARY_TABS.includes(tab);
@@ -41,6 +50,8 @@ export default function BottomNav({ tab, onTab, onExport, onLogout }: Props) {
           onClose={close}
           onExport={onExport}
           onLogout={onLogout}
+          onForgetDevices={onForgetDevices}
+          forgetLabel={forgetLabel}
         />
       )}
       <nav className="bottomnav" aria-label="Sections">

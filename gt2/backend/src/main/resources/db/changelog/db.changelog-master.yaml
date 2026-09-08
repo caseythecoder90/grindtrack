@@ -41,3 +41,5 @@ databaseChangeLog:
       file: db/changelog/020-calendar.sql
   - include:
       file: db/changelog/021-refresh-rotation-grace.sql
+  - include:
+      file: db/changelog/022-trusted-devices.sql

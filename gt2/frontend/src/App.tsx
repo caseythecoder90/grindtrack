@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import BottomNav from "./components/BottomNav";
 import Heatmap from "./components/Heatmap";
 import StatBar from "./components/StatBar";
-import { logout as endSession, me } from "./features/auth/authApi";
+import { forgetDevices, logout as endSession, me } from "./features/auth/authApi";
 import CalendarPage from "./features/calendar/CalendarPage";
 import Login from "./features/auth/Login";
 import FinancePage from "./features/finance/FinancePage";
@@ -16,7 +16,7 @@ import Today from "./features/tracking/Today";
 import Week from "./features/tracking/Week";
 import TodoPage from "./features/todo/TodoPage";
 import WorkPage from "./features/work/WorkPage";
-import { AuthError } from "./lib/api";
+import { AuthError, errorMessage } from "./lib/api";
 import { useAppResume } from "./lib/resume";
 import { TABS, type Tab } from "./lib/tabs";
 import type { Scope, Stats } from "./lib/types";
@@ -35,6 +35,7 @@ export default function App() {
   const [tab, setTab] = useState<Tab>("today");
   const [stats, setStats] = useState<Stats | null>(null);
   const [scope, setScope] = useState<Scope>(storedScope);
+  const [forgetLabel, setForgetLabel] = useState("forget trusted devices");
 
   // One request: /api/stats now carries the heatmap day series for every scope,
   // so switching scope is local and the header no longer needs /api/public/stats.
@@ -86,6 +87,26 @@ export default function App() {
   async function logout() {
     await endSession();
     setView("landing");
+  }
+
+  /**
+   * Revoke every remembered device. Deliberately says how many were forgotten rather than
+   * flashing a generic "done": the whole value of the button is knowing it did something, and
+   * the count is the only evidence available from this side of the cookie.
+   */
+  async function forgetTrustedDevices() {
+    try {
+      const { count } = await forgetDevices();
+      setForgetLabel(
+        count === 0
+          ? "no devices were remembered"
+          : count === 1
+            ? "1 device forgotten — it will ask for a code"
+            : `${count} devices forgotten — they will ask for a code`,
+      );
+    } catch (e) {
+      setForgetLabel(errorMessage(e, "could not forget devices"));
+    }
   }
 
   return (
@@ -142,6 +163,8 @@ export default function App() {
             onTab={setTab}
             onExport={() => (window.location.href = EXPORT_URL)}
             onLogout={logout}
+            onForgetDevices={forgetTrustedDevices}
+            forgetLabel={forgetLabel}
           />
         </>
       )}

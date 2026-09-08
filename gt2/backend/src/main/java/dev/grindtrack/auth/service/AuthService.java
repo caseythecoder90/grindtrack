@@ -62,10 +62,34 @@ public class AuthService {
 
   /** Returns the user if password AND current TOTP code both check out. */
   public Optional<User> authenticate(String username, String password, String otp) {
+    return authenticate(username, password, otp, null);
+  }
+
+  /**
+   * The same, except that a browser which already proved the second factor may skip the code.
+   *
+   * <p>{@code deviceTrustedUserId} is who the device cookie belongs to, or null for a browser that
+   * has never been trusted. It is compared inside the chain, after the password, and never replaces
+   * it: a trusted device presenting the wrong password fails exactly where a wrong password always
+   * failed. It is an id rather than a boolean on purpose -- a boolean would let a device trusted by
+   * one account waive the second factor for another, and that should be impossible by construction
+   * rather than by there happening to be one user.
+   */
+  public Optional<User> authenticate(
+      String username, String password, String otp, Long deviceTrustedUserId) {
     return users
         .findByUsername(username)
         .filter(u -> passwordEncoder.matches(password, u.getPasswordHash()))
-        .filter(u -> totpService.verify(u.getTotpSecret(), otp));
+        .filter(u -> trusts(u, deviceTrustedUserId) || totpService.verify(u.getTotpSecret(), otp));
+  }
+
+  private static boolean trusts(User user, Long deviceTrustedUserId) {
+    return deviceTrustedUserId != null && deviceTrustedUserId.equals(user.getId());
+  }
+
+  /** The signed-in user, by name. For callers that hold a Principal and need the row. */
+  public Optional<User> findByUsername(String username) {
+    return users.findByUsername(username);
   }
 
   /** Issues a new opaque refresh token, storing only its SHA-256 hash. */

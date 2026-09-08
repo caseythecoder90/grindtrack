@@ -9,6 +9,7 @@ public record AppProperties(
     int accessTokenMinutes,
     int refreshTokenDays,
     int refreshRotateHours,
+    int trustedDeviceDays,
     boolean cookieSecure,
     String bootstrapUsername,
     String bootstrapPassword) {}
