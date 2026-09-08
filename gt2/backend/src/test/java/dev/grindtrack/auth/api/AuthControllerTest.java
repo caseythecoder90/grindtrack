@@ -12,7 +12,7 @@ import dev.grindtrack.auth.api.AuthDtos.LoginRequest;
 import dev.grindtrack.auth.api.AuthDtos.SessionResponse;
 import dev.grindtrack.auth.domain.User;
 import dev.grindtrack.auth.service.AuthService;
-import dev.grindtrack.auth.service.AuthService.RotatedTokens;
+import dev.grindtrack.auth.service.AuthService.RenewedSession;
 import dev.grindtrack.auth.service.JwtService;
 import dev.grindtrack.auth.service.LoginRateLimiter;
 import dev.grindtrack.config.AppProperties;
@@ -39,7 +39,7 @@ class AuthControllerTest {
 
   @BeforeEach
   void setUp() {
-    AppProperties props = new AppProperties("secret", 15, 30, true, null, null);
+    AppProperties props = new AppProperties("secret", 15, 30, 24, true, null, null);
     controller = new AuthController(authService, jwtService, rateLimiter, props);
   }
 
@@ -140,8 +140,8 @@ class AuthControllerTest {
     MockHttpServletRequest request = requestFrom("1.2.3.4");
     request.setCookies(new Cookie("gt_refresh", "old-token"));
     User user = userNamed("casey");
-    when(authService.rotate("old-token"))
-        .thenReturn(Optional.of(new RotatedTokens(user, "new-token")));
+    when(authService.renew("old-token"))
+        .thenReturn(Optional.of(new RenewedSession(user, "new-token")));
     when(jwtService.issueAccessToken("casey")).thenReturn("fresh.jwt");
 
     ResponseEntity<?> response = controller.refresh(request);
@@ -158,7 +158,7 @@ class AuthControllerTest {
   void refreshWithInvalidTokenReturns401WithoutCookies() {
     MockHttpServletRequest request = requestFrom("1.2.3.4");
     request.setCookies(new Cookie("gt_refresh", "bad-token"));
-    when(authService.rotate("bad-token")).thenReturn(Optional.empty());
+    when(authService.renew("bad-token")).thenReturn(Optional.empty());
 
     ResponseEntity<?> response = controller.refresh(request);
 

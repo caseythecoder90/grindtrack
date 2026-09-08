@@ -8,6 +8,7 @@ public record AppProperties(
     String jwtSecret,
     int accessTokenMinutes,
     int refreshTokenDays,
+    int refreshRotateHours,
     boolean cookieSecure,
     String bootstrapUsername,
     String bootstrapPassword) {}

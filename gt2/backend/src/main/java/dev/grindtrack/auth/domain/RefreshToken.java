@@ -29,6 +29,13 @@ public class RefreshToken {
   @Column(name = "expires_at", nullable = false)
   private OffsetDateTime expiresAt;
 
+  /**
+   * When this token was first issued. Rotation is scheduled off it: a session is renewed on every
+   * use, but the token itself is only replaced once it is older than the rotation interval.
+   */
+  @Column(name = "created_at", nullable = false, updatable = false)
+  private OffsetDateTime createdAt;
+
   @Column(nullable = false)
   private boolean revoked;
 
@@ -44,8 +51,14 @@ public class RefreshToken {
   protected RefreshToken() {}
 
   public RefreshToken(Long userId, String tokenHash, OffsetDateTime expiresAt) {
+    this(userId, tokenHash, OffsetDateTime.now(), expiresAt);
+  }
+
+  public RefreshToken(
+      Long userId, String tokenHash, OffsetDateTime issuedAt, OffsetDateTime expiresAt) {
     this.userId = userId;
     this.tokenHash = tokenHash;
+    this.createdAt = issuedAt;
     this.expiresAt = expiresAt;
     this.revoked = false;
   }
@@ -56,6 +69,18 @@ public class RefreshToken {
 
   public OffsetDateTime getExpiresAt() {
     return expiresAt;
+  }
+
+  public OffsetDateTime getCreatedAt() {
+    return createdAt;
+  }
+
+  /**
+   * Push the expiry out. This is what keeps a session alive: using it renews it, so an app you open
+   * every day never expires, and one you abandon for the whole window does.
+   */
+  public void renewUntil(OffsetDateTime newExpiry) {
+    this.expiresAt = newExpiry;
   }
 
   public boolean isRevoked() {
