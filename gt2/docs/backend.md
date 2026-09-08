@@ -20,6 +20,7 @@ Each feature is a top-level package split into layer subpackages:
 | `domain` | JPA entities + Spring Data repositories | — |
 | `security` | (auth only) the JWT filter | `service` |
 | `web` | shared, feature-agnostic: request parsing, exception→status mapping | — |
+| `assistant` | the read-only context an assistant reasons over | `/api/assistant` |
 | `calendar` | events on days, and recurring upkeep | `/api/calendar`, `/api/upkeep` |
 | `config` | cross-cutting: `SecurityConfig`, `StaticContentConfig`, `AppProperties` | — |
 
