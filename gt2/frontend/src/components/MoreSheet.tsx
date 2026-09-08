@@ -6,6 +6,9 @@ interface Props {
   current: Tab;
   onPick: (tab: Tab) => void;
   onClose: () => void;
+  /** The header's actions. They have no room in a 390px header, and they belong here. */
+  onExport: () => void;
+  onLogout: () => void;
 }
 
 /**
@@ -16,7 +19,7 @@ interface Props {
  * focus moves in on open and back to the button that opened it on close, because a
  * dialog that strands the keyboard behind a backdrop is worse than no dialog.
  */
-export default function MoreSheet({ current, onPick, onClose }: Props) {
+export default function MoreSheet({ current, onPick, onClose, onExport, onLogout }: Props) {
   const panel = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -72,6 +75,14 @@ export default function MoreSheet({ current, onPick, onClose }: Props) {
               <span>{t}</span>
             </button>
           ))}
+        </div>
+        <div className="sheet-actions">
+          <button type="button" onClick={onExport}>
+            export json
+          </button>
+          <button type="button" onClick={onLogout}>
+            log out
+          </button>
         </div>
         <button type="button" className="sheet-close" onClick={onClose}>
           close

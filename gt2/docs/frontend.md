@@ -278,6 +278,29 @@ Two details worth not undoing:
 The sheet is modal: Escape and the backdrop close it, `Tab` is trapped inside it, focus moves in
 on open and back to the more button on close.
 
+## Density on a phone
+
+Before this pass, the first content panel on the today screen began at **708px in a 660px
+viewport** — 107%. Every pixel above it was chrome, so opening the app meant scrolling past the
+whole header to reach the form you opened it to fill in. It is **430px** now (65%), and the page is
+512px shorter.
+
+Everything is in the same `@media (pointer: coarse)` block; the desktop layout is untouched at
+528px of 900, which it has the room for.
+
+**Nothing was deleted. Things moved, or tightened:**
+
+| what | why |
+|---|---|
+| Header sub-line hidden | The plan's window and the weekly budget are static text you cannot act on, and they wrap to two lines at 390px |
+| Export / log out → the more sheet | Neither is a daily action |
+| Secondary stat tiles → one inline strip | Label and value on one line instead of three stacked cards with their own borders |
+| Heatmap cells 14px → 9px, day rail and footnote hidden | 26 columns still fit — 309px of the 326 available. **Shrinking beats truncating:** a shorter window would hide the part of the streak worth looking at |
+| Wins and blockers → a `<details>` | They get written on a Friday, not a Tuesday morning. It opens itself when either has content, so nothing is ever hidden |
+
+`.wrap`'s bottom padding is the bar's height plus clearance. A fixed element is out of flow, so
+without it the last panel on every page hides underneath the bar.
+
 ## Touch targets
 
 `styles.css` ends with a `@media (pointer: coarse)` block that raises every interactive element
@@ -302,6 +325,12 @@ Three rules in there are not obvious and should not be "tidied up":
 - **`.todolist label { min-height: 44px }`** — the label is what toggles a todo, and it was only as
   tall as its own text: a 28px target inside a 52px row, with dead space above and below that
   looked tappable and was not.
+
+It also asserts that **no bottom-bar slot is covered** by page content. The bar is drawn over
+content by design and wins on z-index; if anything ever lands on top of a slot, that slot silently
+stops being tappable and the tap goes to whatever is above it. The check names that directly rather
+than discovering it as a flaky click — navigation in the tool dispatches the click on the element,
+so a layering bug is reported as a layering bug instead of a timeout.
 
 Verified by measuring the rendered page rather than reading the CSS. That check is committed as
 [`gt2/tools/touch-audit`](../tools/touch-audit/README.md) — it drives the running app in a phone
