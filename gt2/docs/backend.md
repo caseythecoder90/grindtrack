@@ -41,11 +41,12 @@ dev.grindtrack
 │   └── ApiExceptionHandler.java  the one @RestControllerAdvice
 ├── auth/
 │   ├── api/{AuthController,AuthDtos}.java
-│   ├── service/AuthService.java           (+ nested RotatedTokens record)
+│   ├── service/AuthService.java           (+ nested RenewedSession record)
+│   ├── service/TrustedDeviceService.java   "trust this device" tokens
 │   ├── service/{JwtService,TotpService,LoginRateLimiter}.java
 │   ├── service/UserBootstrap.java          CommandLineRunner (not a REST bean)
 │   ├── security/{JwtAuthFilter,Cookies}.java
-│   └── domain/{User,UserRepository,RefreshToken,RefreshTokenRepository}.java
+│   └── domain/{User,RefreshToken,TrustedDevice}.java + repositories
 ├── tracking/
 │   ├── api/{TrackingController,FocusController,PublicController,ExportController,TrackingDtos}.java
 │   ├── service/{TrackingService,StatsService,Stats,FocusService}.java
@@ -101,9 +102,12 @@ with its stack trace intact — there is deliberately no `@ExceptionHandler(Exce
 ### `AuthController` — `/api/auth`
 | Method | Path | Access |
 |---|---|---|
-| POST | `/login` — `{username,password,otp}` → sets `gt_access`+`gt_refresh`; 401 / 429 | Public |
-| POST | `/refresh` — rotates via `gt_refresh` cookie | Public |
-| POST | `/logout` — revokes + expires cookies | Public |
+| POST | `/login` — `{username,password,otp?,trustDevice?}` → sets `gt_access`+`gt_refresh` (+`gt_device`); 401 / 429 | Public |
+| GET | `/device` — `{trusted,count}`: does this browser hold a live device cookie | Public |
+| POST | `/refresh` — renews (same token) or, once a day, rotates via `gt_refresh`; 401 clears both cookies | Public |
+| POST | `/logout` — revokes this session + expires cookies | Public |
+| POST | `/logout-all` — revokes every session for the account; `{status,sessionsEnded}` | Authenticated |
+| POST | `/devices/forget` — revokes every trusted device; `{trusted:false,count}` | Authenticated |
 | GET | `/me` — `{username}` from `Principal` | Authenticated |
 
 ### `TrackingController` — `/api`
@@ -273,13 +277,21 @@ Deep dive with sequence diagrams in [auth.md](auth.md). The moving parts:
 - **`TotpService`** — hand-rolled RFC 6238 (HMAC-SHA1, 30s period, 6 digits, ±1 window),
   constant-time compare; `generateSecret()` = 160-bit Base32; `provisioningUri()` builds the
   `otpauth://` URI.
-- **`AuthService`** — `authenticate` (BCrypt **and** TOTP, both required); `issueRefreshToken`
-  (32 random bytes, stores only SHA-256(token)); `rotate` (single-use rotation; reuse of a revoked
-  token ⇒ `revokeAllForUser`); `revoke` (logout).
+- **`AuthService`** — `authenticate` (BCrypt always; TOTP unless the device cookie is trusted for
+  *this* user); `issueRefreshToken` (32 random bytes, stores only SHA-256(token), starts a new
+  **family**); `renew` (slides the session expiry and hands the same token back; rotates it into a
+  successor in the same family once it is `refresh-rotate-hours` old; a rotated token replayed
+  inside a 24 h grace gets a sibling, outside it ⇒ `revokeFamily` — never the whole user);
+  `revoke` (logout); `revokeAllForUser` (logout everywhere, the one deliberate cross-family path).
+  Every session-ending path logs why. Details and the incident behind the family scoping:
+  [auth.md](auth.md).
+- **`TrustedDeviceService`** — `trustedUserFor(token)` answers *whose* device (an id, never a
+  boolean); `trust`, `touch` (slide expiry on sign-in), `forgetAll`. Hash-only storage like
+  refresh tokens.
 - **`LoginRateLimiter`** — in-memory per-IP sliding window, 5 / 5 min, bounded to 10k IPs.
 - **`SecurityConfig`** — CSRF disabled (SameSite=Strict mitigates), session policy STATELESS,
-  permitAll on static assets + `/api/public/**` + login/refresh/logout, everything else
-  authenticated, bare-401 entry point, `JwtAuthFilter` before `UsernamePasswordAuthenticationFilter`.
+  permitAll on static assets + the PWA shell + `/api/public/**` + login/refresh/logout/device,
+  everything else authenticated, bare-401 entry point, `JwtAuthFilter` before `UsernamePasswordAuthenticationFilter`.
 - **`JwtAuthFilter`** — reads `gt_access`, validates, sets a
   `UsernamePasswordAuthenticationToken(username, null, [ROLE_USER])` into the `SecurityContextHolder`.
 
@@ -296,6 +308,8 @@ Design notes worth remembering:
   surrogate id, no uniqueness constraint to manage.
 - **Loose coupling for tokens.** `refresh_tokens.user_id` is a plain column (FK enforced in SQL
   with `ON DELETE CASCADE`), not a JPA `@ManyToOne` — the auth domain doesn't need object graphs.
+  `family_id` is likewise a bare UUID rather than a self-referencing FK to the parent token: the
+  question asked of it is "revoke everything in this family", which is one indexed query.
 - **`categories`** is stored as a comma-separated string, exposed as `List<String>` via
   `DailyLog.categoryList()`. Fine for a single-user app; it's the obvious first thing to normalize
   if the model grows.
@@ -326,6 +340,9 @@ Schema **`grindtrack`**; Hibernate is `validate`-only, so Liquibase is the singl
   - `005-plan-year4.sql` — widen year/qtr CHECKs to 4 years / 16 quarters
   - `019-plan-year5.sql` — widen them again to 5 years / 20 quarters
   - `020-calendar.sql` — `calendar_events`, `recurring_tasks`, `recurring_task_completions`
+  - `021-refresh-rotation-grace.sql` — `refresh_tokens.rotated_at` (when a token was rotated away)
+  - `022-trusted-devices.sql` — `trusted_devices` (+ `idx_trusted_devices_user`)
+  - `023-refresh-token-families.sql` — `refresh_tokens.family_id` (+ `idx_refresh_tokens_family`)
   - `006-plan-paper.sql` — add `paper` to the `plan_items` item_type CHECK
   - `007-work.sql` — `work_logs` (CHECK hours 0–24), `work_skills` (status CHECK)
   - `008-focus-kind.sql` — add `kind` (study/work) to `focus_sessions` (CHECK)
@@ -343,8 +360,10 @@ Schema **`grindtrack`**; Hibernate is `validate`-only, so Liquibase is the singl
 |---|---|---|---|
 | datasource url/user/pass | `SPRING_DATASOURCE_URL/USERNAME/PASSWORD` | localhost/grind/grind | Spring |
 | `grindtrack.jwt-secret` | `JWT_SECRET` | insecure placeholder | `AppProperties.jwtSecret` |
-| `grindtrack.access-token-minutes` | — | `15` | `AppProperties` |
-| `grindtrack.refresh-token-days` | — | `14` | `AppProperties` |
+| `grindtrack.access-token-minutes` | — | `30` | `AppProperties` |
+| `grindtrack.refresh-token-days` | — | `90` (sliding) | `AppProperties` |
+| `grindtrack.refresh-rotate-hours` | — | `24` | `AppProperties` |
+| `grindtrack.trusted-device-days` | — | `30` (sliding) | `AppProperties` |
 | `grindtrack.cookie-secure` | `COOKIE_SECURE` | `false` | `AppProperties` |
 | `grindtrack.bootstrap-username` | `GRINDTRACK_USERNAME` | empty | `AppProperties` |
 | `grindtrack.bootstrap-password` | `GRINDTRACK_PASSWORD` | empty | `AppProperties` |
@@ -377,7 +396,7 @@ materialized only during the Docker build. Stage 3 runs `java -jar app.jar` on
    filter chain runs first.
 2. **`JwtAuthFilter`** — reads `gt_access`; on a valid JWT, populates `SecurityContextHolder`.
 3. **Authorization** (`SecurityConfig`) — static assets + the PWA shell (`/manifest.webmanifest`,
-   `/sw.js`, icons) + `/api/public/**` + login/refresh/logout
+   `/sw.js`, icons) + `/api/public/**` + login/refresh/logout/device
    bypass; anything else needs an authentication or the entry point writes **401** and stops.
 4. **`DispatcherServlet` → controller** — e.g. `PUT /api/days/{date}` → `TrackingController`,
    which parses/validates path + body and returns `badRequest()` on failure.

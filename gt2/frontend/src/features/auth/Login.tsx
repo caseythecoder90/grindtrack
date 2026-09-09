@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { errorMessage } from "../../lib/api";
 import { deviceTrusted, login } from "./authApi";
 
@@ -30,21 +30,29 @@ export default function Login({ onSuccess, onBack }: Props) {
       .catch(() => setTrusted(false));
   }, []);
 
-  async function submit() {
+  /**
+   * A real form, so Enter submits from whichever field is last. It used to be a keydown handler
+   * on the code field alone, which was fine until a trusted device stopped rendering that field
+   * and Enter in the password box did nothing. A form also lets a password manager see the
+   * fields as a login and fill them.
+   */
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    if (busy) return;
     setBusy(true);
     setError("");
     try {
       const res = await login(username, password, otp, trustThis);
       onSuccess(res.username);
-    } catch (e) {
-      setError(errorMessage(e, "Login failed"));
+    } catch (err) {
+      setError(errorMessage(err, "Login failed"));
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <div className="panel login-card">
+    <form className="panel login-card" onSubmit={submit}>
       <h2>owner login</h2>
       <label htmlFor="u">Username</label>
       <input id="u" value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" />
@@ -55,8 +63,7 @@ export default function Login({ onSuccess, onBack }: Props) {
           <label htmlFor="o">Authenticator code</label>
           <input id="o" value={otp} inputMode="numeric" placeholder="6-digit code"
             autoComplete="one-time-code"
-            onChange={(e) => setOtp(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && submit()} />
+            onChange={(e) => setOtp(e.target.value)} />
           {/* Offered only where it can be taken: a browser that is already trusted has nothing
               to opt into, and showing a ticked, inert box would suggest otherwise. */}
           <label className="inline-check" htmlFor="trust">
@@ -72,10 +79,10 @@ export default function Login({ onSuccess, onBack }: Props) {
         </p>
       )}
       <div className="actions">
-        <button className="primary" onClick={submit} disabled={busy}>Sign in</button>
-        <button onClick={onBack}>Back</button>
+        <button type="submit" className="primary" disabled={busy}>Sign in</button>
+        <button type="button" onClick={onBack}>Back</button>
         {error && <span className="error">{error}</span>}
       </div>
-    </div>
+    </form>
   );
 }

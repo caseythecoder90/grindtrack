@@ -23,7 +23,7 @@ import {
   type TimerState,
 } from "./timer";
 
-/** Comfortably inside the fifteen-minute access cookie, even if a tick is throttled or missed. */
+/** Comfortably inside the thirty-minute access cookie, even if a tick is throttled or missed. */
 const KEEPALIVE_MS = 10 * 60 * 1000;
 
 export interface FocusTimer {
@@ -112,7 +112,7 @@ export function useFocusTimer(
   }, [running]);
 
   // A running timer is the one part of this app that goes a long time without making a
-  // request: an hour of focus, and the access cookie lasts fifteen minutes. So every
+  // request: an hour of focus, and the access cookie lasts thirty minutes. So every
   // block longer than that used to finish by discovering its cookie was gone and racing
   // a refresh — at the exact moment there was finally a session worth saving, and with
   // no second chance if that refresh hit a redeploy or a sleeping network.

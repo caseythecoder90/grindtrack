@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import dev.grindtrack.auth.api.AuthDtos.LoginRequest;
+import dev.grindtrack.auth.api.AuthDtos.LogoutAllResponse;
 import dev.grindtrack.auth.api.AuthDtos.SessionResponse;
 import dev.grindtrack.auth.domain.User;
 import dev.grindtrack.auth.service.AuthService;
@@ -59,6 +60,16 @@ class AuthControllerTest {
     User user = mock(User.class);
     when(user.getUsername()).thenReturn(username);
     return user;
+  }
+
+  /** Both session cookies expired, in the order the controller always writes them. */
+  private static void assertSessionCookiesCleared(List<String> cookies) {
+    assertThat(cookies).hasSize(2);
+    assertThat(cookies.get(0)).startsWith("gt_access=;").contains("Max-Age=0").contains("Path=/");
+    assertThat(cookies.get(1))
+        .startsWith("gt_refresh=;")
+        .contains("Max-Age=0")
+        .contains("Path=/api/auth");
   }
 
   @Test
@@ -140,7 +151,7 @@ class AuthControllerTest {
   }
 
   @Test
-  void refreshRotatesAndSetsFreshCookies() {
+  void refreshRenewsAndSetsFreshCookies() {
     MockHttpServletRequest request = requestFrom("1.2.3.4");
     request.setCookies(new Cookie("gt_refresh", "old-token"));
     User user = userNamed("casey");
@@ -159,15 +170,18 @@ class AuthControllerTest {
   }
 
   @Test
-  void refreshWithInvalidTokenReturns401WithoutCookies() {
+  void refreshWithADeadTokenReturns401AndClearsTheCookieSoItIsNotPresentedAgain() {
+    // Left in the jar, a refused token comes back on every visit for as long as the cookie lasts.
+    // Nothing bad happens server-side any more, but the browser should stop sending it.
     MockHttpServletRequest request = requestFrom("1.2.3.4");
-    request.setCookies(new Cookie("gt_refresh", "bad-token"));
-    when(authService.renew("bad-token")).thenReturn(Optional.empty());
+    request.setCookies(new Cookie("gt_refresh", "dead-token"));
+    when(authService.renew("dead-token")).thenReturn(Optional.empty());
 
     ResponseEntity<?> response = controller.refresh(request);
 
     assertThat(response.getStatusCode().value()).isEqualTo(401);
-    assertThat(setCookies(response)).isNull();
+    assertSessionCookiesCleared(setCookies(response));
+    verifyNoInteractions(jwtService);
   }
 
   @Test
@@ -179,13 +193,7 @@ class AuthControllerTest {
 
     verify(authService).revoke("old-token");
     assertThat(response.getStatusCode().value()).isEqualTo(200);
-    List<String> cookies = setCookies(response);
-    assertThat(cookies).hasSize(2);
-    assertThat(cookies.get(0)).startsWith("gt_access=;").contains("Max-Age=0").contains("Path=/");
-    assertThat(cookies.get(1))
-        .startsWith("gt_refresh=;")
-        .contains("Max-Age=0")
-        .contains("Path=/api/auth");
+    assertSessionCookiesCleared(setCookies(response));
   }
 
   @Test
@@ -194,6 +202,20 @@ class AuthControllerTest {
 
     verify(authService, never()).revoke(any());
     assertThat(response.getStatusCode().value()).isEqualTo(200);
+  }
+
+  @Test
+  void logoutAllEndsEverySessionForThePrincipalAndExpiresThisBrowsersCookies() {
+    User user = mock(User.class);
+    when(user.getId()).thenReturn(7L);
+    when(authService.findByUsername("casey")).thenReturn(Optional.of(user));
+    when(authService.revokeAllForUser(7L)).thenReturn(3);
+
+    ResponseEntity<?> response = controller.logoutAll(() -> "casey");
+
+    assertThat(response.getStatusCode().value()).isEqualTo(200);
+    assertThat(response.getBody()).isEqualTo(new LogoutAllResponse("logged out everywhere", 3));
+    assertSessionCookiesCleared(setCookies(response));
   }
 
   @Test

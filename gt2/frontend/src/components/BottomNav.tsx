@@ -10,6 +10,8 @@ interface Props {
   onLogout: () => void;
   onForgetDevices: () => void;
   forgetLabel: string;
+  onLogoutEverywhere: () => void;
+  logoutEverywhereLabel: string;
 }
 
 /**
@@ -27,6 +29,8 @@ export default function BottomNav({
   onLogout,
   onForgetDevices,
   forgetLabel,
+  onLogoutEverywhere,
+  logoutEverywhereLabel,
 }: Props) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const moreButton = useRef<HTMLButtonElement>(null);
@@ -52,6 +56,8 @@ export default function BottomNav({
           onLogout={onLogout}
           onForgetDevices={onForgetDevices}
           forgetLabel={forgetLabel}
+          onLogoutEverywhere={onLogoutEverywhere}
+          logoutEverywhereLabel={logoutEverywhereLabel}
         />
       )}
       <nav className="bottomnav" aria-label="Sections">
