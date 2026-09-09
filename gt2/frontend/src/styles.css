@@ -199,6 +199,20 @@ textarea { min-height: 64px; resize: vertical; }
 .row > *, .row3 > * { min-width: 0; }
 @media (max-width: 700px) { .row, .row3 { grid-template-columns: 1fr; } }
 
+/* Number stepper — a value with a button either side. The buttons exist on every
+   platform because type="number" spinners render on a desktop browser and nothing at
+   all on a phone, which is exactly where this control was unusable. See
+   components/NumberStepper.tsx for why the input is text rather than number. */
+.stepper-field { min-width: 0; }
+.stepper { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: stretch; gap: 6px; }
+.stepper input { text-align: center; width: 100%; }
+.stepper-btn {
+  min-width: 34px; padding: 0 10px; line-height: 1;
+  font-size: 17px; font-variant-numeric: tabular-nums;
+}
+.stepper-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.stepper-btn:disabled:hover { border-color: var(--line); }
+
 /* Chips set a value on the record you're editing. Buttons, so they're reachable
    by keyboard and announce their state — unlike a segmented control, which
    changes what you're looking at rather than what you're saving. */
@@ -711,6 +725,11 @@ h4 { font-size: var(--fs-small); font-weight: 600; color: var(--muted); margin: 
   /* Icon-weight buttons (the × on a row) are the hardest things in the app to
      hit today at 25×24. Square them off. */
   button.ghost { min-width: 44px; padding: 10px; }
+
+  /* The reason this control exists. A stepper button is the whole interaction on a
+     phone, so it gets the floor in both directions rather than just the height. */
+  .stepper-btn { min-width: 44px; padding: 0 12px; }
+  .stepper input { min-height: 44px; }
 
   /* Text actions inside table cells. They keep their quiet look; only the box
      around them grows, and inline-flex is what keeps the label centred in it. */
