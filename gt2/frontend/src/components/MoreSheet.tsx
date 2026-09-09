@@ -11,6 +11,8 @@ interface Props {
   onLogout: () => void;
   onForgetDevices: () => void;
   forgetLabel: string;
+  onLogoutEverywhere: () => void;
+  logoutEverywhereLabel: string;
 }
 
 /**
@@ -29,6 +31,8 @@ export default function MoreSheet({
   onLogout,
   onForgetDevices,
   forgetLabel,
+  onLogoutEverywhere,
+  logoutEverywhereLabel,
 }: Props) {
   const panel = useRef<HTMLDivElement>(null);
 
@@ -98,6 +102,11 @@ export default function MoreSheet({
             rather than this browser: after it, every device asks for the authenticator again. */}
         <button type="button" className="sheet-close" onClick={onForgetDevices}>
           {forgetLabel}
+        </button>
+        {/* Also account-wide: every session on every device ends, this one included. The plain
+            "log out" above ends only this browser. */}
+        <button type="button" className="sheet-close" onClick={onLogoutEverywhere}>
+          {logoutEverywhereLabel}
         </button>
         <button type="button" className="sheet-close" onClick={onClose}>
           close

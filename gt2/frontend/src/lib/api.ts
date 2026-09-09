@@ -49,10 +49,10 @@ async function send(path: string, init?: RequestInit): Promise<Response> {
 type Refreshed = "ok" | "expired" | "unavailable";
 
 /**
- * Deduped refresh: concurrent 401s share one in-flight attempt. Refresh tokens
- * are single-use (rotation), so two parallel refresh calls would race. The server
- * now forgives that race within a minute, but sending one request instead of two
- * is still the right thing to do.
+ * Deduped refresh: concurrent 401s share one in-flight attempt. A refresh usually
+ * hands the same session token back, and when it does rotate, the server forgives
+ * the loser of a race for a day -- but sending one request instead of two is still
+ * the right thing to do.
  */
 let refreshInFlight: Promise<Refreshed> | null = null;
 
@@ -72,7 +72,7 @@ function refreshOnce(): Promise<Refreshed> {
  * Mint a fresh access cookie before the current one lapses.
  *
  * <p>For the focus timer, which runs for an hour without making a single request
- * while the access cookie lasts fifteen minutes. See useFocusTimer.
+ * while the access cookie lasts thirty minutes. See useFocusTimer.
  */
 export async function keepSessionAlive(): Promise<boolean> {
   return (await refreshOnce()) === "ok";

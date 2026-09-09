@@ -31,3 +31,13 @@ export const forgetDevices = () =>
 
 export const logout = () =>
   fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" });
+
+/**
+ * End every session on every device, this one included.
+ *
+ * <p>Goes through the wrapper, unlike `logout`: it is authenticated, so an access cookie that has
+ * just lapsed should be renewed and the request replayed rather than abandoned. Other devices
+ * find out when their own access cookie next lapses, within the access-token lifetime.
+ */
+export const logoutEverywhere = () =>
+  api<{ status: string; sessionsEnded: number }>("/api/auth/logout-all", { method: "POST" });

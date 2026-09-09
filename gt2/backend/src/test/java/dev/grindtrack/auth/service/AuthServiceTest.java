@@ -17,6 +17,7 @@ import dev.grindtrack.config.AppProperties;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -29,6 +30,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 class AuthServiceTest {
 
   private static final long USER_ID = 7L;
+  private static final UUID FAMILY = UUID.fromString("00000000-0000-0000-0000-00000000f0f0");
 
   @Mock private UserRepository users;
   @Mock private RefreshTokenRepository refreshTokens;
@@ -43,13 +45,19 @@ class AuthServiceTest {
     service = new AuthService(users, refreshTokens, passwordEncoder, totpService, props);
   }
 
-  /** A live token issued {@code hoursAgo} ago, so a test can put it either side of the interval. */
+  /** A live token in FAMILY issued {@code hoursAgo}, so a test can put it either side of the interval. */
   private static RefreshToken aged(String token, int hoursAgo) {
     return new RefreshToken(
         USER_ID,
+        FAMILY,
         AuthService.sha256(token),
         OffsetDateTime.now().minusHours(hoursAgo),
         OffsetDateTime.now().plusDays(30));
+  }
+
+  /** A live token in FAMILY, issued now. */
+  private static RefreshToken inFamily(String token) {
+    return aged(token, 0);
   }
 
   private User userWithId() {
@@ -145,13 +153,14 @@ class AuthServiceTest {
   }
 
   @Test
-  void issueRefreshTokenStoresOnlyTheSha256Hash() {
+  void issueRefreshTokenStoresOnlyTheSha256HashAtTheHeadOfANewFamily() {
     String token = service.issueRefreshToken(userWithId());
 
     ArgumentCaptor<RefreshToken> saved = ArgumentCaptor.forClass(RefreshToken.class);
     verify(refreshTokens).save(saved.capture());
     assertThat(token).matches("[A-Za-z0-9_-]{43}"); // 32 random bytes, base64url, no padding
     assertThat(saved.getValue().getUserId()).isEqualTo(USER_ID);
+    assertThat(saved.getValue().getFamilyId()).isNotNull();
     assertThat(saved.getValue().isRevoked()).isFalse();
     assertThat(saved.getValue().getExpiresAt())
         .isBetween(OffsetDateTime.now().plusDays(29), OffsetDateTime.now().plusDays(31));
@@ -162,6 +171,20 @@ class AuthServiceTest {
   void issueRefreshTokenNeverRepeatsTokens() {
     User user = userWithId();
     assertThat(service.issueRefreshToken(user)).isNotEqualTo(service.issueRefreshToken(user));
+  }
+
+  @Test
+  void everyLoginStartsItsOwnFamily() {
+    // Two devices signing in are two families. That independence is the whole fix: nothing one
+    // device does with its cookie can ever be read as evidence against the other.
+    User user = userWithId();
+    service.issueRefreshToken(user);
+    service.issueRefreshToken(user);
+
+    ArgumentCaptor<RefreshToken> saved = ArgumentCaptor.forClass(RefreshToken.class);
+    verify(refreshTokens, times(2)).save(saved.capture());
+    assertThat(saved.getAllValues().get(0).getFamilyId())
+        .isNotEqualTo(saved.getAllValues().get(1).getFamilyId());
   }
 
   @Test
@@ -208,15 +231,16 @@ class AuthServiceTest {
     }
     assertThat(stored.isRevoked()).isFalse();
     verify(refreshTokens, never()).findByUserIdAndRevokedFalse(anyLong());
+    verify(refreshTokens, never()).findByFamilyIdAndRevokedFalse(any());
   }
 
   @Test
-  void renewingATokenPastTheRotationIntervalRevokesItAndIssuesAReplacement() {
+  void renewingATokenPastTheRotationIntervalRotatesItAndIssuesASuccessorInTheSameFamily() {
     String presented = "presented-token";
     RefreshToken stored = aged(presented, 48);
     when(refreshTokens.findByTokenHash(AuthService.sha256(presented)))
         .thenReturn(Optional.of(stored));
-    User user = userWithId();
+    User user = mock(User.class);
     when(users.findById(USER_ID)).thenReturn(Optional.of(user));
 
     Optional<AuthService.RenewedSession> rotated = service.renew(presented);
@@ -224,46 +248,49 @@ class AuthServiceTest {
     assertThat(rotated).isPresent();
     assertThat(rotated.get().user()).isSameAs(user);
     assertThat(stored.isRevoked()).isTrue();
+    assertThat(stored.getRotatedAt())
+        .isBetween(OffsetDateTime.now().minusMinutes(1), OffsetDateTime.now());
 
     ArgumentCaptor<RefreshToken> saves = ArgumentCaptor.forClass(RefreshToken.class);
     verify(refreshTokens, times(2)).save(saves.capture());
     assertThat(saves.getAllValues().get(0)).isSameAs(stored);
-    RefreshToken replacement = saves.getAllValues().get(1);
-    assertThat(replacement.isRevoked()).isFalse();
-    assertThatStoredHashMatches(replacement, rotated.get().sessionToken());
+    RefreshToken successor = saves.getAllValues().get(1);
+    assertThat(successor.isRevoked()).isFalse();
+    assertThat(successor.getUserId()).isEqualTo(USER_ID);
+    assertThat(successor.getFamilyId()).isEqualTo(FAMILY);
+    assertThatStoredHashMatches(successor, rotated.get().sessionToken());
   }
 
   @Test
-  void presentingATokenRevokedWithoutRotationRevokesEveryLiveTokenForTheUser() {
-    String presented = "stolen-token";
-    RefreshToken stored =
-        new RefreshToken(USER_ID, AuthService.sha256(presented), OffsetDateTime.now().plusDays(5));
+  void presentingATokenRevokedWithoutRotationIsRefusedAndRevokesNothing() {
+    // A logged-out cookie, or one whose family was already revoked. It has no successor, so it is
+    // evidence of nothing, and it must not end anyone else's session: this is the case that had
+    // one stale browser signing every other device out each time it opened the app.
+    String presented = "logged-out-token";
+    RefreshToken stored = inFamily(presented);
     stored.revoke();
     when(refreshTokens.findByTokenHash(AuthService.sha256(presented)))
         .thenReturn(Optional.of(stored));
-    RefreshToken live1 = new RefreshToken(USER_ID, "h1", OffsetDateTime.now().plusDays(5));
-    RefreshToken live2 = new RefreshToken(USER_ID, "h2", OffsetDateTime.now().plusDays(5));
-    when(refreshTokens.findByUserIdAndRevokedFalse(USER_ID)).thenReturn(List.of(live1, live2));
 
     assertThat(service.renew(presented)).isEmpty();
-    assertThat(live1.isRevoked()).isTrue();
-    assertThat(live2.isRevoked()).isTrue();
-    verify(refreshTokens).saveAll(List.of(live1, live2));
+    assertThat(stored.getRotatedAt()).isNull();
+    verify(refreshTokens, never()).findByUserIdAndRevokedFalse(anyLong());
+    verify(refreshTokens, never()).findByFamilyIdAndRevokedFalse(any());
     verify(refreshTokens, never()).save(any());
+    verify(refreshTokens, never()).saveAll(any());
     verify(users, never()).findById(anyLong());
   }
 
   @Test
-  void presentingATokenRotatedInsideTheGraceWindowIssuesAnotherRatherThanRevokingEverything() {
+  void presentingATokenRotatedInsideTheGraceWindowIssuesASiblingRatherThanRevokingAnything() {
     // The loser of a rotation race: two windows sharing a cookie jar, or a client that never
-    // received the response to the rotation it won. Both present a token rotated seconds ago.
+    // received the response to the rotation it won. Both present a token rotated recently.
     String presented = "raced-token";
-    RefreshToken stored =
-        new RefreshToken(USER_ID, AuthService.sha256(presented), OffsetDateTime.now().plusDays(5));
+    RefreshToken stored = inFamily(presented);
     stored.markRotated(OffsetDateTime.now().minusMinutes(90));
     when(refreshTokens.findByTokenHash(AuthService.sha256(presented)))
         .thenReturn(Optional.of(stored));
-    User user = userWithId();
+    User user = mock(User.class);
     when(users.findById(USER_ID)).thenReturn(Optional.of(user));
 
     Optional<AuthService.RenewedSession> rotated = service.renew(presented);
@@ -273,60 +300,31 @@ class AuthServiceTest {
     ArgumentCaptor<RefreshToken> saved = ArgumentCaptor.forClass(RefreshToken.class);
     verify(refreshTokens).save(saved.capture());
     assertThat(saved.getValue().isRevoked()).isFalse();
+    assertThat(saved.getValue().getFamilyId()).isEqualTo(FAMILY);
     assertThatStoredHashMatches(saved.getValue(), rotated.get().sessionToken());
-    verify(refreshTokens, never()).findByUserIdAndRevokedFalse(anyLong());
+    verify(refreshTokens, never()).findByFamilyIdAndRevokedFalse(any());
     verify(refreshTokens, never()).saveAll(any());
   }
 
   @Test
-  void presentingATokenRotatedLongAgoStillRevokesEveryLiveTokenForTheUser() {
+  void presentingATokenRotatedLongAgoRevokesItsFamilyAndNoOtherSession() {
+    // Reuse. Whoever is replaying this token shares a family with the honest holder of its
+    // successor, and that family dies. The other device -- a different login, a different family --
+    // is never consulted, let alone revoked.
     String presented = "replayed-token";
-    RefreshToken stored =
-        new RefreshToken(USER_ID, AuthService.sha256(presented), OffsetDateTime.now().plusDays(5));
+    RefreshToken stored = inFamily(presented);
     stored.markRotated(OffsetDateTime.now().minusDays(3));
     when(refreshTokens.findByTokenHash(AuthService.sha256(presented)))
         .thenReturn(Optional.of(stored));
-    RefreshToken live = new RefreshToken(USER_ID, "h1", OffsetDateTime.now().plusDays(5));
-    when(refreshTokens.findByUserIdAndRevokedFalse(USER_ID)).thenReturn(List.of(live));
+    RefreshToken successor = inFamily("successor");
+    when(refreshTokens.findByFamilyIdAndRevokedFalse(FAMILY)).thenReturn(List.of(successor));
 
     assertThat(service.renew(presented)).isEmpty();
-    assertThat(live.isRevoked()).isTrue();
-    verify(refreshTokens).saveAll(List.of(live));
+    assertThat(successor.isRevoked()).isTrue();
+    verify(refreshTokens).saveAll(List.of(successor));
+    verify(refreshTokens, never()).findByUserIdAndRevokedFalse(anyLong());
     verify(refreshTokens, never()).save(any());
-  }
-
-  @Test
-  void aTokenRevokedByLogoutGetsNoGraceHoweverRecentTheLogout() {
-    // revoke() records no instant, deliberately: presenting a logged-out token is not a race, so
-    // it must trip the cascade even a second later.
-    String presented = "logged-out-token";
-    RefreshToken stored =
-        new RefreshToken(USER_ID, AuthService.sha256(presented), OffsetDateTime.now().plusDays(5));
-    stored.revoke();
-    when(refreshTokens.findByTokenHash(AuthService.sha256(presented)))
-        .thenReturn(Optional.of(stored));
-    RefreshToken live = new RefreshToken(USER_ID, "h1", OffsetDateTime.now().plusDays(5));
-    when(refreshTokens.findByUserIdAndRevokedFalse(USER_ID)).thenReturn(List.of(live));
-
-    assertThat(service.renew(presented)).isEmpty();
-    assertThat(stored.getRotatedAt()).isNull();
-    assertThat(live.isRevoked()).isTrue();
-    verify(refreshTokens, never()).save(any());
-  }
-
-  @Test
-  void rotationRecordsWhenTheTokenWasRotatedAwaySoTheGraceWindowCanBeMeasured() {
-    String presented = "presented-token";
-    RefreshToken stored = aged(presented, 48);
-    when(refreshTokens.findByTokenHash(AuthService.sha256(presented)))
-        .thenReturn(Optional.of(stored));
-    User user = userWithId();
-    when(users.findById(USER_ID)).thenReturn(Optional.of(user));
-
-    service.renew(presented);
-
-    assertThat(stored.getRotatedAt())
-        .isBetween(OffsetDateTime.now().minusMinutes(1), OffsetDateTime.now());
+    verify(users, never()).findById(anyLong());
   }
 
   @Test
@@ -342,6 +340,7 @@ class AuthServiceTest {
     assertThat(stored.isRevoked()).isFalse();
     verify(refreshTokens, never()).save(any());
     verify(refreshTokens, never()).findByUserIdAndRevokedFalse(anyLong());
+    verify(refreshTokens, never()).findByFamilyIdAndRevokedFalse(any());
   }
 
   @Test
@@ -353,17 +352,18 @@ class AuthServiceTest {
   }
 
   @Test
-  void revokeMarksThePresentedTokenRevoked() {
+  void revokeMarksThePresentedTokenRevokedAndNothingElse() {
     String presented = "some-token";
-    RefreshToken stored =
-        new RefreshToken(USER_ID, AuthService.sha256(presented), OffsetDateTime.now().plusDays(5));
+    RefreshToken stored = inFamily(presented);
     when(refreshTokens.findByTokenHash(AuthService.sha256(presented)))
         .thenReturn(Optional.of(stored));
 
     service.revoke(presented);
 
     assertThat(stored.isRevoked()).isTrue();
+    assertThat(stored.getRotatedAt()).isNull();
     verify(refreshTokens).save(stored);
+    verify(refreshTokens, never()).saveAll(any());
   }
 
   @Test
@@ -373,6 +373,25 @@ class AuthServiceTest {
     service.revoke("no-such-token");
 
     verify(refreshTokens, never()).save(any());
+  }
+
+  @Test
+  void revokeAllForUserEndsEveryLiveSessionAcrossFamiliesAndReportsHowMany() {
+    // "Log out everywhere": the one deliberate path across families.
+    RefreshToken phone = inFamily("phone");
+    RefreshToken laptop =
+        new RefreshToken(
+            USER_ID,
+            UUID.randomUUID(),
+            AuthService.sha256("laptop"),
+            OffsetDateTime.now(),
+            OffsetDateTime.now().plusDays(30));
+    when(refreshTokens.findByUserIdAndRevokedFalse(USER_ID)).thenReturn(List.of(phone, laptop));
+
+    assertThat(service.revokeAllForUser(USER_ID)).isEqualTo(2);
+    assertThat(phone.isRevoked()).isTrue();
+    assertThat(laptop.isRevoked()).isTrue();
+    verify(refreshTokens).saveAll(List.of(phone, laptop));
   }
 
   @Test

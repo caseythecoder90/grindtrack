@@ -15,13 +15,14 @@ import java.util.Base64;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Login (password + TOTP), refresh-token issuance, rotation, and revocation. */
+/** Login (password + TOTP), refresh-token issuance, renewal, rotation, and revocation. */
 @Service
 public class AuthService {
 
@@ -29,9 +30,9 @@ public class AuthService {
    * Every path that ends a session says so, at a level worth waking up for.
    *
    * <p>Added because "I was logged out again, I think it was the deploy" could not be answered from
-   * anything the app recorded. The cascade is the only thing that signs every device out at once,
-   * so if it fires there is now a line saying so, and if it did not the question moves on rather
-   * than being guessed at.
+   * anything the app recorded. Revoking a family is the only thing that ends a session the client
+   * did not ask to end, so if it fires there is a line saying so and which family, and if it did
+   * not the question moves on rather than being guessed at.
    */
   private static final Logger log = LoggerFactory.getLogger(AuthService.class);
 
@@ -47,8 +48,8 @@ public class AuthService {
    *
    * <p>What is given up is narrow: someone holding a stolen cookie who replays it inside a day of
    * its rotation gets a session. They would have had one anyway, because the cookie they stole was
-   * live until it rotated. What is bought is that the honest owner is not signed out of every
-   * device by a dropped packet.
+   * live until it rotated. What is bought is that the honest owner is not signed out by a dropped
+   * packet.
    */
   private static final Duration ROTATION_GRACE = Duration.ofHours(24);
 
@@ -104,12 +105,21 @@ public class AuthService {
     return users.findByUsername(username);
   }
 
-  /** Issues a new opaque refresh token, storing only its SHA-256 hash. */
+  /**
+   * Starts a session: a new opaque refresh token at the head of a new family. Only its SHA-256 hash
+   * is stored.
+   */
   @Transactional
   public String issueRefreshToken(User user) {
+    return issue(user.getId(), UUID.randomUUID());
+  }
+
+  private String issue(Long userId, UUID familyId) {
     String token = randomUrlSafeToken();
-    OffsetDateTime expiresAt = OffsetDateTime.now().plusDays(props.refreshTokenDays());
-    refreshTokens.save(new RefreshToken(user.getId(), sha256(token), expiresAt));
+    OffsetDateTime now = OffsetDateTime.now();
+    refreshTokens.save(
+        new RefreshToken(
+            userId, familyId, sha256(token), now, now.plusDays(props.refreshTokenDays())));
     return token;
   }
 
@@ -123,15 +133,23 @@ public class AuthService {
    * be lost and the client to be left holding something the server had already revoked. A phone
    * suspending mid-request or a pod replaced mid-deploy was enough.
    *
-   * <p>So a renewal now slides the session's expiry and hands the same token back. The token is
-   * only replaced once it is older than {@code refresh-rotate-hours}, which turns thousands of
-   * rotations a year into a few hundred, each one far likelier to complete. This is the ordinary
-   * shape of a first-party web session: use it and it stays alive, abandon it for the whole window
-   * and it dies.
+   * <p>So a renewal slides the session's expiry and hands the same token back. The token is only
+   * replaced once it is older than {@code refresh-rotate-hours}, which turns thousands of rotations
+   * a year into a few hundred, each one far likelier to complete. This is the ordinary shape of a
+   * first-party web session: use it and it stays alive, abandon it for the whole window and it
+   * dies.
    *
    * <p>Rotation is kept rather than dropped because it still bounds how long a token that leaked is
    * worth anything, and because the session is revocable either way -- it is a hash in a table, not
    * a bearer JWT.
+   *
+   * <p><strong>Reuse detection is scoped to the token's family.</strong> A rotated token presented
+   * again outside the grace window means two parties held the same token and one of them is not
+   * the owner, so that login and everything descended from it is revoked. It is never widened to
+   * the whole user: every other device's session is a separate family, started by a separate
+   * password, and a stale cookie on this device is no evidence against them. The version of this
+   * that revoked everything for the user turned one dead cookie into a device that signed every
+   * other device out each time it opened the app -- see migration 023.
    */
   @Transactional
   public Optional<RenewedSession> renew(String presentedToken) {
@@ -147,25 +165,7 @@ public class AuthService {
 
   private Optional<RenewedSession> renewStored(RefreshToken stored, String presentedToken) {
     if (stored.isRevoked()) {
-      if (!withinRotationGrace(stored)) {
-        log.warn(
-            "Refresh token reuse for user {}: rotated at {}, outside the {} grace. "
-                + "Revoking every session for this user.",
-            stored.getUserId(),
-            stored.getRotatedAt(),
-            ROTATION_GRACE);
-        revokeAllForUser(stored.getUserId());
-        return Optional.empty();
-      }
-      log.info(
-          "Refresh token for user {} was rotated at {}, inside the grace window: "
-              + "issuing a replacement rather than treating it as reuse.",
-          stored.getUserId(),
-          stored.getRotatedAt());
-      // Lost the race, or never heard the answer to the rotation it won. Give it one of its own:
-      // only the hash of a token is stored, so the successor cannot be handed out twice even in
-      // principle, and several live tokens for one user is already normal across devices.
-      return issueFor(stored.getUserId());
+      return renewRevoked(stored);
     }
     if (isExpired(stored)) {
       log.info("Session for user {} expired at {}.", stored.getUserId(), stored.getExpiresAt());
@@ -174,11 +174,53 @@ public class AuthService {
     if (dueForRotation(stored)) {
       stored.markRotated(OffsetDateTime.now());
       refreshTokens.save(stored);
-      return issueFor(stored.getUserId());
+      return issueFor(stored.getUserId(), stored.getFamilyId());
     }
     stored.renewUntil(OffsetDateTime.now().plusDays(props.refreshTokenDays()));
     refreshTokens.save(stored);
     return users.findById(stored.getUserId()).map(u -> new RenewedSession(u, presentedToken));
+  }
+
+  /**
+   * A revoked token is one of three things, and only one of them is a security event.
+   *
+   * <ul>
+   *   <li>Revoked outright, by a logout or by its family being revoked: it has no successor, so
+   *       whoever holds it can do nothing with it. This is a stale cookie, not evidence of anything,
+   *       and the answer is a plain refusal.
+   *   <li>Rotated inside the grace window: the loser of a race between two windows sharing a cookie
+   *       jar, or a client that never heard the answer to the rotation it won. It gets a token of its
+   *       own in the same family. Only the hash of the successor is stored, so it cannot be handed
+   *       out twice even in principle.
+   *   <li>Rotated outside the grace window: reuse. Two parties held this token and one of them is
+   *       not the owner, so the family dies and its owner signs in again on that device.
+   * </ul>
+   */
+  private Optional<RenewedSession> renewRevoked(RefreshToken stored) {
+    if (!stored.isRotated()) {
+      log.info(
+          "Refresh presented a revoked token for user {} (family {}): a stale cookie, refused.",
+          stored.getUserId(),
+          stored.getFamilyId());
+      return Optional.empty();
+    }
+    if (withinRotationGrace(stored)) {
+      log.info(
+          "Refresh token for user {} was rotated at {}, inside the grace window: "
+              + "issuing a sibling rather than treating it as reuse.",
+          stored.getUserId(),
+          stored.getRotatedAt());
+      return issueFor(stored.getUserId(), stored.getFamilyId());
+    }
+    log.warn(
+        "Refresh token reuse for user {} (family {}): rotated at {}, outside the {} grace. "
+            + "Revoking that family.",
+        stored.getUserId(),
+        stored.getFamilyId(),
+        stored.getRotatedAt(),
+        ROTATION_GRACE);
+    revokeFamily(stored.getFamilyId());
+    return Optional.empty();
   }
 
   /**
@@ -193,19 +235,15 @@ public class AuthService {
         || issuedAt.plusHours(props.refreshRotateHours()).isBefore(OffsetDateTime.now());
   }
 
-  private Optional<RenewedSession> issueFor(Long userId) {
-    return users.findById(userId).map(u -> new RenewedSession(u, issueRefreshToken(u)));
+  private Optional<RenewedSession> issueFor(Long userId, UUID familyId) {
+    return users.findById(userId).map(u -> new RenewedSession(u, issue(userId, familyId)));
   }
 
-  /**
-   * True for a token rotated away recently. A token revoked by logout carries no rotation instant
-   * and is never in grace: presenting one is not a race.
-   */
   private static boolean withinRotationGrace(RefreshToken stored) {
-    OffsetDateTime rotatedAt = stored.getRotatedAt();
-    return rotatedAt != null && rotatedAt.plus(ROTATION_GRACE).isAfter(OffsetDateTime.now());
+    return stored.getRotatedAt().plus(ROTATION_GRACE).isAfter(OffsetDateTime.now());
   }
 
+  /** Logout on this device: ends the presented token. Its family has no other live member. */
   @Transactional
   public void revoke(String presentedToken) {
     refreshTokens
@@ -217,8 +255,23 @@ public class AuthService {
             });
   }
 
-  private void revokeAllForUser(Long userId) {
+  /**
+   * Logout everywhere: ends every live session for the user, on every device. The only path that
+   * is allowed to reach across families, and it is reached by a deliberate click rather than by a
+   * refresh.
+   *
+   * @return how many sessions were ended
+   */
+  @Transactional
+  public int revokeAllForUser(Long userId) {
     List<RefreshToken> active = refreshTokens.findByUserIdAndRevokedFalse(userId);
+    active.forEach(RefreshToken::revoke);
+    refreshTokens.saveAll(active);
+    return active.size();
+  }
+
+  private void revokeFamily(UUID familyId) {
+    List<RefreshToken> active = refreshTokens.findByFamilyIdAndRevokedFalse(familyId);
     active.forEach(RefreshToken::revoke);
     refreshTokens.saveAll(active);
   }

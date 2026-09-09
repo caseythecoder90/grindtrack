@@ -4,6 +4,7 @@ import dev.grindtrack.auth.api.AuthDtos.AuthError;
 import dev.grindtrack.auth.api.AuthDtos.AuthResponse;
 import dev.grindtrack.auth.api.AuthDtos.DeviceTrust;
 import dev.grindtrack.auth.api.AuthDtos.LoginRequest;
+import dev.grindtrack.auth.api.AuthDtos.LogoutAllResponse;
 import dev.grindtrack.auth.api.AuthDtos.LogoutResponse;
 import dev.grindtrack.auth.api.AuthDtos.SessionResponse;
 import dev.grindtrack.auth.domain.User;
@@ -126,6 +127,16 @@ public class AuthController {
         .body(new DeviceTrust(false, forgotten));
   }
 
+  /**
+   * Mint a fresh access cookie from the session cookie, renewing (and once a day, rotating) the
+   * session -- see {@link AuthService#renew}.
+   *
+   * <p>A refusal clears the session cookie as well as answering 401. A dead token left in the jar
+   * is presented again on every visit for as long as the cookie lasts, and each presentation used
+   * to be read as reuse: that is how one logged-out browser kept signing every other device out.
+   * The server no longer draws that conclusion, but there is still no reason to keep sending it a
+   * token it has already refused.
+   */
   @PostMapping("/refresh")
   public ResponseEntity<AuthResponse> refresh(HttpServletRequest request) {
     String presented = Cookies.value(request, REFRESH_COOKIE);
@@ -135,19 +146,36 @@ public class AuthController {
     return authService
         .renew(presented)
         .map(renewed -> sessionResponse(renewed.user(), renewed.sessionToken()))
-        .orElseGet(() -> unauthorized("Refresh token invalid."));
+        .orElseGet(() -> sessionEnded("Refresh token invalid."));
   }
 
+  /** Logout on this device: the presented session ends, and both cookies are cleared. */
   @PostMapping("/logout")
   public ResponseEntity<AuthResponse> logout(HttpServletRequest request) {
     String presented = Cookies.value(request, REFRESH_COOKIE);
     if (presented != null) {
       authService.revoke(presented);
     }
-    return ResponseEntity.ok()
-        .header(HttpHeaders.SET_COOKIE, expiredCookie(JwtAuthFilter.ACCESS_COOKIE, "/").toString())
-        .header(HttpHeaders.SET_COOKIE, expiredCookie(REFRESH_COOKIE, REFRESH_PATH).toString())
-        .body(new LogoutResponse("logged out"));
+    return withExpiredSessionCookies(ResponseEntity.ok()).body(new LogoutResponse("logged out"));
+  }
+
+  /**
+   * Logout everywhere: every live session for the account ends, this one included.
+   *
+   * <p>Authenticated, like forgetting devices, because it is a change to the account. This is the
+   * one deliberate way to reach across sessions; the refresh endpoint never does it on its own any
+   * more. Other devices notice when their access cookie next lapses, within {@code
+   * access-token-minutes}.
+   */
+  @PostMapping("/logout-all")
+  public ResponseEntity<AuthResponse> logoutAll(Principal principal) {
+    int ended =
+        authService
+            .findByUsername(principal.getName())
+            .map(u -> authService.revokeAllForUser(u.getId()))
+            .orElse(0);
+    return withExpiredSessionCookies(ResponseEntity.ok())
+        .body(new LogoutAllResponse("logged out everywhere", ended));
   }
 
   @GetMapping("/me")
@@ -166,6 +194,16 @@ public class AuthController {
 
   private static ResponseEntity<AuthResponse> unauthorized(String message) {
     return ResponseEntity.status(401).body(new AuthError(message));
+  }
+
+  /** 401 that also takes the dead session cookies out of the jar. */
+  private ResponseEntity<AuthResponse> sessionEnded(String message) {
+    return withExpiredSessionCookies(ResponseEntity.status(401)).body(new AuthError(message));
+  }
+
+  private ResponseEntity.BodyBuilder withExpiredSessionCookies(ResponseEntity.BodyBuilder b) {
+    return b.header(HttpHeaders.SET_COOKIE, expiredCookie(JwtAuthFilter.ACCESS_COOKIE, "/").toString())
+        .header(HttpHeaders.SET_COOKIE, expiredCookie(REFRESH_COOKIE, REFRESH_PATH).toString());
   }
 
   private ResponseCookie accessCookie(String token) {

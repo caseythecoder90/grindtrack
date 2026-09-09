@@ -29,9 +29,12 @@ error.
 
 | Method | Path | Body | Effect |
 |---|---|---|---|
-| POST | `/api/auth/login` | `{username, password, otp}` | Sets `gt_access` (15 min) + `gt_refresh` (14 d) cookies. 401 on any failure (deliberately does not say which factor failed). 429 after 5 attempts / 5 min / IP. |
-| POST | `/api/auth/refresh` | – | Rotates the refresh token, sets fresh cookies. 401 if missing/expired/revoked; reuse of a rotated token additionally revokes all of the user's live tokens. |
-| POST | `/api/auth/logout` | – | Revokes the refresh token server-side and expires both cookies. |
+| POST | `/api/auth/login` | `{username, password, otp?, trustDevice?}` | Sets `gt_access` (30 min) + `gt_refresh` (90 d, sliding) cookies, plus `gt_device` (30 d) when `trustDevice` is true. `otp` may be omitted on a trusted device. 401 on any failure (deliberately does not say which factor failed). 429 after 5 attempts / 5 min / IP. |
+| GET | `/api/auth/device` | – | `{trusted, count}` — whether this browser holds a live device cookie. Public; says nothing about who. |
+| POST | `/api/auth/refresh` | – | Renews the session (slides expiry, same token) and sets a fresh `gt_access`; rotates the token once it is 24 h old. 401 **and both cookies cleared** if missing/expired/revoked; a rotated token replayed more than 24 h after its rotation also revokes that token's family (see [auth.md](auth.md)). |
+| POST | `/api/auth/logout` | – | Revokes this browser's session server-side and expires both cookies. The device cookie is kept. |
+| POST | `/api/auth/logout-all` | – | Authenticated. Ends every live session for the account, on every device. `{status, sessionsEnded}`; expires this browser's cookies. |
+| POST | `/api/auth/devices/forget` | – | Authenticated. Revokes every trusted device; `{trusted: false, count}`. |
 | GET | `/api/auth/me` | – | `{username}` if the access cookie is valid. |
 
 ## Tracking (authenticated)

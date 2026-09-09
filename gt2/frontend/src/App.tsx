@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import BottomNav from "./components/BottomNav";
 import Heatmap from "./components/Heatmap";
 import StatBar from "./components/StatBar";
-import { forgetDevices, logout as endSession, me } from "./features/auth/authApi";
+import { forgetDevices, logout as endSession, logoutEverywhere as endEverySession, me } from "./features/auth/authApi";
 import CalendarPage from "./features/calendar/CalendarPage";
 import Login from "./features/auth/Login";
 import FinancePage from "./features/finance/FinancePage";
@@ -36,6 +36,7 @@ export default function App() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [scope, setScope] = useState<Scope>(storedScope);
   const [forgetLabel, setForgetLabel] = useState("forget trusted devices");
+  const [logoutEverywhereLabel, setLogoutEverywhereLabel] = useState("log out everywhere");
 
   // One request: /api/stats now carries the heatmap day series for every scope,
   // so switching scope is local and the header no longer needs /api/public/stats.
@@ -90,6 +91,20 @@ export default function App() {
   }
 
   /**
+   * End every session on every device. This browser lands on the landing page at once; the
+   * others find out when their access cookie next lapses. The only failure worth showing is the
+   * request not getting through, because then nothing was ended and the button should say so.
+   */
+  async function logoutEverywhere() {
+    try {
+      await endEverySession();
+      setView("landing");
+    } catch (e) {
+      setLogoutEverywhereLabel(errorMessage(e, "could not log out everywhere"));
+    }
+  }
+
+  /**
    * Revoke every remembered device. Deliberately says how many were forgotten rather than
    * flashing a generic "done": the whole value of the button is knowing it did something, and
    * the count is the only evidence available from this side of the cookie.
@@ -119,6 +134,7 @@ export default function App() {
           <>
             <button onClick={() => (window.location.href = EXPORT_URL)}>Export JSON</button>
             <button onClick={logout}>Log out</button>
+            <button onClick={logoutEverywhere}>{logoutEverywhereLabel}</button>
           </>
         )}
       </header>
@@ -165,6 +181,8 @@ export default function App() {
             onLogout={logout}
             onForgetDevices={forgetTrustedDevices}
             forgetLabel={forgetLabel}
+            onLogoutEverywhere={logoutEverywhere}
+            logoutEverywhereLabel={logoutEverywhereLabel}
           />
         </>
       )}

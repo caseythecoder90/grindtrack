@@ -57,7 +57,7 @@ src/
 │       ├── WorkWeek.tsx         week grid vs 40h target
 │       └── WorkSkills.tsx       competency checklist (add / cycle / notes / delete)
 └── lib/                framework-free
-    ├── api.ts          fetch wrapper + 401/refresh/retry
+    ├── api.ts          fetch wrapper + 401/refresh/retry; AuthError vs OfflineError
     ├── dates.ts        todayISO, mondayOf, addDays (local-tz safe)
     └── types.ts        interfaces + constants (CATEGORIES, WEEKLY_TARGET=20, FOCUS_DEFAULTS)
 ```
@@ -79,7 +79,7 @@ stateDiagram-v2
     Landing --> Login : "Owner login"
     Login --> App : POST /api/auth/login → 200
     Login --> Landing : "Back"
-    App --> Landing : logout, or refresh fails (AuthError)
+    App --> Landing : logout / logout everywhere, or refresh answers 401 (AuthError)
     state App {
         [*] --> Today
         note right of Today : tabs — Today / Focus / Plan / Work / Week / Stats
@@ -151,10 +151,12 @@ function refreshOnce(): Promise<boolean> {
 ```
 
 If several requests 401 at once, only the first triggers `POST /api/auth/refresh`; the rest await
-the same promise. This matters because refresh tokens are **single-use and rotated** (see
-[auth.md](auth.md)) — two parallel refreshes would race, and the loser would present an
-already-rotated token and get logged out. The promise clears in `.finally()` so the next expiry
-starts fresh.
+the same promise. A refresh usually hands the same session token back, and when it does rotate the
+server forgives the loser of a race for a day (see [auth.md](auth.md)) — but one request instead
+of two is still right. The promise clears in `.finally()` so the next expiry starts fresh. The real
+type is `Promise<"ok" | "expired" | "unavailable">`: only a 401 *from the refresh endpoint* is
+`expired` (→ `AuthError`, landing page); 502/503/504 and network failures are `unavailable` (→
+`OfflineError`, nothing on screen changes).
 
 **401 → refresh → retry (exactly once):**
 

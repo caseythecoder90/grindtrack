@@ -37,7 +37,7 @@ public final class AuthDtos {
    * is closed and the compiler knows it.
    */
   public sealed interface AuthResponse
-      permits SessionResponse, AuthError, LogoutResponse, DeviceTrust {}
+      permits SessionResponse, AuthError, LogoutResponse, LogoutAllResponse, DeviceTrust {}
 
   /**
    * The body of a successful login or refresh.
@@ -53,6 +53,12 @@ public final class AuthDtos {
 
   /** {@code {"status": "logged out"}} — an acknowledgement, not a session. */
   public record LogoutResponse(String status) implements AuthResponse {}
+
+  /**
+   * {@code {"status": "logged out everywhere", "sessionsEnded": n}} -- how many live sessions the
+   * click ended, this one included, because the value of the button is knowing it did something.
+   */
+  public record LogoutAllResponse(String status, int sessionsEnded) implements AuthResponse {}
 
   /**
    * Whether this browser can skip the authenticator code, and how many devices are remembered.

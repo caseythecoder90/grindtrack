@@ -25,8 +25,20 @@ entity "refresh_tokens" as refresh_tokens #E3F0FF {
   * id : bigint <<PK, identity>>
   --
   * user_id : bigint <<FK → users, ON DELETE CASCADE>>
+  * family_id : uuid <<one login's lineage; indexed>>
   * token_hash : text <<unique, sha-256 hex>>
-  * expires_at : timestamptz
+  * created_at : timestamptz <<rotation is scheduled off this>>
+  * expires_at : timestamptz <<sliding>>
+  * revoked : boolean
+  rotated_at : timestamptz <<null unless a successor was issued>>
+}
+entity "trusted_devices" as trusted_devices #E3F0FF {
+  * id : bigint <<PK, identity>>
+  --
+  * user_id : bigint <<FK → users, ON DELETE CASCADE>>
+  * token_hash : text <<unique, sha-256 hex>>
+  * expires_at : timestamptz <<sliding>>
+  last_used_at : timestamptz
   * revoked : boolean
 }
 entity "daily_logs" as daily_logs #EAF3EC {
@@ -114,5 +126,6 @@ entity "finance_savings_goals" as finance_savings_goals #D6ECFF {
 }
 
 users ||--o{ refresh_tokens
+users ||--o{ trusted_devices
 finance_accounts ||--o{ finance_transactions
 @enduml
