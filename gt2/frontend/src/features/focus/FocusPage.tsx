@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import NumberStepper from "../../components/NumberStepper";
 import Segmented from "../../components/Segmented";
 import { errorMessage, OfflineError } from "../../lib/api";
 import { useAppResume } from "../../lib/resume";
@@ -228,21 +229,34 @@ export default function FocusPage({ onLogged }: Props) {
             )}
 
             <div className="row3">
-              <div>
-                <label htmlFor="f-sessions">Sessions</label>
-                <input id="f-sessions" type="number" min={1} max={12} value={cfg.sessions}
-                  onChange={(e) => timer.setConfig({ sessions: Math.max(1, Math.min(12, Number(e.target.value) || 1)) })} />
-              </div>
-              <div>
-                <label htmlFor="f-len">Session minutes</label>
-                <input id="f-len" type="number" min={5} max={180} value={cfg.focusMin}
-                  onChange={(e) => timer.setConfig({ focusMin: Math.max(5, Math.min(180, Number(e.target.value) || 5)) })} />
-              </div>
-              <div>
-                <label htmlFor="f-break">Break minutes</label>
-                <input id="f-break" type="number" min={1} max={60} value={cfg.breakMin}
-                  onChange={(e) => timer.setConfig({ breakMin: Math.max(1, Math.min(60, Number(e.target.value) || 1)) })} />
-              </div>
+              <NumberStepper
+                id="f-sessions"
+                label="Sessions"
+                unit="sessions"
+                value={cfg.sessions}
+                min={1}
+                max={12}
+                onChange={(sessions) => timer.setConfig({ sessions })}
+              />
+              <NumberStepper
+                id="f-len"
+                label="Session minutes"
+                unit="minutes"
+                value={cfg.focusMin}
+                min={5}
+                max={180}
+                step={5}
+                onChange={(focusMin) => timer.setConfig({ focusMin })}
+              />
+              <NumberStepper
+                id="f-break"
+                label="Break minutes"
+                unit="minutes"
+                value={cfg.breakMin}
+                min={1}
+                max={60}
+                onChange={(breakMin) => timer.setConfig({ breakMin })}
+              />
             </div>
             <div className="actions">
               <button className="primary" onClick={timer.start}>

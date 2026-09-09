@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { keepSessionAlive } from "../../lib/api";
 import { FOCUS_DEFAULTS, type FocusKind } from "../../lib/types";
 import { chime, notify, requestNotifyPermission } from "./alerts";
@@ -101,6 +101,24 @@ export function useFocusTimer(
     }
     setState(focusStarted(s, index, Date.now(), new Date().toISOString()));
   }, []);
+
+  // The clock is `endsAt - nowMs`, which is only right if the two agree about when
+  // "now" is. They did not at the moment it matters most: `nowMs` is only advanced by
+  // the tick below, and the tick only runs while the timer is running — so an idle page
+  // held `nowMs` at whatever Date.now() was when it mounted. Press start after the page
+  // has sat open for 79 minutes and the first render computes
+  // (now + 60min) - (now - 79min) = 139 minutes, which is what flashed on screen before
+  // the first tick corrected it. The longer the page had been open, the more absurd the
+  // number.
+  //
+  // Re-reading the clock whenever `endsAt` moves keeps the pair consistent through every
+  // transition — start, resume, break, skip — rather than patching each handler and
+  // waiting for the next one to forget. It is useLayoutEffect rather than useEffect
+  // because useEffect runs *after* paint, which would leave the wrong number visible for
+  // exactly the split second being fixed.
+  useLayoutEffect(() => {
+    setNowMs(Date.now());
+  }, [state.endsAt]);
 
   // Display tick while running. Absolute timestamps mean a missed tick can't
   // drift the clock.

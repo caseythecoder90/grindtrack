@@ -22,6 +22,8 @@ src/
 │   ├── TabIcon.tsx     the inline SVG icon set, one per section
 │   ├── Heatmap.tsx     26-week contribution grid, per-scope ramp (used by Landing + App)
 │   ├── Meter.tsx       the split study/work bar against a target — the app's one recurring device
+│   ├── NumberStepper.tsx  a number field with real − / + buttons; the draft-string edit that
+│   │                   makes it clearable, and the arrows type="number" never draws on a phone
 │   ├── Segmented.tsx   accessible one-of-N control for switching what you're looking at
 │   ├── StatBar.tsx     scope switcher + KPI row (week / streak / total / days)
 │   └── WeekTotals.tsx  study · work · total for one week, on both week tabs
