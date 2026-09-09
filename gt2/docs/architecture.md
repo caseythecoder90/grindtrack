@@ -102,14 +102,15 @@ Package-by-feature at the top level; inside each feature, layers get their own s
 ```
 dev.grindtrack
 ├── GrindtrackApplication         @SpringBootApplication + @ConfigurationPropertiesScan
-├── config/                       SecurityConfig, AppProperties
+├── config/                       SecurityConfig, AppProperties, StaticContentConfig
 ├── web/                          Requests, Responses, BadRequest/ConflictException,
 │                                 ApiExceptionHandler — the shared HTTP edge
 ├── auth/
 │   ├── api/                      AuthController, AuthDtos
-│   ├── service/                  AuthService, JwtService, TotpService, LoginRateLimiter, UserBootstrap
-│   ├── security/                 JwtAuthFilter (cookie → SecurityContext)
-│   └── domain/                   User, RefreshToken + repositories
+│   ├── service/                  AuthService, JwtService, TotpService, TrustedDeviceService,
+│   │                             LoginRateLimiter, UserBootstrap
+│   ├── security/                 JwtAuthFilter (cookie → SecurityContext), Cookies
+│   └── domain/                   User, RefreshToken, TrustedDevice + repositories
 ├── tracking/
 │   ├── api/                      TrackingController, FocusController, PublicController,
 │   │                             ExportController, TrackingDtos
@@ -119,6 +120,11 @@ dev.grindtrack
 ├── plan/                         PlanController/PlanDtos · PlanService · PlanItem, PlanQuarter,
 │                                 PlanReference
 ├── todo/                         TodoController/TodoDtos · TodoService · Todo
+├── calendar/
+│   ├── api/                      CalendarController, UpkeepController, CalendarDtos
+│   ├── service/                  CalendarService, UpkeepService (+UpkeepItem)
+│   └── domain/                   CalendarEvent, EventKind, RecurringTask,
+│                                 RecurringTaskCompletion, TaskCategory + repositories
 ├── work/                         WorkController/WorkDtos · WorkService · WorkLog, WorkSkill
 ├── finance/
 │   ├── api/                      FinanceController, TransactionController, CategoryRuleController,
@@ -126,13 +132,16 @@ dev.grindtrack
 │   │                             + FinanceDtos, BudgetDtos, StatementImportDtos
 │   ├── service/                  FinanceService, BudgetService (+BudgetMonth), CategoryRuleService,
 │   │                             RecurringDetector, StatementImportService, TxnTypeClassifier,
-│   │                             MerchantNormalizer, parse/* (7 bank formats)
+│   │                             MerchantNormalizer, parse/* (7 formats: 6 bank CSV + OFX/QFX)
 │   └── domain/                   Account, Transaction, Budget, BudgetExtra, BudgetSettings,
 │                                 CategoryRule, ImportBatch, SavingsGoal, … + enums
-└── relationship/
-    ├── api/                      RelationshipController, RelationshipDtos
-    ├── service/                  RelationshipService (+RelationshipSummary)
-    └── domain/                   Moment, Idea, Occasion, Reading + enums
+├── relationship/
+│   ├── api/                      RelationshipController, RelationshipDtos
+│   ├── service/                  RelationshipService (+RelationshipSummary)
+│   └── domain/                   Moment, Idea, Occasion, Reading + enums
+└── assistant/                    AssistantController/AssistantDtos · ContextService
+                                  (+AssistantContext) — a read-only GET surface over every
+                                  other feature; owns no table
 ```
 
 Every record a browser sends or receives is in a feature's `api/<Feature>Dtos.java`; a service

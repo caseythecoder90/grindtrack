@@ -6,12 +6,13 @@ BCrypt password + TOTP second factor + short-lived JWT access tokens + rotating 
 refresh tokens, all in httpOnly SameSite=Strict cookies. Public landing page shows the
 heatmap and streak; everything else requires login.
 
-Nine tabs over seven backend features:
+Ten tabs over nine backend features:
 
 | Tab | What it tracks |
 |---|---|
 | **Today** / **Week** / **Stats** | The daily study log, the weekly review, and the rollups — hours, streak, categories, a 26-week heatmap, all per scope (study / work / combined) |
 | **Focus** | A pomodoro timer whose minutes post straight into the day's hours. Four kinds: `study` (the 6–8am block), `work` (the day job), and the two lunch kinds `reading` and `review`, which record what the session went into and what stuck |
+| **Cal** | What is on: appointments, study and work blocks, personal events — plus recurring upkeep (pet, home, health, car) that reports what is due and records that it was done |
 | **Todos** | Short-lived actionable items, tagged work or personal — separate from the fixed roadmap |
 | **Plan** | The 5-year / 20-quarter roadmap: milestones, certs, modules, books, papers, projects. Content is imported at runtime from a local `plan.json`, never committed |
 | **Work** | Day-job hours against 40/week, a journal, and a deliberate competency checklist |
@@ -28,6 +29,7 @@ Nine tabs over seven backend features:
 | [docs/frontend.md](docs/frontend.md) | Structure, view/tab state machine, the single-flight 401→refresh→retry wrapper, each screen |
 | [docs/auth.md](docs/auth.md) | The full auth design with Mermaid sequence diagrams and threat notes |
 | [docs/api.md](docs/api.md) | Endpoint reference |
+| [tools/audit/README.md](tools/audit/README.md) | Three Playwright audits that drive the running app — the 44px touch floor, focus sessions across a bad network, and that a trusted device never becomes a way in without the password. Deliberately not in CI |
 | [docs/deployment.md](docs/deployment.md) | Kubernetes runbook: GHCR image, namespace, ingress + cert-manager TLS, CI/CD, day-2 ops, backups, checklist |
 
 **Diagrams:** sequence/state diagrams are **Mermaid** (GitHub renders them inline). Structural

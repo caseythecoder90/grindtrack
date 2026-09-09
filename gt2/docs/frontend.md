@@ -115,14 +115,20 @@ stateDiagram-v2
     state App {
         [*] --> Today
         note right of Today
-            tabs — Today / Focus / Todos / Plan / Work
-            / Money / Us / Week / Stats
+            tabs — Today / Focus / Cal / Todos / Plan
+            / Work / Money / Us / Week / Stats
         end note
     }
 ```
 
 - **`view`** picks Landing (public) / Login (form) / App (authenticated shell).
-- Inside App, a `<nav class="tabs">` toggles **`tab`** across the nine entries in `TABS`.
+- Inside App, **`tab`** moves across the ten entries in `TABS`, which lives in `lib/tabs.ts`
+  rather than in either navigation. There are two: the desktop `<nav class="tabs">` strip renders
+  all of `TABS`, while the phone's `BottomNav` renders the four `PRIMARY_TABS` plus a "more" sheet
+  holding `SECONDARY_TABS`. Both always render; `@media (pointer: coarse)` in `styles.css` decides
+  which is shown, on pointer type rather than width, because a half-width window on a laptop is
+  still a mouse. Promoting a tab is a one-line change to `PRIMARY_TABS` — which it already was
+  once, when the calendar took a slot and `todos` moved into the sheet.
 - **Auth guard:** App-only content renders only when `view === "app"`. Entry is gated by a session
   probe on mount; any `AuthError` from the header-refresh path calls `setView("landing")` — the
   "redirect to login" for an expired session.
@@ -390,13 +396,15 @@ than discovering it as a flaky click — navigation in the tool dispatches the c
 so a layering bug is reported as a layering bug instead of a timeout.
 
 Verified by measuring the rendered page rather than reading the CSS. That check is committed as
-[`gt2/tools/touch-audit`](../tools/touch-audit/README.md) — it drives the running app in a phone
-context, measures every interactive element on every tab, and exits non-zero on anything under the
-floor:
+[`gt2/tools/audit`](../tools/audit/README.md) — it drives the running app in a phone context,
+measures every interactive element on every tab, and exits non-zero on anything under the floor.
+It has since been joined by two siblings in the same package: `session` (a focus session must
+survive a bad minute of network) and `trust` (a remembered device must never become a way in
+without the password):
 
 ```
-cd gt2/tools/touch-audit && npm install && npx playwright install chromium
-GT_USERNAME=… GT_PASSWORD=… GT_TOTP_SECRET=… npm run audit
+cd gt2/tools/audit && npm install && npx playwright install chromium
+GT_USERNAME=… GT_PASSWORD=… GT_TOTP_SECRET=… npm run touch     # or: session, trust
 ```
 
 It lives in its own package rather than in `frontend/` because Playwright downloads a browser on

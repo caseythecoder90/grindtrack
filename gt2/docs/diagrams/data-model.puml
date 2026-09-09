@@ -1,8 +1,9 @@
 @startuml
 ' Grindtrack data model — the effort side of the schema (Postgres schema `grindtrack`):
-' auth, tracking, plan, todo and work. Money lives in data-model-finance.puml and the
-' relationship tab in data-model-relationship.puml — same schema, split three ways because
-' nineteen tables on one canvas is a slab nobody reads.
+' auth, tracking, plan, todo and work. Money lives in data-model-finance.puml, the
+' relationship tab in data-model-relationship.puml, and the calendar plus recurring upkeep
+' in data-model-calendar.puml — same schema, split four ways because twenty-seven tables on
+' one canvas is a slab nobody reads.
 ' Render: see diagrams/render.sh
 hide circle
 skinparam linetype ortho

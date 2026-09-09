@@ -59,6 +59,11 @@ dev.grindtrack
 │   ├── api/{TodoController,TodoDtos}.java
 │   ├── service/TodoService.java
 │   └── domain/{Todo,TodoRepository}.java
+├── calendar/
+│   ├── api/{CalendarController,UpkeepController,CalendarDtos}.java
+│   ├── service/{CalendarService,UpkeepService,UpkeepItem}.java
+│   └── domain/{CalendarEvent,EventKind,RecurringTask,RecurringTaskCompletion,
+│               TaskCategory}(+Repository).java
 ├── work/
 │   ├── api/{WorkController,WorkDtos}.java
 │   ├── service/WorkService.java
@@ -73,10 +78,13 @@ dev.grindtrack
 │   │                  ParsedStatement,ParsedRow,StatementFormat,StatementParseException}.java
 │   └── domain/{Account,Transaction,Budget,BudgetExtra,BudgetSettings,CategoryRule,SavingsGoal,
 │               ImportBatch,CategoryTotal}(+Repository) + enums.java
-└── relationship/
-    ├── api/{RelationshipController,RelationshipDtos}.java
-    ├── service/{RelationshipService,RelationshipSummary}.java
-    └── domain/{Moment,Idea,Occasion,Reading}(+Repository) + enums.java
+├── relationship/
+│   ├── api/{RelationshipController,RelationshipDtos}.java
+│   ├── service/{RelationshipService,RelationshipSummary}.java
+│   └── domain/{Moment,Idea,Occasion,Reading}(+Repository) + enums.java
+└── assistant/
+    ├── api/{AssistantController,AssistantDtos}.java
+    └── service/{ContextService,AssistantContext}.java   — no domain/: owns no table
 ```
 
 DTOs are Java **records** in `<feature>/api/<Feature>Dtos.java`; response records carry a static
@@ -268,6 +276,43 @@ a rule created by an import job too.
 
 Absent from `/api/public/**` on purpose: none of this has a public shape and none of it ever should.
 
+### `CalendarController` — `/api/calendar`
+| Method | Path | Notes |
+|---|---|---|
+| GET | `` | `?month=YYYY-MM` (default: this month) or an explicit `?from=&to=`; `to` before `from` → 400 |
+| POST | `` | `{title,kind,date,startTime?,endTime?,planItemId?,notes?}`; `kind` ∈ `appointment/study_block/work_block/personal` |
+| PATCH | `/{id}` | partial; `clearTimes:true` makes it all-day, `clearPlanItem:true` unlinks; 404 if missing |
+| DELETE | `/{id}` | remove |
+
+A **date plus an optional time**, never a timestamp: "09:00 on Sep 12" on a personal calendar is
+wall clock and must not move when a server's zone does. A null `startTime` *is* all-day, and
+`allDay` is derived from it so the two cannot disagree. Only a study block carries a `planItemId`;
+sent with any other kind it is **dropped, not rejected**, the same rule a focus session follows for
+its reading subject.
+
+### `UpkeepController` — `/api/upkeep`
+| Method | Path | Notes |
+|---|---|---|
+| GET | `` | every task with its derived `nextDue` and overdue state |
+| POST | `` | create a recurring task |
+| GET | `/{id}/history` | past completions |
+| POST | `/{id}/done` | record that it was done; this is what moves `nextDue` |
+| PATCH/DELETE | `/{id}` | edit / remove |
+
+`nextDue` is **derived, never stored** — `lastDoneOn + intervalDays`, computed per request. A stored
+copy is a second source of truth that goes wrong the first time an interval is edited.
+
+### `AssistantController` — `/api/assistant`
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/context` | the whole picture in one request (~1.5k tokens); `?today=` for reproducing a Friday review on a Saturday, and for tests |
+| GET | `/tools` | the read tools, described — generated from the app so it cannot drift from it |
+
+Read-only, and completely so: every endpoint is a GET and there is no write path, because the first
+thing an assistant with one does wrong is mark the wrong plan item done. **Nothing here calls a
+model** — the context is useful on its own, and wiring it to an API is a separate change with a
+separate cost. The package owns no table; it reads the other features. Shapes in [api.md](api.md).
+
 ## Auth internals (summary)
 
 Deep dive with sequence diagrams in [auth.md](auth.md). The moving parts:
@@ -297,9 +342,8 @@ Deep dive with sequence diagrams in [auth.md](auth.md). The moving parts:
 
 ## Data model
 
-One Postgres schema, `grindtrack`, drawn as three diagrams — nineteen tables on one canvas is a
-slab nobody reads, and the schema already separates cleanly along the same three lines the app
-does.
+One Postgres schema, `grindtrack`, drawn as four diagrams — twenty-seven tables on one canvas is a
+slab nobody reads, and the schema already separates cleanly along the same lines the app does.
 
 **Effort — auth, tracking, plan, todo, work:**
 
@@ -313,7 +357,11 @@ does.
 
 ![Grindtrack data model — relationship](diagrams/data-model-relationship.svg)
 
-<sub>PlantUML sources: [`diagrams/data-model.puml`](diagrams/data-model.puml), [`diagrams/data-model-finance.puml`](diagrams/data-model-finance.puml), [`diagrams/data-model-relationship.puml`](diagrams/data-model-relationship.puml) — edit and regenerate with [`diagrams/render.sh`](diagrams/render.sh).</sub>
+**Calendar and recurring upkeep:**
+
+![Grindtrack data model — calendar and upkeep](diagrams/data-model-calendar.svg)
+
+<sub>PlantUML sources: [`diagrams/data-model.puml`](diagrams/data-model.puml), [`diagrams/data-model-finance.puml`](diagrams/data-model-finance.puml), [`diagrams/data-model-relationship.puml`](diagrams/data-model-relationship.puml), [`diagrams/data-model-calendar.puml`](diagrams/data-model-calendar.puml) — edit and regenerate with [`diagrams/render.sh`](diagrams/render.sh).</sub>
 
 Design notes worth remembering:
 
