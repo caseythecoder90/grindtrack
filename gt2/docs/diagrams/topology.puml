@@ -1,5 +1,8 @@
 @startuml
-' Deployment topology on the Hetzner VPS. Render: see diagrams/render.sh
+' Deployment topology: the kubeadm cluster on Hetzner Cloud (August 2026 onward).
+' The cluster itself — Terraform, Ansible, ingress-nginx, cert-manager, the manifests below —
+' is defined in the separate `k8s-cluster-hetzner` repo. This diagram shows only where
+' grindtrack lands inside it. Render: see diagrams/render.sh
 skinparam componentStyle rectangle
 skinparam backgroundColor #FFFFFF
 skinparam defaultFontSize 14
@@ -22,11 +25,6 @@ skinparam component {
   BorderColor #2D6CDF
   FontColor #12243A
 }
-skinparam folder {
-  BackgroundColor #FFF3D6
-  BorderColor #B5891D
-  FontColor #4A3B10
-}
 skinparam database {
   BackgroundColor #E4F9EC
   BorderColor #2F9E57
@@ -36,27 +34,82 @@ skinparam cloud {
   BackgroundColor #F0E9FF
   BorderColor #6E44C4
 }
+skinparam queue {
+  BackgroundColor #FFF3D6
+  BorderColor #B5891D
+  FontColor #4A3B10
+}
 
 actor Browser
+cloud "GitHub Actions\nci-cd.yml" as GHA
+queue "GHCR\nghcr.io/caseythecoder90/grindtrack\n:latest · :<short-sha>" as GHCR
+cloud "Let's Encrypt\nACME v02" as LE
 
-node "Hetzner VPS (Ubuntu · CX22 · 4GB)" as vps {
-  node "personal-website compose project" as pw #E8EEF5 {
-    [nginx\n(TLS · :80 / :443)] as nginx
-    [certbot\n(renew loop)] as certbot
-    folder "/opt/personal-website/certbot\nshared: /etc/letsencrypt + webroot" as certs
-  }
-  node "grindtrack compose project\n/opt/grindtrack/gt2" as gtp #EAF3EC {
-    [grindtrack-app\nSpring Boot :8080\nAPI + baked SPA] as gt
-    database "grindtrack-db\nPostgres 16\nschema: grindtrack" as gtdb
+node "Hetzner Cloud · nbg1" as hetzner {
+
+  node "Cloud Firewall\n22 · 6443 · 80 · 443 · ICMP" as fw #FFF0E6
+
+  node "kubeadm 1.33 cluster\n2× CX33 · Ubuntu 24.04 · Calico VXLAN" as cluster #E8EEF5 {
+
+    node "prod-cp-1 · 10.0.1.10\ncontrol plane" as cp #F4F7FA {
+      [kube-apiserver :6443\netcd · scheduler · controller-manager] as api
+    }
+
+    node "prod-worker-1 · 10.0.1.20\nworker — DNS A record points here" as worker #F4F7FA {
+
+      node "ns: ingress-nginx" as nsing #EEF2F7 {
+        [ingress-nginx\nhostPorts 80 / 443] as ing
+      }
+
+      node "ns: cert-manager" as nscm #EEF2F7 {
+        [cert-manager\nClusterIssuer letsencrypt-prod] as cm
+      }
+
+      node "ns: grindtrack" as nsgt #EAF3EC {
+        [Ingress\ntrack.caseyrquinn.com\ntls: track-caseyrquinn-com-tls] as gting
+        [Service grindtrack\nClusterIP :8080] as gtsvc
+        [Deployment grindtrack\nreplicas 1 · Spring Boot :8080\nAPI + baked SPA\nprobes → /api/public/stats] as gtapp
+        [Service postgres\nClusterIP :5432] as pgsvc
+        database "Deployment postgres\npostgres:16-alpine\nstrategy: Recreate" as gtdb
+        [PVC postgres-data · 5Gi\nlocal-path-provisioner] as pvc
+        [Secret grindtrack-secrets\nPOSTGRES_* · JWT_SECRET\nGRINDTRACK_USERNAME/PASSWORD] as sec
+      }
+
+      node "ns: personal-website" as nspw #F7F4FA {
+        [caseyrquinn.com\nfrontend · backend · db · redis] as pw
+      }
+    }
   }
 }
 
-cloud "Let's Encrypt" as LE
+Browser -[#2D6CDF,bold]-> fw : HTTPS 443\ntrack.caseyrquinn.com
+fw -[#2D6CDF,bold]-> ing
+ing -[#2D6CDF,bold]-> gting
+gting -[#2D6CDF,bold]-> gtsvc
+gtsvc -[#2D6CDF,bold]-> gtapp
+gtapp -[#2F9E57,bold]-> pgsvc : JDBC\npostgres:5432
+pgsvc -[#2F9E57,bold]-> gtdb
+gtdb -[#2F9E57]-> pvc : /var/lib/postgresql/data\nsubPath pgdata
+sec .[#B5651D,dashed].> gtapp : env (secretKeyRef)
+sec .[#B5651D,dashed].> gtdb : env (secretKeyRef)
 
-Browser -[#2D6CDF,bold]-> nginx : HTTPS\ntrack.caseyrquinn.com
-nginx -[#2D6CDF,bold]-> gt : HTTP grindtrack-app:8080\nshared net: personal-website_app-network
-gt -[#2F9E57,bold]-> gtdb : JDBC\nprivate 'internal' net
-certbot ..> LE : ACME (webroot)
-nginx ..> certs : reads live/*/fullchain.pem
-certbot ..> certs : writes renewed certs
+cm .[#6E44C4,dashed].> LE : HTTP-01 challenge\nserved through ingress-nginx
+cm .[#6E44C4,dashed].> gting : issues + auto-renews\nthe TLS Secret
+
+GHA -[#B5891D,bold]-> GHCR : build & push\n(context gt2/)
+GHA -[#B5891D,bold]-> api : kubectl set image\n+ rollout status\n(SA ci-deployer, ns-scoped)
+gtapp <-[#B5891D,dashed]- GHCR : image pull\n(rolling update)
+cp -[#33475B]- worker : private net 10.0.1.0/24\netcd · kubelet · Calico VXLAN\n(not firewalled)
+
+ing -[#33475B,dashed]-> pw : the other host\non the same ingress
+
+note bottom of nsgt
+  The app publishes **no host port** and no NodePort — it is reachable
+  only through the ingress. Postgres is a ClusterIP Service with no
+  ingress at all, so the two apps' databases cannot see each other.
+
+  `ci-deployer` is a namespaced ServiceAccount that may update Deployment
+  images in **this namespace only** — no Secret access, no other namespace.
+end note
+
 @enduml

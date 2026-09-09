@@ -1,8 +1,9 @@
 package dev.grindtrack.finance.service.parse;
 
 /**
- * The statement shapes this app can read. Six, not four — Capital One alone exports two completely
- * different layouts depending on whether the account is a deposit account or a card.
+ * The statement shapes this app can read. Seven, not five — Capital One alone exports two
+ * completely different layouts depending on whether the account is a deposit account or a card, and
+ * the last one is not CSV at all.
  */
 public enum StatementFormat {
   /**

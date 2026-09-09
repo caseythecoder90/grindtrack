@@ -36,6 +36,8 @@ src/
 │   ├── landing/Landing.tsx      public read-only view
 │   ├── focus/
 │   │   ├── FocusPage.tsx        session list + POST wiring + JSX
+│   │   ├── LunchSubject.tsx     picks the book/paper/repo a reading or review session is for
+│   │   ├── ReadingPanel.tsx     the lunch dashboard: streak, week vs target, per-subject hours
 │   │   ├── timer.ts             pure pomodoro state machine (framework-free, nowMs-parameterized)
 │   │   ├── useFocusTimer.ts     hook: persistence, 500ms tick, transitions, alert wiring
 │   │   └── alerts.ts            chime / notification side effects
@@ -51,16 +53,42 @@ src/
 │   │   ├── Today.tsx            daily log editor
 │   │   ├── Week.tsx             week grid + weekly review
 │   │   └── StatsPage.tsx        bar charts
-│   └── work/
-│       ├── WorkPage.tsx         sub-tab shell (Day / Week / Skills)
-│       ├── WorkDay.tsx          daily work-log editor
-│       ├── WorkWeek.tsx         week grid vs 40h target
-│       └── WorkSkills.tsx       competency checklist (add / cycle / notes / delete)
+│   ├── todo/
+│   │   └── TodoPage.tsx         all / work / personal list with inline add
+│   ├── work/
+│   │   ├── WorkPage.tsx         sub-tab shell (Day / Week / Skills)
+│   │   ├── WorkDay.tsx          daily work-log editor
+│   │   ├── WorkWeek.tsx         week grid vs 40h target
+│   │   └── WorkSkills.tsx       competency checklist (add / cycle / notes / delete)
+│   ├── finance/
+│   │   ├── FinancePage.tsx      sub-view shell (Overview / Spending / Budget / Review / Import)
+│   │   ├── AccountsPanel.tsx    accounts + balances, add / edit / delete
+│   │   ├── SavingsGoalCard.tsx  goal progress against the savings accounts
+│   │   ├── SpendingPanel.tsx    category rollups and month-over-month
+│   │   ├── BudgetPanel.tsx      the recurring plan, this month's extras, expected income
+│   │   ├── RecurringPanel.tsx   charges that come back every month
+│   │   ├── ReviewInbox.tsx      uncategorized queue; filing one can write a rule
+│   │   ├── CategoryRulesPanel.tsx  rule list, priority order, edit / apply
+│   │   ├── ImportPanel.tsx      statement upload, dry-run, batch history, undo
+│   │   ├── categories.ts        the category vocabulary
+│   │   └── money.ts             formatting + sign helpers (pure)
+│   └── relationship/
+│       ├── RelationshipPage.tsx sub-view shell for the "Us" tab
+│       ├── ClosenessCard.tsx    recency per moment kind — reassurance, not a score
+│       ├── IdeasPanel.tsx       ideas by effort; acting on one logs a moment
+│       ├── OccasionsPanel.tsx   anniversaries/birthdays with lead time
+│       ├── ReadingPanel.tsx     reading list; a takeaway can be promoted to an idea
+│       └── kinds.ts             moment/idea/reading kind labels
 └── lib/                framework-free
     ├── api.ts          fetch wrapper + 401/refresh/retry; AuthError vs OfflineError
     ├── dates.ts        todayISO, mondayOf, addDays (local-tz safe)
-    └── types.ts        interfaces + constants (CATEGORIES, WEEKLY_TARGET=20, FOCUS_DEFAULTS)
+    └── types.ts        interfaces + constants (CATEGORIES, TARGETS, FOCUS_DEFAULTS)
 ```
+
+Each feature owns its own API module (`financeApi.ts`, `relationshipApi.ts`, `focusApi.ts`, …)
+rather than one shared client. One ergonomic hazard comes with that: a component's local handler
+easily collides with the imported function of the same name (`addTransaction`, `recordSession`,
+`logout`), so those imports are aliased at the import site.
 
 ## Routing = a two-level state machine (`App.tsx`)
 
@@ -68,8 +96,12 @@ There is no router library and no URL/History involvement — everything is one 
 
 ```ts
 type View = "landing" | "login" | "app";
-type Tab  = "today" | "focus" | "plan" | "work" | "week" | "stats";
+type Tab  = "today" | "focus" | "todos" | "plan" | "work" | "money" | "us" | "week" | "stats";
 ```
+
+`TABS` is that same array, and the nav renders straight from it — adding a tab is one entry plus
+one branch. The three heaviest tabs (`work`, `money`, `us`) are shells with their own secondary
+nav rather than nine more top-level entries.
 
 ```mermaid
 stateDiagram-v2
@@ -82,12 +114,15 @@ stateDiagram-v2
     App --> Landing : logout / logout everywhere, or refresh answers 401 (AuthError)
     state App {
         [*] --> Today
-        note right of Today : tabs — Today / Focus / Plan / Work / Week / Stats
+        note right of Today
+            tabs — Today / Focus / Todos / Plan / Work
+            / Money / Us / Week / Stats
+        end note
     }
 ```
 
 - **`view`** picks Landing (public) / Login (form) / App (authenticated shell).
-- Inside App, a `<nav class="tabs">` toggles **`tab`** between Today / Focus / Plan / Work / Week / Stats.
+- Inside App, a `<nav class="tabs">` toggles **`tab`** across the nine entries in `TABS`.
 - **Auth guard:** App-only content renders only when `view === "app"`. Entry is gated by a session
   probe on mount; any `AuthError` from the header-refresh path calls `setView("landing")` — the
   "redirect to login" for an expired session.
@@ -198,12 +233,25 @@ sequenceDiagram
 | `tracking/Week` | `GET /api/days?from=&to=`, `GET/PUT /api/weeks/{monday}` | Mon–Sun grid, `WeekTotals` header (study · work · total), review form with `onTrack` toggle |
 | `tracking/StatsPage` | — (receives `stats` + `scope` as props) | hours/week for the last 12 as split `Meter` bars with a target marker, plus hours by category for the current scope |
 | `todo/TodoPage` | `GET/POST /api/todos`, `PATCH`/`DELETE /api/todos/{id}` | all/work/personal filter, inline add with optional due date, optimistic checkbox, overdue + due-today styling |
-| `focus/FocusPage` | `GET/POST /api/focus/sessions` | Pomodoro timer (below) with a **study/work toggle** → `onLogged()`; a work session's minutes fold into `work_logs`, a study session's into `daily_logs` |
+| `focus/FocusPage` | `GET/POST /api/focus/sessions`, `PATCH /sessions/{id}/takeaway`, `GET /api/focus/reading` | Pomodoro timer (below) with a **four-way kind toggle** → `onLogged()`. `work` minutes fold into `work_logs`; `study`, `reading` and `review` into `daily_logs`. The two lunch kinds also pick a subject (`LunchSubject`) and prompt for a takeaway once the session ends |
+| `focus/ReadingPanel` | `GET /api/focus/reading` | The lunch dashboard: weekday streak, days this week against target, hours per subject, recent takeaways |
 | `plan/PlanPage` | `GET /api/plan`, `PATCH /api/plan/items/{id}`, `POST /api/plan/import` | progress header + type filters, year panels with collapsible quarter roadmap, 3-state status chip (cycles on click), per-item notes, plan.json upload (empty state + re-import box). `Reference.tsx` renders the read-only sheets from row-JSON. |
 | `work/WorkPage` | — | secondary tab bar over Day / Week / Skills (day-job tracking, separate from study) |
 | `work/WorkDay` | `GET/PUT /api/work/days/{date}` | hours, project, category chips, goals/did/blockers/learnings; try/catch save + load |
 | `work/WorkWeek` | `GET /api/work/days?from=&to=` | Mon–Sun grid with the same `WeekTotals` header as the study week |
 | `work/WorkSkills` | `GET/POST /api/work/skills`, `PATCH`/`DELETE /api/work/skills/{id}` | competency checklist: add, 3-state status chip (not_started/in_progress/proficient), per-skill notes, delete |
+| `finance/FinancePage` | — | secondary nav over Overview / Spending / Budget / Review / Import. The tab was split into views once one page owned five unrelated questions |
+| `finance/AccountsPanel` · `SavingsGoalCard` | `GET /api/finance/summary`, `accounts` CRUD, `PATCH /accounts/{id}/balance`, `goals` CRUD | balances (liabilities negative), net worth, and goal progress over the accounts flagged `countsTowardSavings` |
+| `finance/SpendingPanel` · `RecurringPanel` | `GET /api/finance/spending[?from=&to=]`, `/spending/monthly`, `/recurring` | category rollups over a window, months side by side, and the charges that repeat |
+| `finance/BudgetPanel` | `GET /api/finance/budget/month`, `lines` + `extras` CRUD, `PUT /budget/income` | the recurring plan and this month's one-offs kept apart, so a holiday never becomes part of next month's baseline |
+| `finance/ReviewInbox` | `GET /api/finance/transactions?…`, `POST /transactions/{id}/categorize`, `PATCH /{id}/type` | paged uncategorized queue; filing a row can create the rule that files the next one. Income is excluded — it is not a spending decision |
+| `finance/CategoryRulesPanel` | `GET/POST/PUT/DELETE /api/finance/rules`, `POST /rules/apply` | priority-ordered rules, edit in place, re-run over history (never over a `MANUAL` category) |
+| `finance/ImportPanel` | `GET/POST /api/finance/imports`, `DELETE /imports/{id}` | statement upload with a **dry run** first, per-batch result counts, and undo as a unit |
+| `relationship/RelationshipPage` | `GET /api/relationship/summary` | secondary nav for the "Us" tab; the summary drives every sub-panel's header |
+| `relationship/ClosenessCard` | `GET /api/relationship/summary` | how long since each kind of moment. Recency only — no score, no streak, no target |
+| `relationship/IdeasPanel` | `GET/POST/PUT/DELETE /api/relationship/ideas`, `POST /ideas/{id}/done` | least effort first, so there is always something doable tonight; marking one done logs it as a moment |
+| `relationship/OccasionsPanel` | `GET/POST/PUT/DELETE /api/relationship/occasions` | anniversaries and birthdays with per-occasion lead time; a write answers with the whole list because every next date shifts together |
+| `relationship/ReadingPanel` | `GET/POST/DELETE /api/relationship/reading`, `POST /{id}/read`, `POST /{id}/promote` | reading list where the takeaway is the point — and can be promoted straight into a gesture idea |
 
 ### FocusPage — a durable timer
 
@@ -215,12 +263,19 @@ Worth understanding because it's the trickiest screen:
   reload, tab switch, or laptop sleep can't drift the clock. A `setInterval(…, 500)` only drives
   re-render; a separate effect fires phase transitions when `Date.now() >= endsAt`.
 - Phases `idle → focus → break → … → done`; config = sessions (1–12), focus min (5–180), break
-  min (1–60), and **`kind`** (study/work).
+  min (1–60), **`kind`** (study/work/reading/review) and, for the two lunch kinds, the **subject**
+  (`planItemId` + `topic`).
 - **`kind` lives in the persisted config, not component state.** That matters: the timer is built
   to survive a reload mid-session, so a `kind` held in `useState` would reset to `study` on restore
   and a finished work session would fold into `daily_logs` instead of `work_logs`. `decodeState`
   defaults a missing `kind` rather than bumping the storage key, so a timer running across the
   deploy that introduced it isn't discarded.
+- **The subject is persisted next to `kind` for the same reason** — a reload must not detach the
+  minutes from the book they belong to. That created the bug 018 repaired: switching kind did not
+  clear the subject, so picking a book for a reading session and later starting a *study* session
+  filed that session against the book. Changing kind now clears the subject in the UI, and
+  `FocusService` refuses to persist one on a non-lunch kind regardless of what the client sends —
+  the guard lives on both sides because only the server one is guaranteed to run.
 - `onFocusSessionEnd` receives the session's own `kind`, read from the timer state at the moment it
   ends — so the value logged is the one the session was *started* with, and both callbacks in
   `FocusPage` stay referentially stable (the hook keys effects off them).

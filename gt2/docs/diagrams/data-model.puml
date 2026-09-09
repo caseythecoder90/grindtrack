@@ -1,5 +1,9 @@
 @startuml
-' Grindtrack data model (Postgres schema `grindtrack`). Render: see diagrams/render.sh
+' Grindtrack data model — the effort side of the schema (Postgres schema `grindtrack`):
+' auth, tracking, plan, todo and work. Money lives in data-model-finance.puml and the
+' relationship tab in data-model-relationship.puml — same schema, split three ways because
+' nineteen tables on one canvas is a slab nobody reads.
+' Render: see diagrams/render.sh
 hide circle
 skinparam linetype ortho
 skinparam backgroundColor #FFFFFF
@@ -7,125 +11,178 @@ skinparam defaultFontSize 13
 skinparam defaultFontName Helvetica
 skinparam shadowing false
 skinparam ArrowColor #33475B
+skinparam ArrowFontColor #1A2B3C
 skinparam entity {
   BackgroundColor #EEF2F7
   BorderColor #33475B
   FontColor #12243A
 }
-
-entity "users" as users #E3F0FF {
-  * id : bigint <<PK, identity>>
-  --
-  * username : text <<unique>>
-  * password_hash : text
-  * totp_secret : text
-  created_at : timestamptz
-}
-entity "refresh_tokens" as refresh_tokens #E3F0FF {
-  * id : bigint <<PK, identity>>
-  --
-  * user_id : bigint <<FK → users, ON DELETE CASCADE>>
-  * family_id : uuid <<one login's lineage; indexed>>
-  * token_hash : text <<unique, sha-256 hex>>
-  * created_at : timestamptz <<rotation is scheduled off this>>
-  * expires_at : timestamptz <<sliding>>
-  * revoked : boolean
-  rotated_at : timestamptz <<null unless a successor was issued>>
-}
-entity "trusted_devices" as trusted_devices #E3F0FF {
-  * id : bigint <<PK, identity>>
-  --
-  * user_id : bigint <<FK → users, ON DELETE CASCADE>>
-  * token_hash : text <<unique, sha-256 hex>>
-  * expires_at : timestamptz <<sliding>>
-  last_used_at : timestamptz
-  * revoked : boolean
-}
-entity "daily_logs" as daily_logs #EAF3EC {
-  * log_date : date <<PK (natural key)>>
-  --
-  hours : numeric  (0–24 CHECK)
-  categories : text  (comma-separated)
-  focus / did / wins / blockers : text
-  energy : int  (1–5 CHECK, nullable)
-  updated_at : timestamptz
-}
-entity "weekly_reviews" as weekly_reviews #EAF3EC {
-  * week_start : date <<PK (a Monday)>>
-  --
-  summary / wins / blockers : text
-  adjustments / next_focus : text
-  on_track : boolean (nullable)
-  updated_at : timestamptz
-}
-entity "focus_sessions" as focus_sessions #EAF3EC {
-  * id : bigint <<PK, identity>>
-  --
-  * session_date : date
-  * started_at : timestamptz
-  * duration_minutes : int (1–1440 CHECK)
-  * completed : boolean
-  created_at : timestamptz
-}
-entity "plan_items" as plan_items #FFF3D6 {
-  * id : bigint <<PK, identity>>
-  --
-  item_type / title / status : text
-  notes / details / target_label : text
-  completed_at : timestamptz (set on → done)
-  qtr / year_num / tier / sort_order : int
-}
-entity "plan_quarters" as plan_quarters #FFF3D6 {
-  * qtr : int <<PK>>
-  --
-  window_label / primary_focus : text
-  secondary_focus / career_track : text
-}
-entity "plan_reference" as plan_reference #FFF3D6 {
-  * sheet : text <<PK>>
-  --
-  title : text
-  content_json : text
-  sort_order : int
+skinparam package {
+  BackgroundColor #FBFCFE
+  BorderColor #96A7BD
+  FontColor #33475B
+  FontStyle bold
 }
 
-entity "finance_accounts" as finance_accounts #D6ECFF {
-  * id : bigint <<PK, identity>>
-  --
-  name / institution / account_type : text (CHECK)
-  last4 : text (leading zeros are real)
-  current_balance : numeric(12,2) (liabilities negative)
-  balance_as_of : date
-  counts_toward_savings / active : boolean
-  sort_order : int
+package "auth" {
+  entity "users" as users #E3F0FF {
+    * id : bigint <<PK, identity>>
+    --
+    * username : varchar(64) <<unique>>
+    * password_hash : varchar(100)  (BCrypt)
+    * totp_secret : varchar(64)  (Base32, 160-bit)
+    created_at : timestamptz
+  }
+  entity "refresh_tokens" as refresh_tokens #E3F0FF {
+    * id : bigint <<PK, identity>>
+    --
+    * user_id : bigint <<FK → users, CASCADE>>
+    * family_id : uuid  (one login's lineage)
+    * token_hash : varchar(64) <<unique>>  (sha-256 hex)
+    * created_at : timestamptz  (rotation is scheduled off this)
+    * expires_at : timestamptz  (sliding)
+    * revoked : boolean
+    rotated_at : timestamptz  (null unless superseded)
+    --
+    idx (user_id), idx (family_id)
+  }
+  entity "trusted_devices" as trusted_devices #E3F0FF {
+    * id : bigint <<PK, identity>>
+    --
+    * user_id : bigint <<FK → users, CASCADE>>
+    * token_hash : varchar(64) <<unique>>  (sha-256 hex)
+    * expires_at : timestamptz  (sliding)
+    last_used_at : timestamptz
+    * revoked : boolean
+    created_at : timestamptz
+    --
+    idx (user_id)
+  }
 }
-entity "finance_transactions" as finance_transactions #D6ECFF {
-  * id : bigint <<PK, identity>>
-  --
-  * account_id : bigint <<FK, cascade>>
-  * posted_date : date
-  transaction_date : date
-  * amount : numeric(12,2) (signed, − = out)
-  raw_description : text (never edited)
-  merchant : text (normalized)
-  txn_type : SPEND/INCOME/TRANSFER/PAYMENT
-  category / issuer_category : text
-  category_source : UNCATEGORIZED/RULE/MANUAL
-  pending : boolean
-  * fingerprint : text <<UNIQUE per account>>
+
+package "tracking" {
+  entity "daily_logs" as daily_logs #EAF3EC {
+    * log_date : date <<PK (natural key)>>
+    --
+    * hours : numeric(4,1)  CHECK 0–24
+    * categories : varchar(500)  (comma-separated)
+    focus / did / wins / blockers : text
+    energy : int  CHECK 1–5 (nullable)
+    updated_at : timestamptz
+  }
+  entity "weekly_reviews" as weekly_reviews #EAF3EC {
+    * week_start : date <<PK (a Monday)>>
+    --
+    summary / wins / blockers : text
+    adjustments / next_focus : text
+    on_track : boolean (nullable)
+    updated_at : timestamptz
+  }
+  entity "focus_sessions" as focus_sessions #EAF3EC {
+    * id : bigint <<PK, identity>>
+    --
+    * session_date : date
+    * started_at : timestamptz
+    * duration_minutes : int  CHECK 1–1440
+    * completed : boolean  (false = ended early)
+    * kind : varchar(10)  CHECK study|work|reading|review
+    --
+    plan_item_id : bigint <<FK → plan_items, SET NULL>>
+    topic : varchar(200)  (label snapshot)
+    takeaway : text  (written after the session)
+    created_at : timestamptz
+    --
+    idx (session_date) · (plan_item_id) · (kind, session_date)
+  }
 }
-entity "finance_savings_goals" as finance_savings_goals #D6ECFF {
-  * id : bigint <<PK, identity>>
-  --
-  name : text
-  target_amount : numeric(12,2)
-  target_date : date
-  note : text (why this number)
-  active : boolean
-  sort_order : int
+
+package "plan" {
+  entity "plan_quarters" as plan_quarters #FFF3D6 {
+    * qtr : int <<PK>>  (1–20)
+    --
+    * window_label : varchar(40)
+    * year_num : int  CHECK 1–5
+    primary_focus / secondary_focus : text
+    career_track / deliverables : text
+  }
+  entity "plan_items" as plan_items #FFF3D6 {
+    * id : bigint <<PK, identity>>
+    --
+    * item_type : varchar(20)
+      CHECK milestone|cert|module|book|paper|project
+    * title : varchar(300)
+    * status : varchar(20)
+      CHECK not_started|in_progress|done
+    details / notes : text
+    target_label : varchar(60) · target_date : date
+    year_num : int CHECK 1–5 · qtr : int CHECK 1–20
+    tier : varchar(30) · sort_order : int
+    completed_at : timestamptz  (stamped on → done)
+    --
+    idx (item_type)
+  }
+  entity "plan_reference" as plan_reference #FFF3D6 {
+    * sheet : varchar(30) <<PK>>
+    --
+    * title : varchar(100)
+    * content_json : text  (row-JSON)
+    sort_order : int
+  }
+}
+
+package "todo" {
+  entity "todos" as todos #F3E8FF {
+    * id : bigint <<PK, identity>>
+    --
+    * title : varchar(300)
+    * kind : varchar(10)  CHECK work|personal
+    * done : boolean
+    due_date : date
+    sort_order : int
+    completed_at : timestamptz
+    created_at / updated_at : timestamptz
+    --
+    idx (kind, done, sort_order)
+  }
+}
+
+package "work" {
+  entity "work_logs" as work_logs #FFE7E7 {
+    * log_date : date <<PK (natural key)>>
+    --
+    * hours : numeric(4,1)  CHECK 0–24
+    * categories : varchar(500)  (comma-separated)
+    project : varchar(120)
+    goals / did / blockers / learnings : text
+    updated_at : timestamptz
+  }
+  entity "work_skills" as work_skills #FFE7E7 {
+    * id : bigint <<PK, identity>>
+    --
+    * name : varchar(200)
+    * status : varchar(20)
+      CHECK not_started|in_progress|proficient
+    category : varchar(40) · detail : text
+    notes : text · sort_order : int
+    updated_at : timestamptz
+  }
 }
 
 users ||--o{ refresh_tokens
 users ||--o{ trusted_devices
-finance_accounts ||--o{ finance_transactions
+plan_items ||--o{ focus_sessions : "subject of\n(lunch kinds only)"
+
+' Not a foreign key — FocusService adds a session's minutes to the day's hours in the same
+' transaction, routed by kind. It is the one cross-feature write in the schema.
+focus_sessions .[#2F9E57,dashed].> daily_logs : "study / reading /\nreview → +hours"
+focus_sessions .[#B5651D,dashed].> work_logs : "work → +hours"
+
+note bottom of plan_reference
+  Plan **content** never lives in the repo — it is
+  imported at runtime from a locally generated
+  plan.json. Import matches items by (type, title)
+  and updates in place, so a plan item's id survives
+  a re-import and focus_sessions keep pointing at it.
+end note
+
 @enduml

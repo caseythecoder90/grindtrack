@@ -1,0 +1,109 @@
+@startuml
+' Grindtrack data model — the relationship tab (Postgres schema `grindtrack`).
+' The effort side is in data-model.puml; money in data-model-finance.puml.
+' Render: see diagrams/render.sh
+hide circle
+skinparam linetype ortho
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontSize 13
+skinparam defaultFontName Helvetica
+skinparam shadowing false
+skinparam ArrowColor #33475B
+skinparam ArrowFontColor #1A2B3C
+skinparam entity {
+  BackgroundColor #EEF2F7
+  BorderColor #33475B
+  FontColor #12243A
+}
+
+entity "relationship_moments" as moments #FFE0EC {
+  * id : bigint <<PK, identity>>
+  --
+  * occurred_on : date
+    (a date, not a timestamp — these get logged
+     the next morning and the hour is not information)
+  * kind : varchar(20)  CHECK
+    DATE_NIGHT|NOTE_LEFT|GIFT_GIVEN|INTIMACY|
+    CONVERSATION|TRIP|GESTURE
+  note : varchar(1000)
+    (what makes the timeline worth re-reading)
+  felt_close : smallint  CHECK 1–3 (nullable)
+    (a note to yourself about the week — never charted)
+  created_at / updated_at : timestamptz
+  --
+  idx (kind, occurred_on DESC) · (occurred_on DESC)
+}
+
+entity "relationship_ideas" as ideas #FFE0EC {
+  * id : bigint <<PK, identity>>
+  --
+  * kind : varchar(10)  CHECK GIFT|DATE|GESTURE
+  * title : varchar(300)
+  detail : varchar(1000)
+  occasion : varchar(120)
+    (free text, not an FK — "her birthday" is useful
+     long before the occasion row exists)
+  est_cost : numeric(10,2)
+  effort : varchar(10)  CHECK SMALL|MEDIUM|BIG
+    (so the list can put two-minute options first)
+  * status : varchar(10)  CHECK IDEA|PLANNED|DONE
+  done_moment_id : bigint <<FK → moments, SET NULL>>
+  created_at / updated_at : timestamptz
+  --
+  idx (status, kind, id DESC)
+}
+
+entity "relationship_occasions" as occasions #FFF3D6 {
+  * id : bigint <<PK, identity>>
+  --
+  * label : varchar(120)
+  * occasion_date : date
+    (the original date — "our 4th anniversary"
+     is computed, never retyped each year)
+  * recurring : boolean
+  * lead_days : int  CHECK ≥ 0  (default 21)
+    (an idea that surfaces the day before is no use)
+  note : varchar(500)
+  created_at / updated_at : timestamptz
+}
+
+entity "relationship_reading" as reading #E3F0FF {
+  * id : bigint <<PK, identity>>
+  --
+  * title : varchar(300)
+  url : varchar(1000) · source : varchar(200)
+  * kind : varchar(10)  CHECK ARTICLE|BOOK|PODCAST
+  * status : varchar(10)  CHECK TO_READ|READ
+  takeaway : varchar(1000)
+    (what you would do differently — a reading list
+     without this is a list of things you can say you read)
+  read_on : date
+  created_at / updated_at : timestamptz
+  --
+  idx (status, id DESC)
+}
+
+moments ||--o{ ideas : "acting on an idea logs\na moment and closes the loop"
+
+' App-level links, not foreign keys.
+ideas .[#B5891D,dashed].> occasions : "occasion label\n(advisory, by string)"
+reading .[#2D6CDF,dashed].> ideas : "POST /reading/{id}/promote\nturns a takeaway into\na gesture idea"
+
+note as N1
+  **This exists to reassure, not to score.**
+
+  There is deliberately no target column, no streak
+  counter and no rating of the relationship anywhere
+  in these four tables. Recording that something
+  happened is so you can check, on a bad evening,
+  that it happened recently — and a schema that could
+  express "you are 2 under this week" would eventually
+  be made to say so on screen.
+
+  Nothing is seeded: this is the most personal data in
+  the app and the repo is public.
+end note
+
+N1 .. moments
+
+@enduml

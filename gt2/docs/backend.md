@@ -297,9 +297,23 @@ Deep dive with sequence diagrams in [auth.md](auth.md). The moving parts:
 
 ## Data model
 
-![Grindtrack data model — Postgres schema `grindtrack`](diagrams/data-model.svg)
+One Postgres schema, `grindtrack`, drawn as three diagrams — nineteen tables on one canvas is a
+slab nobody reads, and the schema already separates cleanly along the same three lines the app
+does.
 
-<sub>PlantUML source: [`diagrams/data-model.puml`](diagrams/data-model.puml) — edit it and regenerate the SVG with [`diagrams/render.sh`](diagrams/render.sh).</sub>
+**Effort — auth, tracking, plan, todo, work:**
+
+![Grindtrack data model — the effort side](diagrams/data-model.svg)
+
+**Money — the finance tab:**
+
+![Grindtrack data model — finance](diagrams/data-model-finance.svg)
+
+**The relationship tab:**
+
+![Grindtrack data model — relationship](diagrams/data-model-relationship.svg)
+
+<sub>PlantUML sources: [`diagrams/data-model.puml`](diagrams/data-model.puml), [`diagrams/data-model-finance.puml`](diagrams/data-model-finance.puml), [`diagrams/data-model-relationship.puml`](diagrams/data-model-relationship.puml) — edit and regenerate with [`diagrams/render.sh`](diagrams/render.sh).</sub>
 
 Design notes worth remembering:
 
@@ -326,31 +340,59 @@ Design notes worth remembering:
   - `category_source` (`UNCATEGORIZED`/`RULE`/`MANUAL`) means automation can never revert a
     hand-corrected category. `Transaction.categorizeByRule()` returns `false` rather than
     overwriting a `MANUAL` decision.
+- **A focus session records its subject twice**, on purpose. `plan_item_id` is the live foreign
+  key (`ON DELETE SET NULL`) and `topic` is the label snapshotted at write time. The snapshot
+  keeps history readable when the workbook renames or drops an item, and it is the only subject a
+  `review` session has — a repo is not a plan item. The link survives a re-import because
+  `PlanService` now updates matched rows in place instead of deleting and reinserting them.
+- **Categories are free text on both sides of finance, and there is no category table.** Budgets,
+  rules and transactions join by string because categories are whatever the rules produce.
+  Uniqueness is enforced on `lower(category)` / `lower(pattern)` so case can't split one category
+  into two.
+- **The relationship tables have no target, streak or rating column, deliberately.** The feature
+  exists to reassure, not to score: recording that something happened lets you check on a bad
+  evening that it happened recently, and a schema able to express "you are 2 under this week"
+  would eventually be made to say so on screen. `felt_close` (1–3, nullable) is a note to yourself
+  about the week, never charted.
 
 ### Migrations
 
 Schema **`grindtrack`**; Hibernate is `validate`-only, so Liquibase is the single source of truth.
 
 - `resources/preliquibase/postgresql.sql` — `CREATE SCHEMA IF NOT EXISTS grindtrack` (runs first).
-- `resources/db/changelog/db.changelog-master.yaml` includes, in order:
-  - `001-users-and-tokens.sql` — `users`, `refresh_tokens` (+ `idx_refresh_tokens_user`)
-  - `002-tracking.sql` — `daily_logs` (CHECK hours 0–24, energy 1–5), `weekly_reviews`
-  - `003-focus-sessions.sql` — `focus_sessions` (CHECK duration 1–1440, + index)
-  - `004-plan.sql` — `plan_quarters`, `plan_items` (CHECKs + index), `plan_reference`
-  - `005-plan-year4.sql` — widen year/qtr CHECKs to 4 years / 16 quarters
-  - `019-plan-year5.sql` — widen them again to 5 years / 20 quarters
-  - `020-calendar.sql` — `calendar_events`, `recurring_tasks`, `recurring_task_completions`
-  - `021-refresh-rotation-grace.sql` — `refresh_tokens.rotated_at` (when a token was rotated away)
-  - `022-trusted-devices.sql` — `trusted_devices` (+ `idx_trusted_devices_user`)
-  - `023-refresh-token-families.sql` — `refresh_tokens.family_id` (+ `idx_refresh_tokens_family`)
-  - `006-plan-paper.sql` — add `paper` to the `plan_items` item_type CHECK
-  - `007-work.sql` — `work_logs` (CHECK hours 0–24), `work_skills` (status CHECK)
-  - `008-focus-kind.sql` — add `kind` (study/work) to `focus_sessions` (CHECK)
-  - `009-todos.sql` — `todos` (kind CHECK work/personal, `idx_todos_kind_done`)
-  - `010-finance.sql` — `finance_accounts`, `finance_transactions` (unique fingerprint per
-    account, three supporting indexes), `finance_savings_goals`
-- Every changeset has a `--rollback`. Time columns are `TIMESTAMPTZ DEFAULT now()`. **Add schema
-  changes only as new changesets** — never edit an applied one.
+- `resources/db/changelog/db.changelog-master.yaml` includes, in numeric order:
+
+| # | File | What it does |
+|---|---|---|
+| 001 | `users-and-tokens.sql` | `users`, `refresh_tokens` (+ `idx_refresh_tokens_user`) |
+| 002 | `tracking.sql` | `daily_logs` (CHECK hours 0–24, energy 1–5), `weekly_reviews` |
+| 003 | `focus-sessions.sql` | `focus_sessions` (CHECK duration 1–1440, + index) |
+| 004 | `plan.sql` | `plan_quarters`, `plan_items` (CHECKs + index), `plan_reference` |
+| 005 | `plan-year4.sql` | widen year/qtr CHECKs to 4 years / 16 quarters |
+| 006 | `plan-paper.sql` | add `paper` to the `plan_items` item_type CHECK |
+| 007 | `work.sql` | `work_logs` (CHECK hours 0–24), `work_skills` (status CHECK) |
+| 008 | `focus-kind.sql` | add `kind` (study/work) to `focus_sessions` (CHECK) |
+| 009 | `todos.sql` | `todos` (kind CHECK work/personal, `idx_todos_kind_done`) |
+| 010 | `finance.sql` | `finance_accounts`, `finance_transactions` (unique fingerprint per account, three supporting indexes), `finance_savings_goals` |
+| 011 | `finance-imports.sql` | `finance_import_batches` (one row per uploaded file) + nullable `finance_transactions.import_batch_id` — nullable so hand-entered rows have no batch and deleting a batch can't cascade into them |
+| 012 | `finance-import-balance-snapshot.sql` | snapshot `previous_balance`/`_as_of` + `balance_overwritten` on the batch, so undoing an import that rewrote an account balance actually restores it |
+| 013 | `finance-category-rules.sql` | `finance_category_rules` (priority order, unique `lower(pattern)`+match_type, hit counters) |
+| 014 | `finance-budgets.sql` | `finance_budgets` (the recurring plan, unique per category), `finance_budget_extras` (one-off months, `month` CHECK day = 1), `finance_budget_settings` (single row, CHECK `id = 1`) |
+| 015 | `relationship.sql` | `relationship_moments`, `_ideas`, `_occasions`, `_reading` |
+| 016 | `finance-retirement-accounts.sql` | add `RETIREMENT` to the account-type CHECK — real net worth, deliberately not the house fund |
+| 017 | `focus-reading.sql` | widen `focus_sessions.kind` to study/work/**reading**/**review**; add `plan_item_id` (FK, SET NULL), `topic`, `takeaway` + two indexes |
+| 018 | `focus-subject-lunch-only.sql` | data repair: clear `plan_item_id`/`topic` on non-lunch rows written before the service refused to set them. Irreversible by design |
+| 019 | `plan-year5.sql` | widen year/qtr CHECKs again to 5 years / 20 quarters |
+| 020 | `calendar.sql` | `calendar_events`, `recurring_tasks`, `recurring_task_completions` |
+| 021 | `refresh-rotation-grace.sql` | `refresh_tokens.rotated_at` — when a token was rotated away, so the loser of a race can be told from a replay |
+| 022 | `trusted-devices.sql` | `trusted_devices` (+ `idx_trusted_devices_user`) — the second factor, remembered per browser |
+| 023 | `refresh-token-families.sql` | `refresh_tokens.family_id` (+ `idx_refresh_tokens_family`) — reuse detection revokes one login's lineage, never every session the user has |
+
+- Every changeset has a `--rollback` (018's is a documented no-op — the values it cleared were
+  wrong and there is nothing to restore them to). Time columns are `TIMESTAMPTZ DEFAULT now()`.
+  **Add schema changes only as new changesets** — never edit an applied one.
+- Nothing personal is ever seeded in SQL. The repo is public, so plan content, category rules and
+  every relationship row are created through the app and live only in the database.
 
 ## Configuration
 
