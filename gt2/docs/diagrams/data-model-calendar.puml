@@ -1,0 +1,98 @@
+@startuml
+' Grindtrack data model — the calendar and recurring upkeep (Postgres schema `grindtrack`).
+' The effort side is in data-model.puml; money in data-model-finance.puml; the Us tab in
+' data-model-relationship.puml. Split out because twenty-seven tables on one canvas is a
+' slab nobody reads.
+' Render: see diagrams/render.sh
+hide circle
+skinparam linetype ortho
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontSize 13
+skinparam defaultFontName Helvetica
+skinparam shadowing false
+skinparam ArrowColor #33475B
+skinparam ArrowFontColor #1A2B3C
+skinparam entity {
+  BackgroundColor #EEF2F7
+  BorderColor #33475B
+  FontColor #12243A
+}
+skinparam note {
+  BackgroundColor #FFF8DC
+  BorderColor #C8B560
+}
+
+entity "calendar_events" as events #E8E0FF {
+  * id : bigint <<PK, identity>>
+  --
+  * title : varchar(300)
+  * kind : varchar(20)  CHECK
+      appointment | study_block | work_block | personal
+  * event_date : date
+    start_time : time  (NULL *is* all-day)
+    end_time : time
+    plan_item_id : bigint <<FK → plan_items, SET NULL>>
+  * notes : text  (default '')
+  * created_at / updated_at : timestamptz
+  --
+  CHECK end_time IS NULL OR
+        (start_time IS NOT NULL AND end_time > start_time)
+  --
+  idx (event_date, start_time)
+  idx (plan_item_id) WHERE plan_item_id IS NOT NULL
+}
+
+entity "recurring_tasks" as tasks #E8E0FF {
+  * id : bigint <<PK, identity>>
+  --
+  * title : varchar(200)
+  * category : varchar(20)  CHECK
+      pet | home | health | car | other
+  * interval_days : int  CHECK 1–3650
+    last_done_on : date  (NULL = never done, reads as due now)
+  * active : boolean  (kept, not deleted, so history stays readable)
+  * notes : text  (default '')
+  * created_at / updated_at : timestamptz
+  --
+  idx (active, last_done_on)
+}
+
+entity "recurring_task_completions" as completions #E8E0FF {
+  * id : bigint <<PK, identity>>
+  --
+  * task_id : bigint <<FK → recurring_tasks, CASCADE>>
+  * done_on : date
+  * created_at : timestamptz
+  --
+  UNIQUE (task_id, done_on)
+  idx (task_id, done_on DESC)
+}
+
+' Referenced from data-model.puml — shown here only as the far end of the FK.
+entity "plan_items" as plan_items #FDF3D8 {
+  * id : bigint <<PK, identity>>
+  ..  (see data-model.puml)  ..
+}
+
+tasks ||--o{ completions
+plan_items |o--o{ events : "booked against\n(study blocks only)"
+
+note bottom of tasks
+  **nextDue is never stored** — it is
+  last_done_on + interval_days, computed
+  per request. A stored copy is a second
+  source of truth that goes wrong the
+  first time an interval is edited.
+end note
+
+note bottom of events
+  **plan_item_id is intent, not outcome.**
+  This says what a morning was booked for;
+  focus_sessions say what actually happened,
+  and the gap between them is the interesting
+  number. SET NULL rather than CASCADE so
+  re-importing the plan cannot delete mornings
+  already booked against a dropped item.
+end note
+
+@enduml

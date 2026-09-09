@@ -1,0 +1,186 @@
+@startuml
+' Grindtrack data model — the money side (Postgres schema `grindtrack`).
+' The effort side is in data-model.puml; the relationship tab in data-model-relationship.puml.
+' Render: see diagrams/render.sh
+hide circle
+skinparam linetype ortho
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontSize 13
+skinparam defaultFontName Helvetica
+skinparam shadowing false
+skinparam ArrowColor #33475B
+skinparam ArrowFontColor #1A2B3C
+skinparam entity {
+  BackgroundColor #EEF2F7
+  BorderColor #33475B
+  FontColor #12243A
+}
+skinparam package {
+  BackgroundColor #FBFCFE
+  BorderColor #96A7BD
+  FontColor #33475B
+  FontStyle bold
+}
+
+package "ledger" {
+  entity "finance_accounts" as accounts #D6ECFF {
+    * id : bigint <<PK, identity>>
+    --
+    * name : varchar(120)
+    * institution : varchar(30)  CHECK
+      CAPITAL_ONE|CHASE|WELLS_FARGO|
+      BANK_OF_AMERICA|AIDVANTAGE|OTHER
+    * account_type : varchar(20)  CHECK
+      CHECKING|SAVINGS|CREDIT_CARD|LOAN|RETIREMENT
+    last4 : varchar(4)  (text — leading zeros are real)
+    * current_balance : numeric(12,2)
+      (liabilities negative, so net worth just sums)
+    balance_as_of : date
+    * counts_toward_savings : boolean
+    * active : boolean · sort_order : int
+    created_at / updated_at : timestamptz
+    --
+    idx (active, sort_order)
+  }
+
+  entity "finance_transactions" as txns #D6ECFF {
+    * id : bigint <<PK, identity>>
+    --
+    * account_id : bigint <<FK → accounts, CASCADE>>
+    import_batch_id : bigint <<FK → batches, SET NULL>>
+    --
+    * posted_date : date   (what rollups group by)
+    transaction_date : date  (not every bank sends it)
+    * amount : numeric(12,2)  (signed, − = money out)
+    --
+    * raw_description : varchar(500)  (never edited)
+    merchant : varchar(200)  (normalized for grouping)
+    * txn_type : varchar(10)  CHECK
+      SPEND|INCOME|TRANSFER|PAYMENT
+    category : varchar(80)
+    issuer_category : varchar(80)  (the bank's guess)
+    * category_source : varchar(15)  CHECK
+      UNCATEGORIZED|RULE|MANUAL
+    * pending : boolean  (held out of rollups)
+    * fingerprint : varchar(64)
+    notes : varchar(500)
+    created_at / updated_at : timestamptz
+    --
+    **unique (account_id, fingerprint)**
+    idx (account_id, posted_date DESC)
+    idx (posted_date, txn_type) · (merchant) · (import_batch_id)
+  }
+
+  entity "finance_import_batches" as batches #D6ECFF {
+    * id : bigint <<PK, identity>>
+    --
+    * account_id : bigint <<FK → accounts, CASCADE>>
+    * filename : varchar(255)
+    * source_format : varchar(40)  (detected, not chosen)
+    --
+    rows_in_file / rows_imported : int
+    rows_duplicate / rows_pending / rows_skipped : int
+    period_start / period_end : date
+    --
+    previous_balance : numeric(12,2)
+    previous_balance_as_of : date
+    * balance_overwritten : boolean  (makes undo whole)
+    imported_at : timestamptz
+    --
+    idx (account_id, imported_at DESC)
+  }
+}
+
+package "automation" {
+  entity "finance_category_rules" as rules #CFEFE0 {
+    * id : bigint <<PK, identity>>
+    --
+    * pattern : varchar(200)
+    * match_type : varchar(12)  CHECK
+      CONTAINS|EQUALS|REGEX
+    * category : varchar(80)
+    * priority : int  (lower runs first, ties on id)
+    * active : boolean
+    --
+    hit_count : int  (dead rules stay visible)
+    last_applied : timestamptz
+    created_at / updated_at : timestamptz
+    --
+    **unique (lower(pattern), match_type)**
+    idx (active, priority, id)
+  }
+}
+
+package "planning" {
+  entity "finance_budgets" as budgets #FFF3D6 {
+    * id : bigint <<PK, identity>>
+    --
+    * category : varchar(80)  (free text, not an FK)
+    * monthly_amount : numeric(12,2)  CHECK ≥ 0
+      (a limit, not a movement — always positive)
+    note : varchar(500)
+    * active : boolean · sort_order : int
+    created_at / updated_at : timestamptz
+    --
+    **unique (lower(category))**
+    idx (active, sort_order, id)
+  }
+
+  entity "finance_budget_extras" as extras #FFF3D6 {
+    * id : bigint <<PK, identity>>
+    --
+    * month : date  CHECK day-of-month = 1
+    * label : varchar(120)
+    * amount : numeric(12,2)  CHECK ≠ 0
+      (signed: − extra cost, + one-off money in)
+    category : varchar(80)  (null = stands alone)
+    note : varchar(500)
+    created_at / updated_at : timestamptz
+    --
+    idx (month, id)
+  }
+
+  entity "finance_budget_settings" as settings #FFF3D6 {
+    * id : smallint <<PK>>  CHECK id = 1  (one row)
+    --
+    expected_monthly_income : numeric(12,2)
+      (null ⇒ trailing average of real INCOME rows)
+    updated_at : timestamptz
+  }
+}
+
+package "goals" {
+  entity "finance_savings_goals" as goals #F3E8FF {
+    * id : bigint <<PK, identity>>
+    --
+    * name : varchar(120)
+    * target_amount : numeric(12,2)
+    target_date : date
+    note : varchar(500)  (why this number)
+    * active : boolean · sort_order : int
+    created_at / updated_at : timestamptz
+  }
+}
+
+accounts ||--o{ txns
+accounts ||--o{ batches
+batches ||--o{ txns : "one upload,\nundoable as a unit"
+
+' Category is free text on both sides — deliberately no category table, because categories are
+' whatever the rules produce. These are joins by string, not by key.
+rules .[#2F9E57,dashed].> txns : "match merchant,\nthen raw_description\n→ sets category\n(never over MANUAL)"
+budgets .[#B5891D,dashed].> txns : "category ↔ category"
+extras .[#B5891D,dashed].> budgets : "optional category"
+
+accounts .[#6E44C4,dashed].> goals : "counts_toward_savings\nSUM ⇒ progress"
+
+note bottom of settings
+  Three invariants are in the schema from the first
+  migration because retrofitting them means rewriting
+  history: **txn_type** (a card payment is not an expense),
+  **fingerprint** (re-importing an overlapping range is a
+  no-op) and **category_source** (automation may never
+  revert a hand-corrected category).
+end note
+
+@enduml

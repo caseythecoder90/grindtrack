@@ -1,25 +1,26 @@
 # Architecture
 
 Grindtrack v2 is a **single Spring Boot container** that serves both a JSON API and a pre-built
-React SPA from one origin, backed by its own Postgres. It runs as a second app on the same
-Hetzner VPS as the personal-website stack, and reuses that stack's **containerized nginx + certbot**
-for TLS and routing. See [deployment.md](deployment.md) for the operational detail.
+React SPA from one origin, backed by its own Postgres. It runs in its own namespace on a two-node
+**kubeadm cluster on Hetzner Cloud**, behind ingress-nginx with TLS from cert-manager, alongside
+the personal-website stack. See [deployment.md](deployment.md) for the operational detail.
 
 > Diagram convention: **PlantUML for structural/topology diagrams**, **Mermaid for sequence
 > diagrams**. PlantUML renders in IntelliJ (PlantUML plugin), VS Code, and plantuml.com — but
-> **not** on GitHub. Mermaid renders on GitHub and in the IDE.
+> **not** on GitHub, which is why the SVGs in [`diagrams/`](diagrams/) are committed. Mermaid
+> renders on GitHub and in the IDE.
 
-## Deployment topology (on the VPS)
+## Deployment topology (on the cluster)
 
-![Deployment topology on the Hetzner VPS](diagrams/topology.svg)
+![grindtrack on the Hetzner kubeadm cluster](diagrams/topology.svg)
 
 <sub>PlantUML source: [`diagrams/topology.puml`](diagrams/topology.puml) — edit it and regenerate the SVG with [`diagrams/render.sh`](diagrams/render.sh).</sub>
 
-Key points: the app publishes **no host port** — nginx reaches it by container name over the
-shared docker network. Only `grindtrack-app` joins that shared network; `grindtrack-db` stays on
-a private network so the two apps' databases can't see each other. See
-[deployment.md](deployment.md) for how the TLS cert is issued into the shared certbot volume and
-renewed automatically alongside the website's certs.
+Key points: the app publishes **no host port and no NodePort** — the only way in is the ingress,
+which terminates TLS and forwards to a ClusterIP Service. Postgres has no ingress at all and
+lives in the `grindtrack` namespace, so the two apps' databases cannot see each other. The
+cluster itself — Terraform, Ansible, ingress-nginx, cert-manager, and grindtrack's own manifests
+— is defined in the separate **`k8s-cluster-hetzner`** repo, not here.
 
 ## Layers
 
@@ -43,14 +44,14 @@ the UI on `:5173` and proxies `/api` to `:8080`, preserving the same-origin illu
 ```mermaid
 sequenceDiagram
     actor B as Browser
-    participant N as nginx (TLS)
+    participant N as ingress-nginx (TLS)
     participant F as JwtAuthFilter
     participant SEC as Security chain
     participant C as Controller
     participant S as Service
     participant DB as Postgres
     B->>N: HTTPS GET /api/stats (cookies)
-    N->>F: HTTP grindtrack-app:8080<br/>(Host, X-Forwarded-For/-Proto)
+    N->>F: HTTP grindtrack:8080<br/>(Host, X-Forwarded-For/-Proto)
     F->>F: validate gt_access JWT → SecurityContext
     F->>SEC: chain.doFilter
     SEC->>C: authorized → TrackingController.stats()
@@ -67,6 +68,14 @@ threads. The full filter → controller → service → repository trace, includ
 (e.g. `FocusService.record` upserting the day's hours in one transaction), is in
 [backend.md](backend.md).
 
+One coupling worth naming, because it is invisible from inside this repo: `LoginRateLimiter`
+buckets by client IP, which means it is only as trustworthy as `X-Forwarded-For`. ingress-nginx's
+default is to set that header to the client IP **as nginx sees it**, overwriting anything the
+client sent — which is what the old nginx config did by hand, and what the limiter needs. The
+Ingress manifest in the k8s repo carries a comment saying not to enable
+`compute-full-forwarded-for`, which would trust a client-supplied chain and make the limit
+trivially bypassable.
+
 ## Schema management flow
 
 Order on startup: **preliquibase → Liquibase → JPA validate**.
@@ -75,8 +84,10 @@ Order on startup: **preliquibase → Liquibase → JPA validate**.
    grindtrack`). This solves the chicken-and-egg problem: Liquibase needs a schema to write its
    own `DATABASECHANGELOG` into.
 2. Liquibase runs `db/changelog/db.changelog-master.yaml`, which includes the formatted-SQL
-   changelogs in order (users/tokens → tracking → focus → plan → work). Every schema change forever
-   after is a new changeset — never edit an applied one.
+   changelogs in numeric order — currently `001`–`019`, roughly users/tokens → tracking → focus →
+   plan → work → todos → finance → relationship, with later changesets widening earlier CHECKs as
+   the app grew. Every schema change forever after is a new changeset — **never edit an applied
+   one**. The full annotated list is in [backend.md](backend.md#migrations).
 3. Hibernate validates that entities match reality (`ddl-auto: validate`) and refuses to start on
    drift.
 
@@ -91,34 +102,46 @@ Package-by-feature at the top level; inside each feature, layers get their own s
 ```
 dev.grindtrack
 ├── GrindtrackApplication         @SpringBootApplication + @ConfigurationPropertiesScan
-├── config/                       SecurityConfig, AppProperties
+├── config/                       SecurityConfig, AppProperties, StaticContentConfig
 ├── web/                          Requests, Responses, BadRequest/ConflictException,
 │                                 ApiExceptionHandler — the shared HTTP edge
 ├── auth/
 │   ├── api/                      AuthController, AuthDtos
-│   ├── service/                  AuthService, JwtService, TotpService, LoginRateLimiter, UserBootstrap
-│   ├── security/                 JwtAuthFilter (cookie → SecurityContext)
-│   └── domain/                   User, RefreshToken + repositories
+│   ├── service/                  AuthService, JwtService, TotpService, TrustedDeviceService,
+│   │                             LoginRateLimiter, UserBootstrap
+│   ├── security/                 JwtAuthFilter (cookie → SecurityContext), Cookies
+│   └── domain/                   User, RefreshToken, TrustedDevice + repositories
 ├── tracking/
 │   ├── api/                      TrackingController, FocusController, PublicController,
 │   │                             ExportController, TrackingDtos
-│   ├── service/                  TrackingService, StatsService (+Stats), FocusService
+│   ├── service/                  TrackingService, StatsService (+Stats), FocusService,
+│   │                             ReadingService (+ReadingProgress)
 │   └── domain/                   DailyLog, WeeklyReview, FocusSession, FocusKind + repositories
 ├── plan/                         PlanController/PlanDtos · PlanService · PlanItem, PlanQuarter,
 │                                 PlanReference
 ├── todo/                         TodoController/TodoDtos · TodoService · Todo
+├── calendar/
+│   ├── api/                      CalendarController, UpkeepController, CalendarDtos
+│   ├── service/                  CalendarService, UpkeepService (+UpkeepItem)
+│   └── domain/                   CalendarEvent, EventKind, RecurringTask,
+│                                 RecurringTaskCompletion, TaskCategory + repositories
 ├── work/                         WorkController/WorkDtos · WorkService · WorkLog, WorkSkill
 ├── finance/
 │   ├── api/                      FinanceController, TransactionController, CategoryRuleController,
 │   │                             SpendingController, BudgetController, StatementImportController
 │   │                             + FinanceDtos, BudgetDtos, StatementImportDtos
 │   ├── service/                  FinanceService, BudgetService (+BudgetMonth), CategoryRuleService,
-│   │                             RecurringDetector, StatementImportService, parse/*
-│   └── domain/                   Account, Transaction, Budget, CategoryRule, SavingsGoal, … + enums
-└── relationship/
-    ├── api/                      RelationshipController, RelationshipDtos
-    ├── service/                  RelationshipService (+RelationshipSummary)
-    └── domain/                   Moment, Idea, Occasion, Reading + enums
+│   │                             RecurringDetector, StatementImportService, TxnTypeClassifier,
+│   │                             MerchantNormalizer, parse/* (7 formats: 6 bank CSV + OFX/QFX)
+│   └── domain/                   Account, Transaction, Budget, BudgetExtra, BudgetSettings,
+│                                 CategoryRule, ImportBatch, SavingsGoal, … + enums
+├── relationship/
+│   ├── api/                      RelationshipController, RelationshipDtos
+│   ├── service/                  RelationshipService (+RelationshipSummary)
+│   └── domain/                   Moment, Idea, Occasion, Reading + enums
+└── assistant/                    AssistantController/AssistantDtos · ContextService
+                                  (+AssistantContext) — a read-only GET surface over every
+                                  other feature; owns no table
 ```
 
 Every record a browser sends or receives is in a feature's `api/<Feature>Dtos.java`; a service

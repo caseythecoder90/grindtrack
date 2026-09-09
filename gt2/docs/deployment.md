@@ -1,264 +1,228 @@
 # Deployment
 
-> ## ⚠️ SUPERSEDED — August 2026
->
-> **grindtrack now deploys to a Kubernetes cluster running on Hetzner VPSs.** The single
-> shared VPS described below — the one that also ran the personal-website nginx/certbot
-> containers — has been deleted. All apps were migrated to the cluster and tested.
->
-> - Cluster manifests, ingress and TLS live in the **`k8s-cluster-hetzner`** repo, not here.
-> - `.github/workflows/ci-cd.yml` builds the image to GHCR exactly as before, then rolls it out
->   with `kubectl -n grindtrack set image deploy/grindtrack app=…:<short-sha>` and waits on
->   `rollout status`. There is no SSH step and no `docker compose` on a server any more.
-> - The deploy job needs one repo secret, **`KUBE_CONFIG`** — a base64 kubeconfig for the
->   least-privilege `ci-deployer` ServiceAccount, scoped to updating Deployment images in the
->   `grindtrack` namespace. If it is unset the job skips rather than failing.
-> - `VPS_HOST`, `VPS_USER` and `VPS_SSH_KEY` are **stale** — they still exist as repo secrets
->   but authenticate to the deleted host. Safe to delete.
-> - `gt2/docker-compose.prod.yml` is likewise unused in production. `gt2/docker-compose.yml`
->   is still the local-development stack and is unaffected.
->
-> Everything from here down is kept only as a record of the previous topology. **Do not follow
-> it** — sections 1, 3, 5 and 7 all reference a machine that no longer exists, including the
-> backup cron, which is no longer running anywhere described by this file.
+grindtrack runs on a **two-node kubeadm cluster on Hetzner Cloud**, in its own `grindtrack`
+namespace, behind ingress-nginx with TLS from cert-manager. CI builds the image and pushes it to
+GHCR; the cluster only pulls. Nothing is ever compiled on a server.
 
----
+> **The cluster is not defined in this repo.** Terraform, Ansible, the ingress controller,
+> cert-manager and every manifest below live in **[`k8s-cluster-hetzner`](https://github.com/caseythecoder90/k8s-cluster-hetzner)**
+> (`kubernetes/apps/grindtrack/`). This document covers the app's side: what the manifests expect
+> of the image, how a deploy happens, and the day-2 tasks specific to grindtrack. For anything
+> about the cluster itself — provisioning, node replacement, Kubernetes upgrades — read that
+> repo's `docs/runbook.md`.
 
-## Historical: Hetzner VPS, behind the existing containerized nginx
+## Topology
 
-grindtrack ran on the same VPS as the personal-website stack and reused its nginx +
-certbot containers. The model matches personal-website: **CI builds the image and pushes
-it to GHCR; the VPS only pulls.** Nothing is compiled on the VPS.
+![grindtrack on the Hetzner kubeadm cluster](diagrams/topology.svg)
 
-- App image: `ghcr.io/caseythecoder90/grindtrack:latest` (built by `.github/workflows/ci-cd.yml`).
-- On the VPS: `/opt/grindtrack` (git checkout) with `gt2/docker-compose.prod.yml` running
-  `grindtrack-app` + its own `grindtrack-db` Postgres.
-- `grindtrack-app` attaches to the shared `personal-website_app-network` so the existing
-  nginx container can proxy `track.caseyrquinn.com` → `grindtrack-app:8080`. The db stays
-  on a private network.
+<sub>PlantUML source: [`diagrams/topology.puml`](diagrams/topology.puml) — edit it and regenerate the SVG with [`diagrams/render.sh`](diagrams/render.sh).</sub>
 
-## 0. DNS (do this first — it propagates while you work)
+| | |
+|---|---|
+| Cluster | kubeadm 1.33, 2× CX33 (Nuremberg `nbg1`), Ubuntu 24.04, Calico VXLAN |
+| Namespace | `grindtrack` (the personal-website stack has its own; neither can reach the other's Postgres) |
+| Image | `ghcr.io/caseythecoder90/grindtrack` — `:latest` and `:<short-sha>` |
+| App | `Deployment/grindtrack`, 1 replica, Spring Boot on `:8080` serving the API **and** the baked SPA |
+| Service | `Service/grindtrack` ClusterIP `:8080` — no NodePort, no hostPort |
+| Ingress | `track.caseyrquinn.com` → `grindtrack:8080`, `ingressClassName: nginx` |
+| TLS | cert-manager `ClusterIssuer/letsencrypt-prod`, HTTP-01, into Secret `track-caseyrquinn-com-tls`. Renewal is automatic — there is no reload hook to maintain any more |
+| Database | `Deployment/postgres` (`postgres:16-alpine`), `strategy: Recreate`, ClusterIP `:5432` |
+| Storage | PVC `postgres-data`, 5Gi, `local-path-provisioner` |
+| Secrets | `Secret/grindtrack-secrets` — `POSTGRES_DB/USER/PASSWORD`, `JWT_SECRET`, `GRINDTRACK_USERNAME/PASSWORD` |
 
-Add an A record `track` → the VPS public IP at your DNS provider for `caseyrquinn.com`.
-(Add AAAA too if the other site uses IPv6.) Verify: `dig +short track.caseyrquinn.com`.
+The app publishes no host port. It is reachable only through the ingress, and Postgres has no
+ingress at all.
 
-## 1. Get the code on the VPS
+### What the manifests expect of the image
 
-Public repo, so a plain clone works:
-```bash
-sudo git clone https://github.com/caseythecoder90/grindtrack.git /opt/grindtrack
-sudo chown -R $USER:$USER /opt/grindtrack
-cd /opt/grindtrack/gt2
-```
-Confirm the shared network name the compose file expects:
-```bash
-docker network ls | grep app-network     # expect personal-website_app-network
-```
-If it differs, fix `networks.web.name` in `docker-compose.prod.yml`.
+Change any of these and the k8s repo has to change with it:
 
-## 2. Secrets
+- **Listens on `8080`** (container port named `http`).
+- **`/api/public/stats` is unauthenticated and cheap** — it is both the readiness and the liveness
+  probe. Readiness starts at 20s, liveness at 60s. A successful `rollout status` therefore already
+  proves the app is serving; CI needs no separate health loop.
+- **Configured entirely by environment variables** — no profiles, no mounted config file. The
+  Deployment sets `SPRING_DATASOURCE_URL` to `jdbc:postgresql://postgres:5432/$(POSTGRES_DB)`, so
+  `POSTGRES_DB` must be declared *before* the URL in the env list (`$(VAR)` expansion only sees
+  earlier entries).
+- **`COOKIE_SECURE=true`**, because TLS terminates at the ingress.
+- **Runs in 512Mi** — `JAVA_TOOL_OPTIONS: -Xmx256m -Xms64m`, request 100m CPU / 256Mi.
 
-```bash
-cp .env.example .env
-openssl rand -base64 48   # → JWT_SECRET
-vim .env                  # POSTGRES_PASSWORD, JWT_SECRET, GRINDTRACK_USERNAME/PASSWORD; COOKIE_SECURE=true
-chmod 600 .env
-```
-`.env` never leaves the VPS and is gitignored.
+`gt2/docker-compose.prod.yml` is **not** used in production any more. `gt2/docker-compose.yml`
+is still the local-development stack and is unaffected.
 
-> If the GHCR package is private, the VPS must `docker login ghcr.io` once (username =
-> GitHub user, password = a PAT with `read:packages`). If personal-website already pulls
-> from GHCR on this box, you're already logged in.
-
-## 3. Start the containers
-
-```bash
-docker compose -f docker-compose.prod.yml up -d
-docker compose -f docker-compose.prod.yml logs -f app   # wait for "Started GrindtrackApplication"
-```
-`grindtrack-app` has no host ports — it's reachable only over the docker network and via
-`docker compose exec`. Sanity check from the host:
-```bash
-docker compose -f docker-compose.prod.yml exec app wget -qO- http://localhost:8080/api/public/stats
-```
-
-## 4. First-login TOTP (once)
-
-On first boot with an empty `users` table, `UserBootstrap` creates the user and logs the
-TOTP secret **once**:
-```bash
-docker compose -f docker-compose.prod.yml logs app | grep -A4 "Bootstrap user"
-```
-Add the secret to your authenticator (manual entry, or paste the `otpauth://` URI into a QR
-generator and scan). It is never shown again. TOTP is time-based — make sure the VPS clock
-is synced (`timedatectl`). Then clear the trace:
-`docker compose -f docker-compose.prod.yml up -d --force-recreate app`.
-
-## 5. nginx + TLS (via the existing containers)
-
-The nginx container serves config from `/opt/personal-website/nginx/conf.d/` and shares
-`certbot/{www,conf}` with the certbot container. Because nginx won't start if a server
-block references a cert that doesn't exist yet, issue the cert **before** enabling HTTPS.
-
-**a. HTTP-only block first** — create `/opt/personal-website/nginx/conf.d/track.conf` with
-just the `listen 80` server from `gt2/nginx/track.conf.example` (the acme-challenge +
-redirect block), then reload:
-```bash
-cd /opt/personal-website
-docker compose -f docker-compose.prod.yml exec nginx nginx -t
-docker compose -f docker-compose.prod.yml exec nginx nginx -s reload
-```
-
-**b. Issue the cert** with the certbot container (webroot):
-```bash
-docker compose -f docker-compose.prod.yml run --rm certbot \
-  certonly --webroot -w /var/www/certbot -d track.caseyrquinn.com
-```
-
-**c. Enable HTTPS** — add the `listen 443 ssl` server from the example to `track.conf`,
-`nginx -t`, reload. The certbot container's renew loop keeps it fresh automatically.
-
-Visit `https://track.caseyrquinn.com` and log in from your phone.
-
-> Gotcha: your certbot service's entrypoint is overridden to the renew *loop*, so a one-off
-> `docker compose run certbot certonly …` is ignored. Issue the first cert with a standalone
-> container instead:
-> ```bash
-> docker run --rm \
->   -v /opt/personal-website/certbot/www:/var/www/certbot \
->   -v /opt/personal-website/certbot/conf:/etc/letsencrypt \
->   certbot/certbot certonly --webroot -w /var/www/certbot -d track.caseyrquinn.com
-> ```
-
-## 5.1 How issuance & renewal actually work (and the reload hook)
-
-There is no separate renewal setup for grindtrack — issuing the cert into the **shared**
-`/etc/letsencrypt` volume *is* the configuration. Three pieces, all pointing at the same host
-directories:
-
-1. **Issuance writes a renewal recipe.** `certonly` saves the cert under
-   `/etc/letsencrypt/live/track.caseyrquinn.com/` **and** writes
-   `/etc/letsencrypt/renewal/track.caseyrquinn.com.conf`, recording the domain, the `webroot`
-   method, and the webroot path.
-2. **The certbot container renews everything.** Its loop is just `certbot renew; sleep 12h`.
-   `certbot renew` takes **no domain arguments** — it scans every `*.conf` in
-   `/etc/letsencrypt/renewal/` and renews any cert within 30 days of expiry. Because track's recipe
-   now sits alongside `caseyrquinn.com` and `api.caseyrquinn.com` in the shared volume, it's picked
-   up automatically.
-3. **The shared volumes are the glue.** Both nginx and certbot mount the host's
-   `certbot/conf → /etc/letsencrypt` and `certbot/www → /var/www/certbot`. certbot writes the ACME
-   challenge into `/var/www/certbot`; nginx serves it from the same host dir (`:ro`).
-
-```
-/opt/personal-website/certbot/conf  ─┬─► certbot : /etc/letsencrypt  (renew loop reads all *.conf)
-                                     └─► nginx   : /etc/letsencrypt  (:ro, reads live/*/fullchain.pem)
-/opt/personal-website/certbot/www   ─┬─► certbot writes /var/www/certbot/.well-known/...
-                                     └─► nginx   serves /var/www/certbot/.well-known/...
-```
-
-### The reload hook (fixing a real gap)
-
-The renew loop renews certs on disk but **never reloads nginx** — so a renewed cert isn't served
-until nginx restarts. For long-lived containers that can mean serving a cert that's already been
-rotated (or, worst case, expired). Fix it by making **nginx reload itself periodically**; renewals
-happen roughly monthly, so a 6-hour reload cadence is plenty.
-
-In `/opt/personal-website/docker-compose.prod.yml`, give the `nginx` service a `command` that
-backgrounds a reload loop next to the server (the `$${!}` escaping matches your certbot entry):
-
-```yaml
-  nginx:
-    image: nginx:alpine
-    # ...existing ports/volumes/depends_on...
-    command: >
-      /bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g "daemon off;"'
-```
-
-Apply it (brief blip on the website while nginx recreates):
-
-```bash
-cd /opt/personal-website
-docker compose -f docker-compose.prod.yml up -d nginx
-docker compose -f docker-compose.prod.yml exec nginx nginx -t   # sanity
-```
-
-This benefits **both** apps' certs, not just grindtrack. (Alternative: a certbot `--deploy-hook`,
-but the hook runs inside the certbot container which can't signal nginx in another container
-without mounting the docker socket — the periodic nginx reload is the cleaner pattern for this
-compose topology.)
-
-## 6. CI/CD — automated deploys
+## CI/CD
 
 `.github/workflows/ci-cd.yml`:
-- **Every PR to `main`**: backend `mvn verify` (compile + Spotless) and frontend
-  `npm run build` (strict tsc + Vite) must pass.
-- **Every push to `main`**: `build-and-push` builds the image (context `gt2/`) and pushes
-  `ghcr.io/caseythecoder90/grindtrack:latest`; `deploy` SSHes in, `git reset --hard
-  origin/main` (to pick up compose/config changes), `docker compose -f
-  docker-compose.prod.yml pull && up -d`, and health-checks `/api/public/stats`.
+
+- **Every PR to `main`**: backend `mvn verify` (compile + Spotless) and frontend `npm run build`
+  (strict `tsc --noEmit` + Vite) must pass.
+- **Every push to `main`**: `build-and-push` builds the image (context `gt2/`) and pushes both
+  `:latest` and `:<short-sha>`; `deploy` then rolls that exact SHA out to the cluster.
 
 ```mermaid
 sequenceDiagram
     actor Dev as You
     participant GH as GitHub Actions
     participant GHCR as GHCR
-    participant VPS as VPS (grindtrack-app)
+    participant API as kube-apiserver
+    participant K as Deployment/grindtrack
     Dev->>GH: git push origin main
     par PR/push gates
         GH->>GH: backend mvn verify (Spotless)
         GH->>GH: frontend npm run build (tsc + vite)
     end
-    GH->>GH: build-and-push (docker build, context gt2/)
-    GH->>GHCR: push ghcr.io/.../grindtrack:latest
-    GH->>VPS: SSH (appleboy) — git reset --hard origin/main
-    VPS->>GHCR: docker compose pull
-    GHCR-->>VPS: new image
-    VPS->>VPS: docker compose up -d (recreate app)
-    VPS->>VPS: health-check /api/public/stats (≤150s)
-    VPS-->>GH: healthy → job green
+    GH->>GH: docker build (context gt2/)
+    GH->>GHCR: push :latest and :<short-sha>
+    GH->>API: kubectl -n grindtrack set image deploy/grindtrack app=…:<short-sha>
+    API->>K: rolling update
+    K->>GHCR: pull :<short-sha>
+    K->>K: readiness probe /api/public/stats
+    K-->>API: pod Ready
+    API-->>GH: rollout status → job green
 ```
 
-One-time setup — three **repository secrets** (Settings → Secrets and variables → Actions):
+The deploy job **pins the short SHA rather than `:latest`** — `set image` with a tag that is
+already on the Deployment is a no-op, so rolling `:latest` would silently deploy nothing.
+
+One repository secret:
 
 | Secret | Value |
 |---|---|
-| `VPS_HOST` | VPS IP or hostname |
-| `VPS_USER` | SSH user that owns `/opt/grindtrack` |
-| `VPS_SSH_KEY` | Private key for that user (`ssh-keygen -t ed25519 -f deploy_key`; `.pub` → VPS `~/.ssh/authorized_keys`, private half → the secret) |
+| `KUBE_CONFIG` | base64 kubeconfig for the `ci-deployer` ServiceAccount |
 
-Until the secrets exist the deploy job skips gracefully (green, not red). Manual fallback:
-```bash
-cd /opt/grindtrack && git pull && cd gt2 && \
-  docker compose -f docker-compose.prod.yml pull && \
-  docker compose -f docker-compose.prod.yml up -d
-```
-Liquibase applies new changesets on startup. Data lives in the `pgdata` volume;
-`down` is safe, `down -v` destroys it.
+`ci-deployer` is deliberately least-privilege: it may update Deployment images **in the
+`grindtrack` namespace only** — no Secret access, no other namespace. Its RBAC and the generator
+script are in `kubernetes/cluster/ci-deployer/` in the k8s repo. If `KUBE_CONFIG` is unset the
+deploy job skips (green, not red) instead of failing.
 
-## 7. Backups (do this the same day)
+> `VPS_HOST`, `VPS_USER` and `VPS_SSH_KEY` are **stale** — they authenticate to a host that no
+> longer exists. Safe to delete.
+
+## First deploy into a fresh namespace
+
+The cluster foundations (storage class, cert-manager, ingress-nginx, namespaces) are the k8s
+repo's job — `docs/04-deploy-workloads.md` there. Once they exist, grindtrack needs:
+
+**1. The secret.** Never committed; created imperatively:
 
 ```bash
-mkdir -p ~/backups
-crontab -e
-# nightly dump at 03:10, keep 14 days:
-10 3 * * * cd /opt/grindtrack/gt2 && docker compose -f docker-compose.prod.yml exec -T db pg_dump -U grind grindtrack | gzip > ~/backups/grindtrack-$(date +\%F).sql.gz && ls -t ~/backups/grindtrack-*.sql.gz | tail -n +15 | xargs -r rm
+kubectl -n grindtrack create secret generic grindtrack-secrets \
+  --from-literal=POSTGRES_DB=grindtrack \
+  --from-literal=POSTGRES_USER=grind \
+  --from-literal=POSTGRES_PASSWORD="$(openssl rand -base64 24)" \
+  --from-literal=JWT_SECRET="$(openssl rand -base64 48)" \
+  --from-literal=GRINDTRACK_USERNAME=casey \
+  --from-literal=GRINDTRACK_PASSWORD='<the login password>'
 ```
-Copy them **off** the VPS (Hetzner Storage Box or `rsync` to your laptop), then prove the
-restore loop once:
+
+**2. Apply the manifests** from the k8s repo:
+
 ```bash
-gunzip -c grindtrack-YYYY-MM-DD.sql.gz | docker compose -f docker-compose.prod.yml exec -T db psql -U grind -d grindtrack
+kubectl apply -k kubernetes/apps/grindtrack/overlays/prod
+kubectl -n grindtrack rollout status deploy/postgres
+kubectl -n grindtrack rollout status deploy/grindtrack
 ```
+
+Liquibase runs on startup and creates the whole schema — see [backend.md](backend.md).
+
+**3. Enroll TOTP (once).** On first boot against an empty `users` table, `UserBootstrap` creates
+the user and logs the `otpauth://` URI **once**:
+
+```bash
+kubectl -n grindtrack logs deploy/grindtrack | grep -A4 "Bootstrap user"
+```
+
+Add it to your authenticator (manual entry, or paste the URI into a QR generator). It is never
+shown again. TOTP is time-based, so the nodes' clocks must be synced. Then clear the trace:
+
+```bash
+kubectl -n grindtrack rollout restart deploy/grindtrack
+```
+
+**4. Import the plan.** Plan content is personal and never ships in git: generate `plan.json`
+locally with `gt2/tools/plan-import/xlsx_to_plan_json.py` and upload it through the Plan tab.
+
+## Day-2 operations
+
+```bash
+# what's running, and on which image
+kubectl -n grindtrack get pods,svc,ingress
+kubectl -n grindtrack get deploy grindtrack -o jsonpath='{..image}{"\n"}'
+
+# logs
+kubectl -n grindtrack logs -f deploy/grindtrack
+
+# roll back to the previous image
+kubectl -n grindtrack rollout undo deploy/grindtrack
+
+# restart (picks up a changed Secret — env vars are read only at startup)
+kubectl -n grindtrack rollout restart deploy/grindtrack
+
+# psql
+kubectl -n grindtrack exec -it deploy/postgres -- psql -U grind -d grindtrack
+
+# reach the app without the ingress (e.g. to test a probe path)
+kubectl -n grindtrack port-forward deploy/grindtrack 8080:8080
+```
+
+**Changing a secret requires a restart.** Every value arrives as an env var via `secretKeyRef`,
+and env vars are resolved once at container start — editing the Secret alone changes nothing.
+
+**Postgres uses `strategy: Recreate`, not RollingUpdate.** Two Postgres pods must never hold the
+same PVC. A database change therefore has a few seconds of downtime, which is correct.
+
+## Backups — currently a gap
+
+> ⚠️ **There is no automated backup.** The nightly `pg_dump` cron ran on the old VPS and was not
+> replaced when the app moved to the cluster. The PVC is `local-path`, meaning the data lives on
+> **one node's local disk** with no replication — if `prod-worker-1`'s disk is lost, so is every
+> daily log, transaction and moment.
+
+Manual dump and restore, until a CronJob exists:
+
+```bash
+# dump
+kubectl -n grindtrack exec deploy/postgres -- \
+  pg_dump -U grind -Fc grindtrack > grindtrack-$(date +%F).dump
+
+# restore into a fresh database
+kubectl -n grindtrack exec -i deploy/postgres -- \
+  pg_restore -U grind -d grindtrack --clean --if-exists < grindtrack-YYYY-MM-DD.dump
+```
+
+The fix is a `CronJob` running `pg_dump` to object storage (Hetzner Storage Box or S3), which
+`k8s-cluster-hetzner/docs/04-deploy-workloads.md` names as the intended approach but does not yet
+implement. **Prove the restore path once** after building it — an untested backup is not a backup.
 
 ## Checklist
 
-- [ ] `dig +short track.caseyrquinn.com` returns the VPS IP
-- [ ] `docker network ls` name matches `networks.web.name` in the prod compose
-- [ ] `.env` is chmod 600 and gitignored
-- [ ] `grindtrack-app` and `grindtrack-db` are Up; app health check returns JSON
-- [ ] nginx `track.conf` present, cert issued, `nginx -t` clean
-- [ ] TOTP enrolled, bootstrap log lines cleared (force-recreate app)
-- [ ] Backup cron installed AND one restore tested
+- [ ] `dig +short track.caseyrquinn.com` returns `prod-worker-1`'s public IP
+- [ ] `kubectl -n grindtrack get pods` — `grindtrack` and `postgres` both `1/1 Running`
+- [ ] `kubectl -n grindtrack get ingress` shows the host, and the TLS Secret exists
+- [ ] `kubectl -n grindtrack get certificate` reports `Ready=True`
+- [ ] `curl -s https://track.caseyrquinn.com/api/public/stats` returns JSON over a valid cert
+- [ ] TOTP enrolled and the bootstrap log line cleared (`rollout restart`)
+- [ ] `KUBE_CONFIG` set → a push to `main` rolls out automatically
 - [ ] Login works from your phone over HTTPS
-- [ ] Plan imported: generate `plan.json` locally (`gt2/tools/plan-import/`), upload via the
-      Plan tab (plan content is personal — it ships via import, never via git)
-- [ ] Three GitHub repo secrets set → push to main auto-deploys
+- [ ] Plan imported through the Plan tab
+- [ ] **Backup CronJob built, and a restore actually tested** ← open
+
+## History
+
+Until August 2026 grindtrack ran on a single Hetzner VPS shared with the personal-website stack,
+reusing that stack's containerized nginx + certbot for TLS and routing, deployed over SSH with
+`docker compose`. That VPS has been deleted and both apps migrated to the cluster.
+
+What the move changed, and why it was worth doing:
+
+- **TLS stopped needing a babysitter.** The certbot container renewed certs but never reloaded
+  nginx, so the compose setup needed a periodic self-reload loop bolted on. cert-manager renews
+  and reloads with no such hook.
+- **Deploys stopped needing SSH.** A namespaced ServiceAccount replaced a private key that could
+  log into the whole box, and `rollout status` replaced a hand-rolled health-check loop.
+- **A bad deploy became reversible.** `rollout undo` against a SHA-pinned image, rather than
+  `git reset --hard` and a re-pull.
+
+The old runbook is in this file's git history if it is ever needed; the migration itself is
+recorded step by step in `k8s-cluster-hetzner/docs/05-app-migration.md`.
