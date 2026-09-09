@@ -51,8 +51,8 @@ public class RefreshToken {
   private boolean revoked;
 
   /**
-   * When this token was exchanged for a successor, or null if it is live or was revoked outright
-   * (a logout, or its family being revoked). Rotation and revocation both set {@code revoked}; only
+   * When this token was exchanged for a successor, or null if it is live or was revoked outright (a
+   * logout, or its family being revoked). Rotation and revocation both set {@code revoked}; only
    * rotation sets this, and only a rotated token can be evidence of reuse -- see {@code
    * AuthService#renew}.
    */

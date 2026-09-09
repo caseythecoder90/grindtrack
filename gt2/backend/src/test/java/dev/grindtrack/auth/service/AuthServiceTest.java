@@ -45,7 +45,10 @@ class AuthServiceTest {
     service = new AuthService(users, refreshTokens, passwordEncoder, totpService, props);
   }
 
-  /** A live token in FAMILY issued {@code hoursAgo}, so a test can put it either side of the interval. */
+  /**
+   * A live token in FAMILY issued {@code hoursAgo}, so a test can put it either side of the
+   * interval.
+   */
   private static RefreshToken aged(String token, int hoursAgo) {
     return new RefreshToken(
         USER_ID,
@@ -193,8 +196,16 @@ class AuthServiceTest {
     // session token. Spending it on every access cookie is what turned a dropped response into a
     // password-and-TOTP login on every device.
     String presented = "fresh-token";
-    RefreshToken stored = aged(presented, 1);
-    OffsetDateTime originalExpiry = stored.getExpiresAt();
+    // Ten days left rather than the full thirty, so the slide out to thirty is unmistakable and
+    // not a matter of two now() calls landing in different clock ticks.
+    OffsetDateTime originalExpiry = OffsetDateTime.now().plusDays(10);
+    RefreshToken stored =
+        new RefreshToken(
+            USER_ID,
+            FAMILY,
+            AuthService.sha256(presented),
+            OffsetDateTime.now().minusHours(1),
+            originalExpiry);
     when(refreshTokens.findByTokenHash(AuthService.sha256(presented)))
         .thenReturn(Optional.of(stored));
     // Not userWithId(): a renewal never issues a token, so getId() is never called and a strict
@@ -209,7 +220,9 @@ class AuthServiceTest {
     assertThat(renewed.get().sessionToken()).isEqualTo(presented);
     assertThat(stored.isRevoked()).isFalse();
     assertThat(stored.getRotatedAt()).isNull();
-    assertThat(stored.getExpiresAt()).isAfter(originalExpiry);
+    assertThat(stored.getExpiresAt())
+        .isAfter(originalExpiry)
+        .isBetween(OffsetDateTime.now().plusDays(29), OffsetDateTime.now().plusDays(31));
     verify(refreshTokens).save(stored);
   }
 

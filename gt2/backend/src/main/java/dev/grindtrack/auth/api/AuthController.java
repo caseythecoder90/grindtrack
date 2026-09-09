@@ -202,7 +202,8 @@ public class AuthController {
   }
 
   private ResponseEntity.BodyBuilder withExpiredSessionCookies(ResponseEntity.BodyBuilder b) {
-    return b.header(HttpHeaders.SET_COOKIE, expiredCookie(JwtAuthFilter.ACCESS_COOKIE, "/").toString())
+    return b.header(
+            HttpHeaders.SET_COOKIE, expiredCookie(JwtAuthFilter.ACCESS_COOKIE, "/").toString())
         .header(HttpHeaders.SET_COOKIE, expiredCookie(REFRESH_COOKIE, REFRESH_PATH).toString());
   }
 

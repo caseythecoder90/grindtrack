@@ -144,12 +144,12 @@ public class AuthService {
    * a bearer JWT.
    *
    * <p><strong>Reuse detection is scoped to the token's family.</strong> A rotated token presented
-   * again outside the grace window means two parties held the same token and one of them is not
-   * the owner, so that login and everything descended from it is revoked. It is never widened to
-   * the whole user: every other device's session is a separate family, started by a separate
-   * password, and a stale cookie on this device is no evidence against them. The version of this
-   * that revoked everything for the user turned one dead cookie into a device that signed every
-   * other device out each time it opened the app -- see migration 023.
+   * again outside the grace window means two parties held the same token and one of them is not the
+   * owner, so that login and everything descended from it is revoked. It is never widened to the
+   * whole user: every other device's session is a separate family, started by a separate password,
+   * and a stale cookie on this device is no evidence against them. The version of this that revoked
+   * everything for the user turned one dead cookie into a device that signed every other device out
+   * each time it opened the app -- see migration 023.
    */
   @Transactional
   public Optional<RenewedSession> renew(String presentedToken) {
@@ -186,12 +186,12 @@ public class AuthService {
    *
    * <ul>
    *   <li>Revoked outright, by a logout or by its family being revoked: it has no successor, so
-   *       whoever holds it can do nothing with it. This is a stale cookie, not evidence of anything,
-   *       and the answer is a plain refusal.
+   *       whoever holds it can do nothing with it. This is a stale cookie, not evidence of
+   *       anything, and the answer is a plain refusal.
    *   <li>Rotated inside the grace window: the loser of a race between two windows sharing a cookie
-   *       jar, or a client that never heard the answer to the rotation it won. It gets a token of its
-   *       own in the same family. Only the hash of the successor is stored, so it cannot be handed
-   *       out twice even in principle.
+   *       jar, or a client that never heard the answer to the rotation it won. It gets a token of
+   *       its own in the same family. Only the hash of the successor is stored, so it cannot be
+   *       handed out twice even in principle.
    *   <li>Rotated outside the grace window: reuse. Two parties held this token and one of them is
    *       not the owner, so the family dies and its owner signs in again on that device.
    * </ul>
@@ -256,8 +256,8 @@ public class AuthService {
   }
 
   /**
-   * Logout everywhere: ends every live session for the user, on every device. The only path that
-   * is allowed to reach across families, and it is reached by a deliberate click rather than by a
+   * Logout everywhere: ends every live session for the user, on every device. The only path that is
+   * allowed to reach across families, and it is reached by a deliberate click rather than by a
    * refresh.
    *
    * @return how many sessions were ended
