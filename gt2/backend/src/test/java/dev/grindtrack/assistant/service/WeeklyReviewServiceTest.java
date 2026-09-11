@@ -9,6 +9,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.grindtrack.assistant.domain.AssistantMessage;
+import dev.grindtrack.assistant.domain.AssistantMessageRepository;
 import dev.grindtrack.assistant.domain.AssistantReport;
 import dev.grindtrack.assistant.domain.AssistantReportRepository;
 import dev.grindtrack.assistant.service.ReviewModel.DraftedReview;
@@ -37,6 +39,7 @@ class WeeklyReviewServiceTest {
   @Mock private ContextService contextService;
   @Mock private ReviewModel model;
   @Mock private AssistantReportRepository reports;
+  @Mock private AssistantMessageRepository chatMessages;
 
   private WeeklyReviewService service;
 
@@ -44,7 +47,9 @@ class WeeklyReviewServiceTest {
   void setUp() {
     AssistantProperties props =
         new AssistantProperties("key", "claude-opus-5", "America/New_York", "0 0 17 * * FRI");
-    service = new WeeklyReviewService(contextService, model, reports, props, new ObjectMapper());
+    service =
+        new WeeklyReviewService(
+            contextService, model, reports, chatMessages, props, new ObjectMapper());
   }
 
   private void modelAnswers() {
@@ -132,15 +137,18 @@ class WeeklyReviewServiceTest {
     b.replaceDraft("claude-opus-5", 100_000, 20_000, "{}");
     when(reports.findByGeneratedAtGreaterThanEqual(any(OffsetDateTime.class)))
         .thenReturn(List.of(a, b));
+    // Chat spend joins the same bill: 100k in at $5 + 20k out at $25 = another $1.
+    when(chatMessages.findByCreatedAtGreaterThanEqual(any(OffsetDateTime.class)))
+        .thenReturn(List.of(new AssistantMessage(1L, "assistant", "hi", 100_000, 20_000)));
 
     WeeklyReviewService.Status status = service.status();
 
     assertThat(status.configured()).isTrue();
     assertThat(status.reportsThisMonth()).isEqualTo(2);
-    assertThat(status.inputTokens()).isEqualTo(200_000);
-    assertThat(status.outputTokens()).isEqualTo(40_000);
-    // 0.2 MTok in at $5 + 0.04 MTok out at $25 = $1 + $1 = $2 exactly.
-    assertThat(status.costThisMonthUsd()).isEqualTo(2.0);
+    assertThat(status.inputTokens()).isEqualTo(300_000);
+    assertThat(status.outputTokens()).isEqualTo(60_000);
+    // 0.3 MTok in at $5 + 0.06 MTok out at $25 = $1.50 + $1.50 = $3 exactly.
+    assertThat(status.costThisMonthUsd()).isEqualTo(3.0);
   }
 
   private static LocalDate monday(int weeksAgo) {
