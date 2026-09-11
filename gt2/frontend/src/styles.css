@@ -943,3 +943,17 @@ h4 { font-size: var(--fs-small); font-weight: 600; color: var(--muted); margin: 
 .askform { display: flex; gap: 8px; align-items: flex-end; margin-top: 10px; }
 .askform textarea { min-height: 44px; resize: vertical; }
 .askform button { white-space: nowrap; }
+
+/* --- the proposed study week ----------------------------------------------
+   Above the calendar it would change, and visibly a proposal: the blocks are
+   rows of text, not events, until the booking button turns them into events. */
+.weekplan .wp-rationale { font-size: 13px; margin: 0 0 12px; }
+.wp-blocks { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.wp-block { display: flex; gap: 10px; align-items: baseline; padding: 7px 10px; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; font-size: 13px; }
+.wp-when { font-family: var(--mono); font-size: 11px; color: var(--cyan); white-space: nowrap; }
+.wp-title { flex: 1; min-width: 0; }
+@media (pointer: coarse) {
+  /* Same reasoning as the plan rows: a title is a sentence and needs the width. */
+  .wp-block { flex-wrap: wrap; gap: 2px; }
+  .wp-when { flex: 1 1 100%; }
+}

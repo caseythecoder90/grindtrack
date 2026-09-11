@@ -69,3 +69,39 @@ export const getConversation = (id: number) => api<ChatTurn[]>(`${BASE}/chat/${i
  */
 export const sendChat = (conversationId: number | null, message: string) =>
   api<ChatReply>(`${BASE}/chat`, jsonInit("POST", { conversationId, message }));
+
+export interface WeekPlanBlock {
+  date: string;
+  startTime: string;
+  endTime: string;
+  title: string;
+  planItemId: number | null;
+}
+
+export interface WeekPlan {
+  weekStart: string;
+  generatedAt: string;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  rationale: string;
+  blocks: WeekPlanBlock[];
+}
+
+/** Null when nothing has been proposed for that week. */
+export const getWeekPlan = (weekStart: string) =>
+  api<WeekPlan | null>(`${BASE}/week-plan?weekStart=${weekStart}`);
+
+/** Costs money, books nothing. */
+export const proposeWeekPlan = (weekStart: string) =>
+  api<WeekPlan>(`${BASE}/week-plan?weekStart=${weekStart}`, jsonInit("POST", {}));
+
+/**
+ * Books the stored blocks onto the calendar. The only assistant call that writes anything, and it
+ * writes what was shown — the server re-reads its own draft rather than trusting this request.
+ */
+export const acceptWeekPlan = (weekStart: string) =>
+  api<{ weekStart: string; blocksBooked: number }>(
+    `${BASE}/week-plan/accept?weekStart=${weekStart}`,
+    jsonInit("POST", {}),
+  );

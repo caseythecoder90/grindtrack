@@ -49,3 +49,5 @@ databaseChangeLog:
       file: db/changelog/024-assistant-reports.sql
   - include:
       file: db/changelog/025-assistant-chat.sql
+  - include:
+      file: db/changelog/026-assistant-week-plan.sql
