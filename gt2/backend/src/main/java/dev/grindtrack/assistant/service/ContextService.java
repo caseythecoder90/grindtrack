@@ -42,15 +42,23 @@ import org.springframework.stereotype.Service;
 public class ContextService {
 
   /**
-   * The workbook's steady-state budget: 20 h/wk study, 40 h/wk work.
+   * The weekly budget, and the one place either number is written down.
    *
    * <p>Carried in the context rather than left for the model to infer. A number with nothing beside
    * it invites an invented comparison, and "you did 14.5 hours" reads very differently against 20
-   * than against 10.
+   * than against 10. Every prompt reads these from the context for the same reason: a target
+   * restated in prose is a target that goes stale the day it changes.
+   *
+   * <p>Both were lowered from the workbook's aspiration to something a week can actually clear.
+   * <strong>Study is 15, not 20</strong>, and <strong>work is 28, not 40</strong>: 40 is hours at
+   * work, which is not the same as hours of focused work — lunch and an hour a day of meetings put
+   * the ceiling near 30, and a ceiling is not a target. A goal missed every single week stops being
+   * information, which on a screen built to put actuals next to targets makes every number beside
+   * it worse.
    */
-  private static final double STUDY_TARGET_HOURS = 20;
+  private static final double STUDY_TARGET_HOURS = 15;
 
-  private static final double WORK_TARGET_HOURS = 40;
+  private static final double WORK_TARGET_HOURS = 28;
 
   /** Far enough ahead to plan a week against, short enough not to be a data dump. */
   private static final int UPCOMING_DAYS = 14;

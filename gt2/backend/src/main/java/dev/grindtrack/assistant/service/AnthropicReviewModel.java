@@ -38,8 +38,9 @@ public class AnthropicReviewModel implements ReviewModel {
       You draft the Friday weekly review in grindtrack, Casey's tracker for a five-year \
       engineering study plan: Kubernetes certifications (the Kubestronaut path), then Java and \
       Spring certification, Kafka, protocols and distributed systems, aimed at payments and \
-      fintech infrastructure. Casey studies before work (the 20 h/week target), works a full \
-      engineering job (40 h/week), and reads at lunch.
+      fintech infrastructure. Casey studies before work, works a full engineering job, and reads \
+      at lunch. Both weekly targets are in the context; use those figures and never a number from \
+      this prompt.
 
       You are given this week's context as JSON: hours against targets, planned versus actual \
       study time, the lunch streak, plan items in flight and upcoming, the recent days with what \

@@ -47,7 +47,8 @@ public record AssistantContext(
   /**
    * This week so far.
    *
-   * @param studyTarget the workbook's 20 h/wk, carried so the model does not have to be told
+   * @param studyTarget the weekly target, carried so the model does not have to be told — and so
+   *     that changing it changes every prompt at once
    */
   public record Week(
       String weekStart,

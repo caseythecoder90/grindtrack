@@ -24,8 +24,8 @@ public class AnthropicWeekPlanModel implements WeekPlanModel {
       certification, Kafka, protocols and distributed systems, aimed at payments and fintech \
       infrastructure.
 
-      Casey studies BEFORE work, on weekday mornings, against a 20 h/week target, and works a \
-      full engineering job. You are given the current context as JSON: plan items in flight and \
+      Casey studies BEFORE work, on weekday mornings, and works a full engineering job. The \
+      weekly study target is in the context; use that figure and never a number from this prompt. You are given the current context as JSON: plan items in flight and \
       upcoming with their ids and target dates, this week's hours against target, what was \
       logged recently with Casey's own notes, and what is already on the calendar.
 
@@ -36,8 +36,9 @@ public class AnthropicWeekPlanModel implements WeekPlanModel {
       id, and never book a block against nothing.
       3. Prioritise by target date, then by what unblocks what. Something due in five weeks \
       beats something due in five months.
-      4. Be realistic, not aspirational. If last week ran at 8 hours, do not book 20 — book what \
-      a person who just had that week can actually do, and say so in the rationale.
+      4. Be realistic, not aspirational. If last week ran at 8 hours, do not book a full target \
+      week — book what a person who just had that week can actually do, and say so in the \
+      rationale.
       5. Three to six blocks. A week with one huge block is not a plan.
       6. The rationale is plain text, first person, two or three sentences. No markdown.
       """;

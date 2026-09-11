@@ -139,8 +139,8 @@ class ContextServiceTest {
   void targetsTravelWithTheActuals() {
     // A number with nothing beside it invites the model to invent the comparison.
     var week = service.build(TODAY).week();
-    assertThat(week.studyTarget()).isEqualTo(20);
-    assertThat(week.workTarget()).isEqualTo(40);
+    assertThat(week.studyTarget()).isEqualTo(15);
+    assertThat(week.workTarget()).isEqualTo(28);
   }
 
   /**

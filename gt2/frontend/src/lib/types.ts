@@ -56,8 +56,20 @@ export interface PublicStats {
   days: { date: string; hours: number }[];
 }
 
-/** Weekly hour target per scope. "all" is the two added together. */
-export const TARGETS: Record<Scope, number> = { study: 20, work: 40, all: 60 };
+/**
+ * Weekly hour target per scope, and the only place the frontend writes either number down.
+ * "all" is the two added together.
+ *
+ * <p>Both are lower than the workbook's aspiration, deliberately. Work is 28 rather than 40
+ * because 40 is hours *at* work: lunch and about an hour a day of meetings put the focused
+ * ceiling near 30, and a ceiling is not a target. Study is 15 rather than 20 for the same
+ * reason — a goal missed every single week stops being information, and on screens built to
+ * put an actual next to its target that makes every number beside it worse.
+ *
+ * <p>These must match {@code ContextService.STUDY_TARGET_HOURS} / {@code WORK_TARGET_HOURS} on
+ * the backend, which is what the assistant reasons against.
+ */
+export const TARGETS: Record<Scope, number> = { study: 15, work: 28, all: 43 };
 
 export const SCOPE_LABELS: Record<Scope, string> = {
   all: "everything",
