@@ -53,3 +53,5 @@ databaseChangeLog:
       file: db/changelog/026-assistant-week-plan.sql
   - include:
       file: db/changelog/027-assistant-cache-tokens.sql
+  - include:
+      file: db/changelog/028-chat-proposals.sql

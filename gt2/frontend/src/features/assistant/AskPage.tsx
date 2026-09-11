@@ -9,6 +9,7 @@ import {
   type ChatTurn,
   type ConversationSummary,
 } from "./assistantApi";
+import ProposedWeek from "./ProposedWeek";
 
 /**
  * Asking the assistant things.
@@ -156,8 +157,11 @@ export default function AskPage() {
           </div>
         )}
         {turns.map((t, i) => (
-          <div key={i} className={"bubble " + t.role}>
-            {t.content}
+          <div key={i}>
+            <div className={"bubble " + t.role}>{t.content}</div>
+            {t.proposedWeekStart && (
+              <ProposedWeek weekStart={t.proposedWeekStart} onBooked={refreshList} />
+            )}
           </div>
         ))}
         {pending && (

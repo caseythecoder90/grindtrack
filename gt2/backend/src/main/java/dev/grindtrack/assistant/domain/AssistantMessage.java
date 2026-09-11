@@ -6,6 +6,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 
 /**
@@ -44,6 +45,16 @@ public class AssistantMessage {
   @Column(name = "cache_read_tokens", nullable = false)
   private long cacheReadTokens;
 
+  /**
+   * The Monday of a week this turn drafted a plan for, or null — which is nearly every turn.
+   *
+   * <p>The draft itself lives in {@code assistant_reports} like every other drafted week. This is
+   * the link back, so reopening a conversation shows the same card it showed at the time instead of
+   * a reply referring to something with no way to reach it.
+   */
+  @Column(name = "proposed_week_start")
+  private LocalDate proposedWeekStart;
+
   @Column(name = "created_at", nullable = false)
   private OffsetDateTime createdAt;
 
@@ -56,7 +67,8 @@ public class AssistantMessage {
       long inputTokens,
       long outputTokens,
       long cacheWriteTokens,
-      long cacheReadTokens) {
+      long cacheReadTokens,
+      LocalDate proposedWeekStart) {
     this.conversationId = conversationId;
     this.role = role;
     this.content = content;
@@ -64,12 +76,13 @@ public class AssistantMessage {
     this.outputTokens = outputTokens;
     this.cacheWriteTokens = cacheWriteTokens;
     this.cacheReadTokens = cacheReadTokens;
+    this.proposedWeekStart = proposedWeekStart;
     this.createdAt = OffsetDateTime.now();
   }
 
   /** A user turn costs nothing on its own — it is billed as part of the reply it provoked. */
   public static AssistantMessage userTurn(Long conversationId, String content) {
-    return new AssistantMessage(conversationId, ROLE_USER, content, 0, 0, 0, 0);
+    return new AssistantMessage(conversationId, ROLE_USER, content, 0, 0, 0, 0, null);
   }
 
   public String getRole() {
@@ -94,6 +107,10 @@ public class AssistantMessage {
 
   public long getCacheReadTokens() {
     return cacheReadTokens;
+  }
+
+  public LocalDate getProposedWeekStart() {
+    return proposedWeekStart;
   }
 
   public OffsetDateTime getCreatedAt() {

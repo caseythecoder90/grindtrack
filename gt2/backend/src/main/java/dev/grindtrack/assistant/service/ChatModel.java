@@ -50,11 +50,14 @@ public interface ChatModel {
   /**
    * @param cacheWriteTokens input tokens written to the prompt cache, billed at 1.25x
    * @param cacheReadTokens input tokens served from the prompt cache, billed at 0.1x
+   * @param proposedWeekStart the Monday this turn drafted a week for, or null. A draft is not a
+   *     booking: it is a row and a card, and the calendar is untouched until someone clicks
    */
   record Reply(
       String text,
       long inputTokens,
       long outputTokens,
       long cacheWriteTokens,
-      long cacheReadTokens) {}
+      long cacheReadTokens,
+      String proposedWeekStart) {}
 }

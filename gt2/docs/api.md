@@ -137,6 +137,12 @@ Full design notes: [assistant.md](assistant.md).
 | GET | `/api/assistant/chat/{id}` | One conversation's turns |
 | POST | `/api/assistant/chat` | **Spends money.** One turn, answered when it is finished |
 | POST | `/api/assistant/chat/stream` | The same turn as server-sent events: `tool`, `text`, `tick`, `done`, `error`. A failure arrives as an event, not a status — by then the response has been 200 for seconds |
+
+A turn that drafted a week carries `proposedWeekStart` (a Monday) on both the reply and the stored
+turn. It is a pointer, not the blocks: the client fetches those from `/week-plan?weekStart=` and
+books with `/week-plan/accept`, so the card always shows what accepting will write. Nearly every
+turn has it null.
+
 | DELETE | `/api/assistant/chat/{id}` | Removes a conversation and its turns |
 
 The context carries, in order: the current quarter, this week against its targets, planned versus

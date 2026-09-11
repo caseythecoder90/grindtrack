@@ -1099,3 +1099,35 @@ h4 { font-size: var(--fs-small); font-weight: 600; color: var(--muted); margin: 
 @media (prefers-reduced-motion: reduce) {
   .bubble .caret { animation: none; }
 }
+
+/* --- a week drafted mid-conversation -----------------------------------------
+   The card sits in the thread because that is where the asking happened: being told
+   "I've drafted it, go to the calendar tab" is a worse answer than showing it.
+   Quieter than the week tab's version — it is part of a reply, not a panel. */
+.proposal {
+  margin: 8px 0 4px 0;
+  padding: 12px 14px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--cyan);
+  border-radius: 10px;
+}
+.proposal-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.proposal-sum { font-family: var(--mono); font-size: 12px; color: var(--muted); white-space: nowrap; }
+.proposal .wp-blocks { margin-top: 10px; }
+.proposal-actions {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line2);
+}
+.proposal-actions .muted.small { margin: 0; }
+.proposal-done {
+  margin: 12px 0 0; padding-top: 10px; border-top: 1px solid var(--line2);
+  font-size: var(--fs-small); color: var(--study);
+}
+.proposal .error { margin-top: 10px; }
+
+@media (pointer: coarse) {
+  /* Stack, so the button is full width rather than a small target beside a caption. */
+  .proposal-actions { flex-direction: column; align-items: stretch; gap: 8px; }
+  .proposal-actions button { min-height: 44px; }
+}

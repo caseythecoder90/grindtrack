@@ -1,8 +1,9 @@
 # The assistant
 
-Five features, one API key, and a hard rule: **the model can read everything and write almost
-nothing.** The only write in the whole surface is the week planner booking calendar blocks, and
-that takes a separate click on a draft you have already seen.
+Five features, one API key, and a hard rule: **the model can read everything, and the only thing
+it can produce is a draft.** Nothing a model says reaches the calendar. The single write in the
+whole surface is `WeekPlanService.accept`, which a person reaches by pressing a button on blocks
+they have already read, and which re-validates every one of them first.
 
 With no key the assistant is *off*, not broken: every endpoint answers 503 with a sentence, the
 Friday job stays quiet, and the rest of the app neither knows nor cares. That is what makes it safe
@@ -17,6 +18,7 @@ to deploy this before the secret exists.
 | Weekly review draft | week tab, and a Friday 17:00 job | 1 per week | a stored draft, never the review itself |
 | Chat | ask tab | 1–6 per turn | conversation history |
 | Week planner | week tab | 1 per proposal | calendar blocks — only on **Book** |
+| Planning in chat | ask tab | +1 on the turn that plans | a stored draft; the card's **Book** is the same accept path |
 
 ## Configuration
 
@@ -46,19 +48,35 @@ reasons over, and a per-request clock reading would sit inside the cached prefix
 every call — see caching below. `ContextServiceTest` asserts that two builds of the same day
 serialize to identical bytes, which guards the invariant rather than the one field that broke it.
 
-## The four read tools
+## The tools: four reads and one draft
 
-`AssistantToolExecutor` is the whole tool surface, and every one of them is a read:
+`AssistantToolExecutor` is the whole tool surface.
 
-| Tool | Fetches |
+| Tool | Does |
 |---|---|
-| `get_plan` | the full plan, all 194 items |
-| `get_days` | daily logs over a range |
-| `get_calendar` | calendar events over a range |
-| `get_focus_sessions` | one day's focus sessions |
+| `get_plan` | reads the full plan, all 194 items |
+| `get_days` | reads daily logs over a range |
+| `get_calendar` | reads calendar events over a range |
+| `get_focus_sessions` | reads one day's focus sessions |
+| `propose_week` | **drafts** a week of study blocks — a row and a card, never a booking |
 
 Ranges are capped at 120 days. Bad arguments come back to the model as an error string rather than
 throwing, so it can correct itself instead of failing the turn.
+
+### Why `propose_week` delegates
+
+It calls `WeekPlanService.propose` rather than letting the chat model invent blocks itself. The
+planner has its own prompt — mornings before work, one to three hours, real plan item ids, book for
+the week you actually had rather than the ideal one — and reproducing that inside a conversational
+answer would mean maintaining it twice and getting a worse plan. It costs a second model call,
+which is the honest price of a better draft.
+
+It also means there is **one** draft store and **one** accept path, whether a week was drafted from
+the week tab or mid-conversation. The turn records only which Monday it drafted; the blocks are
+fetched from the week-plan endpoint, so the card always shows what accepting will actually book.
+
+A `weekStart` that is not a Monday is refused before a model call is spent, as a sentence the model
+can act on rather than an exception that ends a turn someone is waiting on.
 
 The loop in `AnthropicChatModel` is manual rather than the SDK's runner, because the runner
 instantiates tool classes itself and these are thin wrappers over Spring services. It enforces two

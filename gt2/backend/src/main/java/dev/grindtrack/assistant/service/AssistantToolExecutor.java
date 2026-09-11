@@ -7,6 +7,9 @@ import dev.grindtrack.plan.service.PlanService;
 import dev.grindtrack.tracking.domain.FocusKind;
 import dev.grindtrack.tracking.service.FocusService;
 import dev.grindtrack.tracking.service.TrackingService;
+import dev.grindtrack.web.BadRequestException;
+import dev.grindtrack.web.ServiceOffException;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.Arrays;
@@ -16,11 +19,22 @@ import java.util.Map;
 import org.springframework.stereotype.Component;
 
 /**
- * What the chat model may look up, and nothing else.
+ * What the chat model may look up, and the one thing it may draft.
  *
- * <p>Four read tools, dispatched by name to the same services the controllers use. Every one is a
- * read: the write half of this app is not reachable from a model, by construction — there is no
- * name this class dispatches to that mutates anything.
+ * <p>Four of the five tools are reads, dispatched to the same services the controllers use. The
+ * fifth, {@code propose_week}, drafts a week of study blocks — and a draft is a row and a card, not
+ * a booking. <strong>Nothing here writes to the calendar.</strong> The only thing that does is
+ * {@code WeekPlanService.accept}, which a person reaches by pressing a button on blocks they have
+ * already read, and which re-validates every one of them against the plan before writing.
+ *
+ * <p>That distinction is the whole design and it is worth keeping sharp: the model can put a
+ * proposal in front of you, and it cannot put anything in your calendar.
+ *
+ * <p>{@code propose_week} delegates to the planner rather than letting the chat model invent blocks
+ * itself. The planner has its own prompt — mornings before work, one to three hours, real plan item
+ * ids, book for the week you actually had rather than the ideal one — and reproducing that inside a
+ * conversational answer would mean maintaining it twice and getting a worse plan. It costs a second
+ * model call, which is the honest price of a better draft.
  *
  * <p>Errors return as strings rather than throwing, because a tool result that says "from must be
  * YYYY-MM-DD" teaches the model to correct itself, while an exception ends the whole turn.
@@ -35,6 +49,7 @@ public class AssistantToolExecutor {
   private final TrackingService tracking;
   private final CalendarService calendar;
   private final FocusService focus;
+  private final WeekPlanService weekPlan;
   private final ObjectMapper mapper;
 
   public AssistantToolExecutor(
@@ -42,11 +57,13 @@ public class AssistantToolExecutor {
       TrackingService tracking,
       CalendarService calendar,
       FocusService focus,
+      WeekPlanService weekPlan,
       ObjectMapper mapper) {
     this.plan = plan;
     this.tracking = tracking;
     this.calendar = calendar;
     this.focus = focus;
+    this.weekPlan = weekPlan;
     this.mapper = mapper;
   }
 
@@ -74,7 +91,24 @@ public class AssistantToolExecutor {
         new ToolSpec(
             "get_focus_sessions",
             "Focus sessions on one day, all kinds: start, minutes, kind, subject, takeaway.",
-            Map.of("date", Map.of("type", "string", "description", "YYYY-MM-DD"))));
+            Map.of("date", Map.of("type", "string", "description", "YYYY-MM-DD"))),
+        new ToolSpec(
+            "propose_week",
+            "Draft a week of study blocks for Casey to approve. Books NOTHING: it produces a"
+                + " proposal shown as a card he can accept or ignore, and the calendar is"
+                + " untouched unless he presses the button. Use it when he asks you to plan,"
+                + " prep or block out a week. Costs a model call, so call it once per turn and"
+                + " only when planning was actually asked for. Returns the rationale and the"
+                + " blocks; tell him what it drafted in your own words and that it is waiting"
+                + " on him.",
+            Map.of(
+                "weekStart",
+                Map.of(
+                    "type",
+                    "string",
+                    "description",
+                    "The MONDAY of the week to plan, YYYY-MM-DD. Work it out from today's date"
+                        + " in the context; a date that is not a Monday is refused."))));
   }
 
   /** Dispatch one call. The result is what the model reads next, so errors are sentences. */
@@ -85,10 +119,36 @@ public class AssistantToolExecutor {
         case "get_days" -> json(dayRows(range(args)));
         case "get_calendar" -> json(eventRows(range(args)));
         case "get_focus_sessions" -> json(sessionRows(date(args.get("date"))));
+        case "propose_week" -> proposeWeek(args.get("weekStart"));
         default -> "unknown tool: " + name;
       };
     } catch (ToolArgumentException e) {
       return e.getMessage();
+    }
+  }
+
+  /**
+   * Draft a week and hand the model back what it drafted.
+   *
+   * <p>Every failure is a sentence rather than an exception for the usual reason, and here it
+   * matters more than usual: "weekStart must be a Monday" is something the model can fix by itself
+   * on the next round, and a thrown error would end a turn the person is waiting on.
+   */
+  private String proposeWeek(String weekStart) {
+    LocalDate monday = date(weekStart);
+    if (monday.getDayOfWeek() != DayOfWeek.MONDAY) {
+      return "weekStart must be a Monday; " + weekStart + " is a " + monday.getDayOfWeek();
+    }
+    try {
+      WeekPlanService.Draft draft = weekPlan.propose(monday);
+      Map<String, Object> result = new LinkedHashMap<>();
+      result.put("weekStart", draft.weekStart());
+      result.put("rationale", draft.rationale());
+      result.put("blocks", draft.blocks());
+      result.put("status", "drafted and waiting for Casey to accept it — nothing has been booked");
+      return json(result);
+    } catch (ServiceOffException | BadRequestException e) {
+      return "could not draft that week: " + e.getMessage();
     }
   }
 
