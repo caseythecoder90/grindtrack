@@ -3,14 +3,19 @@ package dev.grindtrack.assistant.service;
 import com.anthropic.client.AnthropicClient;
 import com.anthropic.client.okhttp.AnthropicOkHttpClient;
 import com.anthropic.core.JsonValue;
+import com.anthropic.core.http.StreamResponse;
 import com.anthropic.errors.AnthropicServiceException;
+import com.anthropic.helpers.MessageAccumulator;
+import com.anthropic.models.messages.CacheControlEphemeral;
 import com.anthropic.models.messages.ContentBlock;
 import com.anthropic.models.messages.ContentBlockParam;
 import com.anthropic.models.messages.Message;
 import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.MessageParam;
+import com.anthropic.models.messages.RawMessageStreamEvent;
 import com.anthropic.models.messages.StopReason;
 import com.anthropic.models.messages.TextBlock;
+import com.anthropic.models.messages.TextBlockParam;
 import com.anthropic.models.messages.Tool;
 import com.anthropic.models.messages.ToolResultBlockParam;
 import com.anthropic.models.messages.ToolUseBlock;
@@ -35,6 +40,24 @@ import org.springframework.stereotype.Component;
  * message — splitting them trains the model out of parallel calls. And the loop is bounded: a model
  * that is still reading after six rounds is not going to be saved by a seventh; the turn fails with
  * a message rather than running up a bill.
+ *
+ * <h2>Caching</h2>
+ *
+ * <p>A turn is not one request. Every round resends the whole prompt, so by the third round the
+ * system prompt, the tool definitions and the context have been paid for three times. Two
+ * breakpoints fix that, arranged by how often each part changes.
+ *
+ * <p>The explicit one sits on the last system block. The API renders {@code tools} before {@code
+ * system}, so a marker there caches both together — the rules, the four tool schemas and the
+ * context JSON, everything that is fixed for the whole turn. The automatic one is the top-level
+ * marker, which the API places on the last cacheable block and moves forward as the conversation
+ * grows; that is what carries the history and the accumulating tool results from one round to the
+ * next.
+ *
+ * <p>This only works while the cached prefix is byte-identical. {@link AssistantContext} carries no
+ * assembled-at timestamp for exactly that reason, and the tool list is built in a fixed order. Both
+ * are load-bearing: change either and the cache silently stops hitting, with no error — only {@code
+ * cacheReadTokens} going to zero and the bill going up.
  */
 @Component
 public class AnthropicChatModel implements ChatModel {
@@ -84,7 +107,8 @@ public class AnthropicChatModel implements ChatModel {
   }
 
   @Override
-  public Reply reply(String contextJson, List<Turn> history, String userMessage) {
+  public Reply reply(
+      String contextJson, List<Turn> history, String userMessage, Listener listener) {
     if (client == null) {
       throw new IllegalStateException("reply() called with no API key configured");
     }
@@ -103,14 +127,19 @@ public class AnthropicChatModel implements ChatModel {
 
     long inputTokens = 0;
     long outputTokens = 0;
+    long cacheWriteTokens = 0;
+    long cacheReadTokens = 0;
     try {
       for (int round = 0; round < 6; round++) {
-        Message response = client.messages().create(params(contextJson, messages));
+        Message response = round(contextJson, messages, listener);
         inputTokens += response.usage().inputTokens();
         outputTokens += response.usage().outputTokens();
+        cacheWriteTokens += response.usage().cacheCreationInputTokens().orElse(0L);
+        cacheReadTokens += response.usage().cacheReadInputTokens().orElse(0L);
 
         if (response.stopReason().filter(StopReason.TOOL_USE::equals).isEmpty()) {
-          return new Reply(text(response), inputTokens, outputTokens);
+          return new Reply(
+              text(response), inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens);
         }
         messages.add(response.toParam());
         messages.add(toolResults(response));
@@ -121,12 +150,56 @@ public class AnthropicChatModel implements ChatModel {
     throw new UpstreamException("the assistant kept reading instead of answering — try again");
   }
 
+  /**
+   * One request, streamed.
+   *
+   * <p>Streaming rather than waiting for the whole message, even on the rounds that turn out to be
+   * tool calls with no text in them. The alternative is knowing in advance which round will answer,
+   * which is exactly what nobody knows; and a round that produces no text simply reports no text.
+   *
+   * <p>The accumulator rebuilds the {@link Message} the non-streaming call would have returned —
+   * content blocks, stop reason and usage — so the loop above is unchanged by any of this.
+   */
+  private Message round(String contextJson, List<MessageParam> messages, Listener listener) {
+    MessageAccumulator accumulator = MessageAccumulator.create();
+    try (StreamResponse<RawMessageStreamEvent> stream =
+        client.messages().createStreaming(params(contextJson, messages))) {
+      stream.stream()
+          .forEach(
+              event -> {
+                accumulator.accumulate(event);
+                listener.onProgress();
+                event
+                    .contentBlockStart()
+                    .flatMap(start -> start.contentBlock().toolUse())
+                    .ifPresent(use -> listener.onToolUse(use.name()));
+                event
+                    .contentBlockDelta()
+                    .flatMap(delta -> delta.delta().text())
+                    .ifPresent(text -> listener.onText(text.text()));
+              });
+    }
+    return accumulator.message();
+  }
+
   private MessageCreateParams params(String contextJson, List<MessageParam> messages) {
     MessageCreateParams.Builder builder =
         MessageCreateParams.builder()
             .model(props.model())
             .maxTokens(8000L)
-            .system(SYSTEM_PROMPT + "\n\nCurrent context:\n" + contextJson);
+            // Two blocks, not one string: the marker has to go on a block, and it goes on the
+            // last one so that tools and system are cached together.
+            .systemOfTextBlockParams(
+                List.of(
+                    TextBlockParam.builder().text(SYSTEM_PROMPT).build(),
+                    TextBlockParam.builder()
+                        .text("Current context:\n" + contextJson)
+                        .cacheControl(CacheControlEphemeral.builder().build())
+                        .build()))
+            // The rounds of a turn are seconds apart and a read refreshes the entry, so the
+            // default five minutes keeps the cache warm for the whole turn and for a follow-up
+            // question asked while still reading the answer. An hour would double the write.
+            .cacheControl(CacheControlEphemeral.builder().build());
     for (AssistantToolExecutor.ToolSpec spec : executor.specs()) {
       Tool.InputSchema.Properties.Builder properties = Tool.InputSchema.Properties.builder();
       spec.properties()

@@ -110,18 +110,34 @@ runtime via the import endpoint from a locally generated `plan.json`
 
 ## Assistant (authenticated)
 
-The read surface an assistant reasons over. **Read-only, and completely so** — every endpoint is a
-GET and there is no write path, because the first thing an assistant with one does wrong is mark
-the wrong plan item done, and unlike a wrong sentence that is invisible until the next review.
+The surface an assistant reasons over, and the three features built on it. **What the model can
+read and what it can change are deliberately different sizes**: the four tools behind every one of
+these calls are reads, and the only write in the whole feature is booking a proposed week onto the
+calendar — a separate POST, on a draft you have already been shown. The first thing an assistant
+with a write path does wrong is mark the wrong plan item done, and unlike a wrong sentence that is
+invisible until the next review.
 
-**Nothing here calls a model.** The context is useful on its own: fetch it, paste it into a
-conversation, ask for a week. Wiring it to an API is a separate change with a separate cost, and
-this half has to be right either way.
+The POSTs below that call a model **cost money and take ten to thirty seconds**, which is why they
+are POSTs: none of them is safe to retry idly or to prefetch. With no API key configured every one
+of them answers 503 with a sentence, and the GETs keep working.
+
+Full design notes: [assistant.md](assistant.md).
 
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/api/assistant/context[?today=YYYY-MM-DD]` | The whole picture in one request, ~1.5k tokens. `today` is for reproducing a Friday review on a Saturday, and for tests |
 | GET | `/api/assistant/tools` | The read tools, described — generated from the app so it cannot drift from it |
+| GET | `/api/assistant/status` | Whether it is on, and what the month has cost — including what prompt caching saved, which can be negative |
+| GET | `/api/assistant/reviews?weekStart=` | The stored draft for that week, or `null`. No model call |
+| POST | `/api/assistant/reviews?weekStart=` | **Spends money.** Drafts the weekly review, ~3¢. The Friday 17:00 job posts the same thing |
+| GET | `/api/assistant/week-plan?weekStart=` | The stored proposal, or `null`. No model call |
+| POST | `/api/assistant/week-plan?weekStart=` | **Spends money.** Proposes a week. Writes a draft and nothing else |
+| POST | `/api/assistant/week-plan/accept?weekStart=` | The one write. Books the stored draft — re-read and re-validated server-side, never taken from the request |
+| GET | `/api/assistant/chat` | Conversations, most recent first |
+| GET | `/api/assistant/chat/{id}` | One conversation's turns |
+| POST | `/api/assistant/chat` | **Spends money.** One turn, answered when it is finished |
+| POST | `/api/assistant/chat/stream` | The same turn as server-sent events: `tool`, `text`, `tick`, `done`, `error`. A failure arrives as an event, not a status — by then the response has been 200 for seconds |
+| DELETE | `/api/assistant/chat/{id}` | Removes a conversation and its turns |
 
 The context carries, in order: the current quarter, this week against its targets, planned versus
 actual study hours, the lunch streak, in-flight and upcoming plan items, the next 14 days of

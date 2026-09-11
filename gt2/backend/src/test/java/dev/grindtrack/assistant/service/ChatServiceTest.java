@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -26,6 +27,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.support.SimpleTransactionStatus;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @ExtendWith(MockitoExtension.class)
 class ChatServiceTest {
@@ -39,13 +45,20 @@ class ChatServiceTest {
 
   @BeforeEach
   void setUp() {
-    service = new ChatService(model, contextService, conversations, messages, new ObjectMapper());
+    service =
+        new ChatService(
+            model,
+            contextService,
+            conversations,
+            messages,
+            new ObjectMapper(),
+            inlineTransactions());
   }
 
   private void modelAnswers() {
     when(model.configured()).thenReturn(true);
-    when(model.reply(anyString(), any(), anyString()))
-        .thenReturn(new ChatModel.Reply("the answer", 3000, 400));
+    when(model.reply(anyString(), any(), anyString(), any()))
+        .thenReturn(new ChatModel.Reply("the answer", 3000, 400, 0, 0));
     when(conversations.save(any())).thenAnswer(inv -> inv.getArgument(0));
   }
 
@@ -56,7 +69,7 @@ class ChatServiceTest {
     assertThatThrownBy(() -> service.chat(null, "hi"))
         .isInstanceOf(ServiceOffException.class)
         .hasMessageContaining("ANTHROPIC_API_KEY");
-    verify(model, never()).reply(anyString(), any(), anyString());
+    verify(model, never()).reply(anyString(), any(), anyString(), any());
   }
 
   @Test
@@ -64,13 +77,12 @@ class ChatServiceTest {
     when(model.configured()).thenReturn(true);
 
     assertThatThrownBy(() -> service.chat(null, "   ")).isInstanceOf(BadRequestException.class);
-    verify(model, never()).reply(anyString(), any(), anyString());
+    verify(model, never()).reply(anyString(), any(), anyString(), any());
   }
 
   @Test
   void aNewConversationTakesItsTitleFromTheFirstMessageCutToFit() {
     modelAnswers();
-    when(messages.findByConversationIdOrderByIdAsc(any())).thenReturn(List.of());
 
     service.chat(null, "x".repeat(80));
 
@@ -83,7 +95,6 @@ class ChatServiceTest {
   @Test
   void bothTurnsArePersistedAndTheBillRidesOnTheAssistants() {
     modelAnswers();
-    when(messages.findByConversationIdOrderByIdAsc(any())).thenReturn(List.of());
 
     ChatService.ChatReply reply = service.chat(null, "how is the week going?");
 
@@ -100,28 +111,128 @@ class ChatServiceTest {
   @Test
   void historyIsReplayedButOnlyTheLastThirtyTurns() {
     modelAnswers();
-    AssistantConversation existing = new AssistantConversation("t");
-    when(conversations.findById(7L)).thenReturn(Optional.of(existing));
+    when(conversations.existsById(7L)).thenReturn(true);
+    when(conversations.findById(7L)).thenReturn(Optional.of(new AssistantConversation("t")));
     when(messages.findByConversationIdOrderByIdAsc(any()))
         .thenReturn(
             IntStream.range(0, 40)
-                .mapToObj(i -> new AssistantMessage(7L, "user", "turn " + i, 0, 0))
+                .mapToObj(i -> AssistantMessage.userTurn(7L, "turn " + i))
                 .toList());
 
     service.chat(7L, "and now?");
 
     @SuppressWarnings("unchecked")
     ArgumentCaptor<List<ChatModel.Turn>> history = ArgumentCaptor.forClass(List.class);
-    verify(model).reply(anyString(), history.capture(), eq("and now?"));
+    verify(model).reply(anyString(), history.capture(), eq("and now?"), any());
     assertThat(history.getValue()).hasSize(30);
     assertThat(history.getValue().get(0).content()).isEqualTo("turn 10");
   }
 
+  /** And a 404 before the model is called, not after: a typo'd id should not cost anything. */
   @Test
   void anUnknownConversationIsA404() {
     when(model.configured()).thenReturn(true);
-    when(conversations.findById(99L)).thenReturn(Optional.empty());
+    when(conversations.existsById(99L)).thenReturn(false);
 
     assertThatThrownBy(() -> service.chat(99L, "hi")).isInstanceOf(NoSuchElementException.class);
+    verify(model, never()).reply(anyString(), any(), anyString(), any());
+  }
+
+  /**
+   * A failed turn leaves nothing behind. The conversation row used to be written before the model
+   * was called, so a turn that threw left an empty thread in the list with no way to remove it.
+   */
+  @Test
+  void aFailedTurnDoesNotCreateAConversation() {
+    when(model.configured()).thenReturn(true);
+    when(model.reply(anyString(), any(), anyString(), any()))
+        .thenThrow(new IllegalStateException("upstream fell over"));
+
+    assertThatThrownBy(() -> service.chat(null, "hi")).isInstanceOf(IllegalStateException.class);
+
+    verify(conversations, never()).save(any());
+    verify(messages, never()).save(any());
+  }
+
+  /** Tool calls and fragments reach the listener; the stored turn is the same either way. */
+  @Test
+  void aListenerSeesTheTurnHappenAndChangesNothingAboutIt() {
+    when(model.configured()).thenReturn(true);
+    when(conversations.save(any())).thenAnswer(inv -> inv.getArgument(0));
+    when(model.reply(anyString(), any(), anyString(), any()))
+        .thenAnswer(
+            inv -> {
+              ChatModel.Listener listener = inv.getArgument(3);
+              listener.onToolUse("get_plan");
+              listener.onText("the ");
+              listener.onText("answer");
+              return new ChatModel.Reply("the answer", 3000, 400, 0, 0);
+            });
+
+    List<String> tools = new java.util.ArrayList<>();
+    StringBuilder text = new StringBuilder();
+    ChatService.ChatReply reply =
+        service.chat(
+            null,
+            "how is the week going?",
+            new ChatModel.Listener() {
+              @Override
+              public void onToolUse(String toolName) {
+                tools.add(toolName);
+              }
+
+              @Override
+              public void onText(String delta) {
+                text.append(delta);
+              }
+            });
+
+    assertThat(tools).containsExactly("get_plan");
+    // The fragments are the answer, not a summary of it: what was watched is what was stored.
+    assertThat(text.toString()).isEqualTo(reply.reply()).isEqualTo("the answer");
+  }
+
+  /** What the cache cost and what it saved is per-turn data; losing it loses the month's bill. */
+  @Test
+  void cacheUsageIsStoredOnTheAssistantTurn() {
+    when(model.configured()).thenReturn(true);
+    when(conversations.save(any())).thenAnswer(inv -> inv.getArgument(0));
+    when(model.reply(anyString(), any(), anyString(), any()))
+        .thenReturn(new ChatModel.Reply("the answer", 300, 400, 5000, 12000));
+
+    service.chat(null, "how am I doing?");
+
+    ArgumentCaptor<AssistantMessage> saved = ArgumentCaptor.forClass(AssistantMessage.class);
+    verify(messages, times(2)).save(saved.capture());
+    AssistantMessage assistant = saved.getAllValues().get(1);
+    assertThat(assistant.getCacheWriteTokens()).isEqualTo(5000);
+    assertThat(assistant.getCacheReadTokens()).isEqualTo(12000);
+    // The user's own turn is billed as part of the reply, never separately.
+    AssistantMessage user = saved.getAllValues().get(0);
+    assertThat(user.getCacheWriteTokens()).isZero();
+    assertThat(user.getInputTokens()).isZero();
+  }
+
+  /**
+   * A real {@link TransactionTemplate} over a manager that does nothing.
+   *
+   * <p>Not a mock: the point of the template here is that callbacks run in order and an exception
+   * thrown inside one comes back out, and a stubbed {@code execute} would assert that by
+   * construction rather than exercise it.
+   */
+  private static TransactionTemplate inlineTransactions() {
+    return new TransactionTemplate(
+        new PlatformTransactionManager() {
+          @Override
+          public TransactionStatus getTransaction(TransactionDefinition definition) {
+            return new SimpleTransactionStatus();
+          }
+
+          @Override
+          public void commit(TransactionStatus status) {}
+
+          @Override
+          public void rollback(TransactionStatus status) {}
+        });
   }
 }

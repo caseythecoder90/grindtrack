@@ -957,3 +957,33 @@ h4 { font-size: var(--fs-small); font-weight: 600; color: var(--muted); margin: 
   .wp-block { flex-wrap: wrap; gap: 2px; }
   .wp-when { flex: 1 1 100%; }
 }
+
+/* The month's assistant bill, under the ask box. Quiet by design — it is a number you glance at
+   when you wonder, not one that should sit in the way of asking a question. */
+.askbill {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+  text-align: right;
+}
+
+/* The cursor at the end of an answer still arriving. Purely a sign of life: the bubble already
+   grows as text lands, but a paused model looks identical to a finished one without it. */
+.bubble .caret {
+  display: inline-block;
+  width: 7px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: currentColor;
+  opacity: 0.55;
+  animation: caret-blink 1s step-end infinite;
+}
+
+@keyframes caret-blink {
+  50% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bubble .caret { animation: none; }
+}

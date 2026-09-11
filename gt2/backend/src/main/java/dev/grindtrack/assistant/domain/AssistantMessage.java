@@ -38,19 +38,38 @@ public class AssistantMessage {
   @Column(name = "output_tokens", nullable = false)
   private long outputTokens;
 
+  @Column(name = "cache_write_tokens", nullable = false)
+  private long cacheWriteTokens;
+
+  @Column(name = "cache_read_tokens", nullable = false)
+  private long cacheReadTokens;
+
   @Column(name = "created_at", nullable = false)
   private OffsetDateTime createdAt;
 
   protected AssistantMessage() {}
 
   public AssistantMessage(
-      Long conversationId, String role, String content, long inputTokens, long outputTokens) {
+      Long conversationId,
+      String role,
+      String content,
+      long inputTokens,
+      long outputTokens,
+      long cacheWriteTokens,
+      long cacheReadTokens) {
     this.conversationId = conversationId;
     this.role = role;
     this.content = content;
     this.inputTokens = inputTokens;
     this.outputTokens = outputTokens;
+    this.cacheWriteTokens = cacheWriteTokens;
+    this.cacheReadTokens = cacheReadTokens;
     this.createdAt = OffsetDateTime.now();
+  }
+
+  /** A user turn costs nothing on its own — it is billed as part of the reply it provoked. */
+  public static AssistantMessage userTurn(Long conversationId, String content) {
+    return new AssistantMessage(conversationId, ROLE_USER, content, 0, 0, 0, 0);
   }
 
   public String getRole() {
@@ -67,6 +86,14 @@ public class AssistantMessage {
 
   public long getOutputTokens() {
     return outputTokens;
+  }
+
+  public long getCacheWriteTokens() {
+    return cacheWriteTokens;
+  }
+
+  public long getCacheReadTokens() {
+    return cacheReadTokens;
   }
 
   public OffsetDateTime getCreatedAt() {

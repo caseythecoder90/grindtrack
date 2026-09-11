@@ -1,5 +1,5 @@
 /** Every assistant URL. See features/finance/financeApi.ts for why these modules exist. */
-import { api, jsonInit } from "../../lib/api";
+import { api, jsonInit, stream } from "../../lib/api";
 
 /** Mirrors WeeklyReviewService.Report — the stored draft plus what it cost. */
 export interface ReviewReport {
@@ -25,7 +25,13 @@ export interface AssistantStatus {
   reportsThisMonth: number;
   inputTokens: number;
   outputTokens: number;
+  /** Input tokens written to the prompt cache, billed at 1.25x — chat only. */
+  cacheWriteTokens: number;
+  /** Input tokens served from the prompt cache, billed at 0.1x. */
+  cacheReadTokens: number;
   costThisMonthUsd: number;
+  /** Reads saved minus writes paid for. Negative means caching is costing money. */
+  cacheSavingUsd: number;
 }
 
 const BASE = "/api/assistant";
@@ -63,13 +69,6 @@ export const listConversations = () => api<ConversationSummary[]>(`${BASE}/chat`
 
 export const getConversation = (id: number) => api<ChatTurn[]>(`${BASE}/chat/${id}`);
 
-/**
- * One turn. Ten to thirty seconds — the model reads the plan, the logs and the calendar before it
- * answers — so the caller must show the wait rather than block silently.
- */
-export const sendChat = (conversationId: number | null, message: string) =>
-  api<ChatReply>(`${BASE}/chat`, jsonInit("POST", { conversationId, message }));
-
 export interface WeekPlanBlock {
   date: string;
   startTime: string;
@@ -105,3 +104,72 @@ export const acceptWeekPlan = (weekStart: string) =>
     `${BASE}/week-plan/accept?weekStart=${weekStart}`,
     jsonInit("POST", {}),
   );
+
+/** What the stream can say while a turn is happening. */
+export interface ChatStreamHandlers {
+  /** The model started reading something — one of the four read tools, by its own name. */
+  onTool(name: string): void;
+  /** A fragment of the answer. Fragments concatenate to the reply that gets stored. */
+  onText(delta: string): void;
+}
+
+/**
+ * One turn, delivered as it happens.
+ *
+ * <p>Read with fetch rather than EventSource: EventSource only does GET, and the question belongs
+ * in a body. The cost is parsing the frames here, which is a dozen lines and no state — a frame is
+ * blank-line delimited, the lines that matter start with "event:" or "data:", and a chunk boundary
+ * lands wherever the network puts it, so the tail of an incomplete frame is kept for the next one.
+ *
+ * <p>An error arrives as an event, not a status: by the time a turn can fail the response has been
+ * 200 for some seconds. So a rejected promise here and a failed turn look the same to the caller,
+ * which is the point.
+ */
+export async function streamChat(
+  conversationId: number | null,
+  message: string,
+  handlers: ChatStreamHandlers,
+): Promise<ChatReply> {
+  const res = await stream(
+    `${BASE}/chat/stream`,
+    jsonInit("POST", { conversationId, message }),
+  );
+  const reader = res.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let done: ChatReply | null = null;
+
+  for (;;) {
+    const chunk = await reader.read();
+    if (chunk.done) break;
+    buffer += decoder.decode(chunk.value, { stream: true });
+
+    let split = buffer.indexOf("\n\n");
+    while (split !== -1) {
+      const frame = buffer.slice(0, split);
+      buffer = buffer.slice(split + 2);
+      split = buffer.indexOf("\n\n");
+
+      let event = "message";
+      const data: string[] = [];
+      for (const line of frame.split("\n")) {
+        if (line.startsWith("event:")) event = line.slice(6).trim();
+        else if (line.startsWith("data:")) data.push(line.slice(5).trim());
+      }
+      if (!data.length) continue;
+      const payload = JSON.parse(data.join("\n"));
+
+      if (event === "tool") handlers.onTool(payload.name);
+      else if (event === "text") handlers.onText(payload.delta);
+      else if (event === "done") done = payload as ChatReply;
+      else if (event === "error") throw new Error(payload.error);
+      // "tick" is the server keeping a proxy from closing an idle connection. Nothing to do.
+    }
+  }
+
+  // The stream ended without saying how it went — a dropped connection mid-answer. The turn may
+  // well have finished and been stored on the server; what is certain is that this client cannot
+  // say what it holds, so it says that rather than inventing a reply.
+  if (!done) throw new Error("the answer was cut off — reopen the conversation to see it");
+  return done;
+}

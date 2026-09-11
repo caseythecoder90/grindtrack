@@ -139,7 +139,7 @@ class WeeklyReviewServiceTest {
         .thenReturn(List.of(a, b));
     // Chat spend joins the same bill: 100k in at $5 + 20k out at $25 = another $1.
     when(chatMessages.findByCreatedAtGreaterThanEqual(any(OffsetDateTime.class)))
-        .thenReturn(List.of(new AssistantMessage(1L, "assistant", "hi", 100_000, 20_000)));
+        .thenReturn(List.of(new AssistantMessage(1L, "assistant", "hi", 100_000, 20_000, 0, 0)));
 
     WeeklyReviewService.Status status = service.status();
 
@@ -149,6 +149,46 @@ class WeeklyReviewServiceTest {
     assertThat(status.outputTokens()).isEqualTo(60_000);
     // 0.3 MTok in at $5 + 0.06 MTok out at $25 = $1.50 + $1.50 = $3 exactly.
     assertThat(status.costThisMonthUsd()).isEqualTo(3.0);
+  }
+
+  /**
+   * Cached tokens are not free and they are not full price. The API leaves them out of {@code
+   * input_tokens} entirely, so a month priced without them reads as cheaper than the invoice.
+   */
+  @Test
+  void cachedTokensArePricedAsCachedTokens() {
+    when(model.configured()).thenReturn(true);
+    when(reports.findByGeneratedAtGreaterThanEqual(any(OffsetDateTime.class)))
+        .thenReturn(List.of());
+    // 1 MTok written at 1.25x $5 = $6.25; 2 MTok read at 0.1x $5 = $1.00. No uncached input,
+    // no output.
+    when(chatMessages.findByCreatedAtGreaterThanEqual(any(OffsetDateTime.class)))
+        .thenReturn(
+            List.of(new AssistantMessage(1L, "assistant", "hi", 0, 0, 1_000_000, 2_000_000)));
+
+    WeeklyReviewService.Status status = service.status();
+
+    assertThat(status.cacheWriteTokens()).isEqualTo(1_000_000);
+    assertThat(status.cacheReadTokens()).isEqualTo(2_000_000);
+    assertThat(status.costThisMonthUsd()).isEqualTo(7.25);
+    // Those 2 MTok would have cost $10 uncached and cost $1, saving $9; the write cost $1.25 more
+    // than the same tokens uncached. Net $7.75.
+    assertThat(status.cacheSavingUsd()).isEqualTo(7.75);
+  }
+
+  /**
+   * A prefix written and never read back is a surcharge, and the number has to be able to say so.
+   */
+  @Test
+  void cacheSavingGoesNegativeWhenNothingIsEverRead() {
+    when(model.configured()).thenReturn(true);
+    when(reports.findByGeneratedAtGreaterThanEqual(any(OffsetDateTime.class)))
+        .thenReturn(List.of());
+    when(chatMessages.findByCreatedAtGreaterThanEqual(any(OffsetDateTime.class)))
+        .thenReturn(List.of(new AssistantMessage(1L, "assistant", "hi", 0, 0, 1_000_000, 0)));
+
+    // 1 MTok written at 1.25x $5 rather than $5: a quarter of $5 wasted.
+    assertThat(service.status().cacheSavingUsd()).isEqualTo(-1.25);
   }
 
   private static LocalDate monday(int weeksAgo) {

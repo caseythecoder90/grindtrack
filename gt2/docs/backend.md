@@ -20,7 +20,7 @@ Each feature is a top-level package split into layer subpackages:
 | `domain` | JPA entities + Spring Data repositories | — |
 | `security` | (auth only) the JWT filter | `service` |
 | `web` | shared, feature-agnostic: request parsing, exception→status mapping | — |
-| `assistant` | the read-only context an assistant reasons over | `/api/assistant` |
+| `assistant` | the context an assistant reasons over, and the three features on it | `/api/assistant` |
 | `calendar` | events on days, and recurring upkeep | `/api/calendar`, `/api/upkeep` |
 | `config` | cross-cutting: `SecurityConfig`, `StaticContentConfig`, `AppProperties` | — |
 
@@ -302,16 +302,27 @@ its reading subject.
 `nextDue` is **derived, never stored** — `lastDoneOn + intervalDays`, computed per request. A stored
 copy is a second source of truth that goes wrong the first time an interval is edited.
 
-### `AssistantController` — `/api/assistant`
+### `AssistantController` / `ChatController` — `/api/assistant`
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/context` | the whole picture in one request (~1.5k tokens); `?today=` for reproducing a Friday review on a Saturday, and for tests |
 | GET | `/tools` | the read tools, described — generated from the app so it cannot drift from it |
+| GET | `/status` | whether it is on, and the month's spend — caching included |
+| GET/POST | `/reviews?weekStart=` | the stored weekly draft; POST spends money |
+| GET/POST | `/week-plan?weekStart=` | the stored proposal; POST spends money |
+| POST | `/week-plan/accept?weekStart=` | books the stored draft — **the only write** |
+| GET/POST/DELETE | `/chat`, `/chat/{id}` | conversations and turns |
+| POST | `/chat/stream` | the same turn as server-sent events |
 
-Read-only, and completely so: every endpoint is a GET and there is no write path, because the first
-thing an assistant with one does wrong is mark the wrong plan item done. **Nothing here calls a
-model** — the context is useful on its own, and wiring it to an API is a separate change with a
-separate cost. The package owns no table; it reads the other features. Shapes in [api.md](api.md).
+**What the model can read and what it can change are different sizes.** Every tool behind these is
+a read; the single write is booking a week you have already been shown, from a draft the server
+re-reads rather than from the request. The first thing an assistant with a general write path does
+wrong is mark the wrong plan item done.
+
+A blank `ANTHROPIC_API_KEY` is a switched-off feature, not a broken deployment: the POSTs answer
+503 with a sentence and the GETs keep working. The package owns three tables (conversations,
+messages, reports) and otherwise reads the other features. Design notes in
+[assistant.md](assistant.md), shapes in [api.md](api.md).
 
 ## Auth internals (summary)
 
