@@ -925,3 +925,21 @@ h4 { font-size: var(--fs-small); font-weight: 600; color: var(--muted); margin: 
 .ai-draft-body p { margin: 0; }
 .ai-draft-body b { color: var(--muted); font-weight: 600; margin-right: 6px; }
 .ai-draft-cost { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 10px; }
+
+/* --- ask ------------------------------------------------------------------
+   A chat thread inside a panel, not a floating widget: it is a tab like any
+   other, and on a phone the bottom bar is already the navigation. */
+.askpanel { display: flex; flex-direction: column; }
+.askthreads { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 4px; }
+.askthreads .chip { white-space: nowrap; max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
+.askthreads .chip.active { border-color: var(--cyan); color: var(--cyan); }
+.askthread { display: flex; flex-direction: column; gap: 10px; min-height: 180px; max-height: 52vh; overflow-y: auto; padding: 4px 0 8px; }
+.bubble { padding: 9px 12px; border-radius: 12px; font-size: 13px; line-height: 1.5; max-width: 86%; white-space: pre-wrap; }
+/* The user's own words sit right and tinted; the assistant's sit left and plain,
+   so a glance tells you who said what without reading either. */
+.bubble.user { align-self: flex-end; background: rgba(127, 209, 255, 0.13); border: 1px solid rgba(127, 209, 255, 0.3); }
+.bubble.assistant { align-self: flex-start; background: var(--panel2); border: 1px solid var(--line); }
+.bubble.thinking { color: var(--muted); font-family: var(--mono); font-size: 12px; }
+.askform { display: flex; gap: 8px; align-items: flex-end; margin-top: 10px; }
+.askform textarea { min-height: 44px; resize: vertical; }
+.askform button { white-space: nowrap; }
