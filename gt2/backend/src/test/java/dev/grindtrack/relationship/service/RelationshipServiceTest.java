@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import dev.grindtrack.relationship.domain.Effort;
@@ -28,6 +29,10 @@ import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
 /**
  * The relationship tab, and above all the one rule it must never break: it reassures, it does not
@@ -318,5 +323,79 @@ class RelationshipServiceTest {
     Idea i = new Idea(IdeaKind.DATE, title);
     i.update(IdeaKind.DATE, title, "", null, null, effort, IdeaStatus.IDEA);
     return i;
+  }
+
+  // ---------------------------------------------------------------- paging
+
+  /**
+   * The footer's "12 of 48" is the whole reason a page carries a total: an "older" button that
+   * might do nothing is worse than no button.
+   */
+  @Test
+  void aPageCarriesTheTotalAndNotJustTheRows() {
+    when(moments.findAllByOrderByOccurredOnDescIdDesc(any(Pageable.class)))
+        .thenReturn(new PageImpl<>(List.of(moment(1), moment(2)), PageRequest.of(0, 12), 48));
+
+    RelationshipService.MomentPage page = service.page(12, 0);
+
+    assertThat(page.items()).hasSize(2);
+    assertThat(page.total()).isEqualTo(48);
+    assertThat(page.limit()).isEqualTo(12);
+  }
+
+  /**
+   * An offset that is not on a page boundary comes back SNAPPED, because the rows returned are the
+   * page it fell inside. Reporting the asked-for offset would have the screen label rows 1-12 as
+   * "5-16 of 48".
+   */
+  @Test
+  void anOffsetOffTheBoundaryIsReportedWhereItActuallyLanded() {
+    ArgumentCaptor<Pageable> asked = ArgumentCaptor.forClass(Pageable.class);
+    when(moments.findAllByOrderByOccurredOnDescIdDesc(any(Pageable.class)))
+        .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 12), 48));
+
+    assertThat(service.page(12, 5).offset()).isZero();
+
+    verify(moments).findAllByOrderByOccurredOnDescIdDesc(asked.capture());
+    assertThat(asked.getValue().getPageNumber()).isZero();
+  }
+
+  /** A stale tab asking past the end after a delete gets an empty page, never a 500. */
+  @Test
+  void anOffsetPastTheEndIsAnEmptyPageNotAnError() {
+    when(moments.findAllByOrderByOccurredOnDescIdDesc(any(Pageable.class)))
+        .thenReturn(new PageImpl<>(List.of(), PageRequest.of(99, 12), 48));
+
+    RelationshipService.MomentPage page = service.page(12, 1200);
+
+    assertThat(page.items()).isEmpty();
+    assertThat(page.total()).isEqualTo(48);
+  }
+
+  /** A page is for reading, not for scraping the whole table in one request. */
+  @Test
+  void anAbsurdLimitIsCapped() {
+    ArgumentCaptor<Pageable> asked = ArgumentCaptor.forClass(Pageable.class);
+    when(moments.findAllByOrderByOccurredOnDescIdDesc(any(Pageable.class)))
+        .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 100), 48));
+
+    assertThat(service.page(100_000, 0).limit()).isEqualTo(100);
+
+    verify(moments).findAllByOrderByOccurredOnDescIdDesc(asked.capture());
+    assertThat(asked.getValue().getPageSize()).isEqualTo(100);
+  }
+
+  /** Zero and negatives come from a client bug, and a page of nothing forever is a worse bug. */
+  @Test
+  void aZeroLimitStillAsksForAtLeastOneRow() {
+    when(moments.findAllByOrderByOccurredOnDescIdDesc(any(Pageable.class)))
+        .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 1), 48));
+
+    assertThat(service.page(0, -30).limit()).isEqualTo(1);
+    assertThat(service.page(0, -30).offset()).isZero();
+  }
+
+  private static Moment moment(int daysAgo) {
+    return new Moment(LocalDate.now().minusDays(daysAgo), MomentKind.DATE_NIGHT);
   }
 }

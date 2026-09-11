@@ -317,7 +317,8 @@ Deliberately absent from `/api/public/**`. Nothing here has a public shape.
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/api/relationship/summary` | `{recency[], closeness, upcoming[], readyIdeas[], lately[]}` |
-| GET/POST | `/api/relationship/moments` | Timeline (`?limit=60`) / log one `{occurredOn?, kind, note?, feltClose?}`; a future date is a 400 |
+| GET | `/api/relationship/moments?limit=&offset=` | A page of the timeline, newest first: `{items[], total, offset, limit}`. `total` is every moment ever logged, which is what lets a footer say "13–24 of 48" rather than offering an "older" button that might do nothing. `offset` comes back **snapped** to a page boundary — the rows returned are the page it fell inside, so reporting the asked-for offset would mislabel them. Past the end is an empty page, not a 404; `limit` caps at 100 |
+| POST | `/api/relationship/moments` | Log one `{occurredOn?, kind, note?, feltClose?}`; a future date is a 400 |
 | PUT/DELETE | `/api/relationship/moments/{id}` | |
 | GET/POST | `/api/relationship/ideas` | List (`?includeDone`) / create; least effort first |
 | PUT/DELETE | `/api/relationship/ideas/{id}` | |

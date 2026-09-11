@@ -4,6 +4,7 @@ import dev.grindtrack.relationship.api.RelationshipDtos.DoneRequest;
 import dev.grindtrack.relationship.api.RelationshipDtos.IdeaRequest;
 import dev.grindtrack.relationship.api.RelationshipDtos.IdeaResponse;
 import dev.grindtrack.relationship.api.RelationshipDtos.MarkReadRequest;
+import dev.grindtrack.relationship.api.RelationshipDtos.MomentPageResponse;
 import dev.grindtrack.relationship.api.RelationshipDtos.MomentRequest;
 import dev.grindtrack.relationship.api.RelationshipDtos.MomentResponse;
 import dev.grindtrack.relationship.api.RelationshipDtos.OccasionRequest;
@@ -67,10 +68,18 @@ public class RelationshipController {
 
   // --------------------------------------------------------------- moments
 
+  /**
+   * A page of the timeline, newest first.
+   *
+   * <p>Answers a page rather than a bare list because the screen has to say how much it is not
+   * showing you. The summary's {@code lately} stays the twelve-row glance; this is the one you read
+   * back through.
+   */
   @GetMapping("/moments")
-  public List<MomentResponse> moments(
-      @RequestParam(defaultValue = "" + DEFAULT_TIMELINE_LIMIT) int limit) {
-    return relationship.timeline(limit).stream().map(MomentResponse::from).toList();
+  public MomentPageResponse moments(
+      @RequestParam(defaultValue = "" + DEFAULT_TIMELINE_LIMIT) int limit,
+      @RequestParam(defaultValue = "0") int offset) {
+    return MomentPageResponse.from(relationship.page(limit, offset));
   }
 
   @PostMapping("/moments")

@@ -584,6 +584,20 @@ export interface Moment {
   isPrivate: boolean;
 }
 
+/**
+ * A page of the timeline, plus what it is a page of.
+ *
+ * <p>`total` is every moment ever logged, not the size of this page. Without it the footer can
+ * offer an "older" button but cannot say whether pressing it does anything.
+ */
+export interface MomentPage {
+  items: Moment[];
+  total: number;
+  /** Snapped to a page boundary by the server, which is what makes "13-24 of 48" true. */
+  offset: number;
+  limit: number;
+}
+
 /** When something last happened. `daysSince` is null for never, which must not look like zero. */
 export interface Recency {
   kind: MomentKind;

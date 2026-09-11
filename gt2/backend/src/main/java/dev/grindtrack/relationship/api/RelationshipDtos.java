@@ -3,6 +3,7 @@ package dev.grindtrack.relationship.api;
 import dev.grindtrack.relationship.domain.Idea;
 import dev.grindtrack.relationship.domain.Moment;
 import dev.grindtrack.relationship.domain.Reading;
+import dev.grindtrack.relationship.service.RelationshipService;
 import dev.grindtrack.relationship.service.RelationshipSummary;
 import dev.grindtrack.relationship.service.RelationshipSummary.Closeness;
 import dev.grindtrack.relationship.service.RelationshipSummary.Recency;
@@ -69,6 +70,24 @@ public final class RelationshipDtos {
           m.getNote(),
           m.getFeltClose(),
           m.getKind().isPrivate());
+    }
+  }
+
+  /**
+   * One page of the timeline plus what it is a page of.
+   *
+   * <p>{@code total} is every moment ever logged. Without it the screen can offer an "older" button
+   * but cannot say whether pressing it does anything, and "12 of 48" is the difference between a
+   * list and a record you know the size of.
+   */
+  public record MomentPageResponse(List<MomentResponse> items, long total, int offset, int limit) {
+
+    public static MomentPageResponse from(RelationshipService.MomentPage page) {
+      return new MomentPageResponse(
+          page.items().stream().map(MomentResponse::from).toList(),
+          page.total(),
+          page.offset(),
+          page.limit());
     }
   }
 
