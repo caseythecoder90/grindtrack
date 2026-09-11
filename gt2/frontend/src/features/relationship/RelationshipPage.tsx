@@ -5,40 +5,68 @@ import { todayISO } from "../../lib/dates";
 import type { MomentKind, RelationshipSummary } from "../../lib/types";
 import ClosenessCard from "./ClosenessCard";
 import IdeasPanel from "./IdeasPanel";
+import LatelyPanel from "./LatelyPanel";
 import OccasionsPanel from "./OccasionsPanel";
 import ReadingPanel from "./ReadingPanel";
-import { daysAgo, inDays, MOMENT_KINDS, MOMENT_LABEL } from "./kinds";
+import { daysAgo, MOMENT_KINDS, MOMENT_LABEL } from "./kinds";
 import { useAppResume } from "../../lib/resume";
 
 /** Per-device, remembered locally. Laptops get opened on kitchen tables. */
 const DISCREET_KEY = "gt-us-discreet";
 
-function storedDiscreet(): boolean {
+/** Which drawer is open. Per-device too: it is a view preference, not data. */
+const DRAWER_KEY = "gt-us-drawer";
+
+type Drawer = "lately" | "ideas" | "occasions" | "reading";
+
+const DRAWERS: Drawer[] = ["lately", "ideas", "occasions", "reading"];
+
+function stored(key: string, fallback: string): string {
   try {
-    return localStorage.getItem(DISCREET_KEY) === "1";
+    return localStorage.getItem(key) ?? fallback;
   } catch {
-    return false;
+    return fallback;
+  }
+}
+
+function remember(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* a browser refusing storage should not break the page */
   }
 }
 
 /**
  * The us tab.
  *
- * <p>Recency first, because that is the question you arrive with. Then what is coming up, because
- * that is the part with a deadline. Ideas and reading last — they are for browsing, not glancing.
+ * <p>The answer first, because that is the question you arrive with: a sentence, then the dates
+ * behind it, then the three recencies as plain facts. Then one drawer at a time.
  *
- * <p>There are deliberately no streaks, no targets and no scores anywhere on this page. It exists
- * to settle a question, not to grade an answer.
+ * <p>Two things this deliberately is not. It is not a ledger — it used to borrow the finance tab's
+ * stat tiles and transaction tables, which rendered a feature whose whole point is reassurance as
+ * a set of accounts. And it is not seven sections stacked down one scroll, which is what you got
+ * before: everything below the fold was passed over on every visit, including the ideas that only
+ * earn their keep by resurfacing.
+ *
+ * <p>There are still no streaks, no targets and no scores anywhere on this page, and there must
+ * not be. It exists to settle a question, not to grade an answer.
  */
 export default function RelationshipPage() {
   const [summary, setSummary] = useState<RelationshipSummary | null>(null);
   const [error, setError] = useState("");
-  const [discreet, setDiscreet] = useState(storedDiscreet);
+  const [discreet, setDiscreet] = useState(() => stored(DISCREET_KEY, "0") === "1");
+  const [drawer, setDrawer] = useState<Drawer>(
+    () => (DRAWERS as string[]).includes(stored(DRAWER_KEY, "lately"))
+      ? (stored(DRAWER_KEY, "lately") as Drawer)
+      : "lately",
+  );
 
   const [kind, setKind] = useState<MomentKind>("DATE_NIGHT");
   const [date, setDate] = useState(todayISO());
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
+  const [logging, setLogging] = useState(false);
 
   const load = useCallback(async () => {
     setError("");
@@ -58,14 +86,14 @@ export default function RelationshipPage() {
 
   function toggleDiscreet() {
     setDiscreet((current) => {
-      const next = !current;
-      try {
-        localStorage.setItem(DISCREET_KEY, next ? "1" : "0");
-      } catch {
-        /* a browser refusing storage should not break the page */
-      }
-      return next;
+      remember(DISCREET_KEY, current ? "0" : "1");
+      return !current;
     });
+  }
+
+  function openDrawer(next: Drawer) {
+    setDrawer(next);
+    remember(DRAWER_KEY, next);
   }
 
   async function log() {
@@ -75,6 +103,8 @@ export default function RelationshipPage() {
       await logMoment({ occurredOn: date, kind, note, feltClose: null });
       setNote("");
       setDate(todayISO());
+      setLogging(false);
+      openDrawer("lately");
       load();
     } catch (e) {
       setError(errorMessage(e, "could not log that"));
@@ -91,27 +121,11 @@ export default function RelationshipPage() {
     );
   }
 
-  const visibleRecency = summary.recency.filter((r) => r.kind !== "INTIMACY");
-  const lately = discreet ? summary.lately.filter((m) => !m.isPrivate) : summary.lately;
+  const facts = summary.recency.filter((r) => r.kind !== "INTIMACY").slice(0, 3);
 
   return (
     <div className="us">
       {error && <p className="error">{error}</p>}
-
-      <div className="finance-top">
-        {visibleRecency.slice(0, 3).map((r) => (
-          <div className="stat" key={r.kind}>
-            <span className="k">last {MOMENT_LABEL[r.kind]}</span>
-            <span className="v">{daysAgo(r.daysSince)}</span>
-          </div>
-        ))}
-        {summary.upcoming.length > 0 && (
-          <div className="stat">
-            <span className="k">{summary.upcoming[0].label.toLowerCase()}</span>
-            <span className="v">{inDays(summary.upcoming[0].daysAway)}</span>
-          </div>
-        )}
-      </div>
 
       <ClosenessCard
         closeness={summary.closeness}
@@ -119,19 +133,40 @@ export default function RelationshipPage() {
         onToggleDiscreet={toggleDiscreet}
       />
 
-      <section>
-        <div className="section-head">
-          <h3>log something</h3>
-        </div>
-        <div className="account-form">
-          <select value={kind} onChange={(e) => setKind(e.target.value as MomentKind)}>
-            {MOMENT_KINDS.map((k) => (
-              <option key={k} value={k}>
-                {MOMENT_LABEL[k]}
-              </option>
-            ))}
-          </select>
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+      {/* Facts, not tiles. "6 days ago" is a thing that is true, and a KPI card around it is the
+          one piece of furniture this page must never wear. */}
+      <div className="facts">
+        {facts.map((r) => (
+          <div className="fact" key={r.kind}>
+            <span>{MOMENT_LABEL[r.kind]}</span>
+            <b className={r.daysSince !== null && r.daysSince > 21 ? "far" : undefined}>
+              {daysAgo(r.daysSince)}
+            </b>
+          </div>
+        ))}
+      </div>
+
+      {logging ? (
+        <section className="logform">
+          <div className="row3">
+            <select
+              value={kind}
+              aria-label="what happened"
+              onChange={(e) => setKind(e.target.value as MomentKind)}
+            >
+              {MOMENT_KINDS.map((k) => (
+                <option key={k} value={k}>
+                  {MOMENT_LABEL[k]}
+                </option>
+              ))}
+            </select>
+            <input
+              type="date"
+              value={date}
+              aria-label="when"
+              onChange={(e) => setDate(e.target.value)}
+            />
+          </div>
           <input
             placeholder="note (optional)"
             value={note}
@@ -140,90 +175,47 @@ export default function RelationshipPage() {
               if (e.key === "Enter") log();
             }}
           />
-          <button type="button" className="primary" disabled={saving} onClick={log}>
-            {saving ? "…" : "log it"}
-          </button>
-        </div>
-        <p className="muted small">
-          Backdating is fine — most of these get remembered the next morning.
-        </p>
-      </section>
-
-      {summary.upcoming.length > 0 && (
-        <section>
-          <div className="section-head">
-            <h3>coming up</h3>
-          </div>
-          <table className="txn-table">
-            <tbody>
-              {summary.upcoming.map((u) => (
-                <tr key={u.id}>
-                  <td>
-                    {u.label}
-                    <div className="muted small">
-                      {u.on} · {inDays(u.daysAway)}
-                      {u.ideaCount > 0
-                        ? ` · ${u.ideaCount} idea${u.ideaCount === 1 ? "" : "s"} ready`
-                        : " · nothing saved yet"}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
-      )}
-
-      {summary.readyIdeas.length > 0 && (
-        <section>
-          <div className="section-head">
-            <h3>ready to go</h3>
+          <div className="logactions">
+            <button type="button" onClick={() => setLogging(false)}>
+              cancel
+            </button>
+            <button type="button" className="primary" disabled={saving} onClick={log}>
+              {saving ? "…" : "log it"}
+            </button>
           </div>
           <p className="muted small">
-            Easiest first. These are your own ideas from a day when you had them.
+            Backdating is fine — most of these get remembered the next morning.
           </p>
-          <table className="txn-table">
-            <tbody>
-              {summary.readyIdeas.slice(0, 5).map((i) => (
-                <tr key={i.id}>
-                  <td>
-                    {i.title}
-                    <div className="muted small">
-                      {i.kind.toLowerCase()}
-                      {i.occasion && ` · ${i.occasion}`}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </section>
+      ) : (
+        <button type="button" className="logbutton" onClick={() => setLogging(true)}>
+          log a moment
+        </button>
       )}
 
-      {lately.length > 0 && (
-        <section>
-          <div className="section-head">
-            <h3>lately</h3>
-          </div>
-          <table className="txn-table">
-            <tbody>
-              {lately.map((m) => (
-                <tr key={m.id}>
-                  <td className="muted small">{m.occurredOn.slice(5)}</td>
-                  <td>
-                    <span className="tag">{MOMENT_LABEL[m.kind]}</span>
-                    {m.note && ` ${m.note}`}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
-      )}
+      <nav className="drawers" aria-label="What to show">
+        {DRAWERS.map((d) => (
+          <button
+            key={d}
+            type="button"
+            className={"chip" + (drawer === d ? " active" : "")}
+            aria-pressed={drawer === d}
+            onClick={() => openDrawer(d)}
+          >
+            {d}
+            {d === "ideas" && summary.readyIdeas.length > 0 && (
+              <b>{summary.readyIdeas.length}</b>
+            )}
+          </button>
+        ))}
+      </nav>
 
-      <OccasionsPanel />
-      <IdeasPanel onChange={load} />
-      <ReadingPanel onChange={load} />
+      {drawer === "lately" && (
+        <LatelyPanel upcoming={summary.upcoming} discreet={discreet} onChange={load} />
+      )}
+      {drawer === "ideas" && <IdeasPanel onChange={load} />}
+      {drawer === "occasions" && <OccasionsPanel />}
+      {drawer === "reading" && <ReadingPanel onChange={load} />}
     </div>
   );
 }

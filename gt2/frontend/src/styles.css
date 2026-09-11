@@ -534,8 +534,12 @@ h4 { font-size: var(--fs-small); font-weight: 600; color: var(--muted); margin: 
 
 .closeness { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--us);
   border-radius: 8px; padding: 14px 16px; margin: 14px 0; }
-/* Three tones, and deliberately no red one. This card never reports a failure. */
-.closeness.tone-calm { border-left-color: var(--study); }
+/* Three tones, and deliberately no red one. This card never reports a failure.
+   All three live in the rose family. CALM used to borrow --study green, which broke the app's
+   one hard colour rule — green and violet encode data everywhere else, so a green rule here
+   reads as a series where there is none — and it made "everything is fine" the loudest of the
+   three. Quietest to loudest is the right order: calm needs no attention, suggest is the nudge. */
+.closeness.tone-calm { border-left-color: rgba(232, 143, 176, 0.4); }
 .closeness.tone-neutral { border-left-color: var(--line); }
 .closeness.tone-suggest { border-left-color: var(--us); }
 .closeness.hidden { display: flex; align-items: center; justify-content: space-between;
@@ -545,6 +549,107 @@ h4 { font-size: var(--fs-small); font-weight: 600; color: var(--muted); margin: 
 .closeness .detail { margin: 6px 0 0; color: var(--muted); font-size: var(--fs-small); line-height: 1.5; }
 .closeness .recent { margin: 8px 0 0; font-family: var(--mono); font-size: 12px; color: var(--text); }
 .closeness .muted.small { margin: 6px 0 0; }
+
+/* The answer card leads, so it does not need the top margin every other panel has. */
+.us > .closeness:first-child { margin-top: 0; }
+
+/* --- facts, not tiles ---
+   "6 days ago" is a thing that is true. A KPI card around it is the one piece of furniture this
+   page must never wear: the feature exists to settle a question, and a tile invites a verdict. */
+.facts { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  padding: 2px 15px; margin-bottom: 12px; }
+.fact { display: flex; align-items: baseline; justify-content: space-between; gap: 16px;
+  padding: 10px 0; border-bottom: 1px solid var(--line2); }
+.fact:last-child { border-bottom: 0; }
+.fact > span { font-size: var(--fs-body); }
+.fact > b { font-family: var(--mono); font-size: var(--fs-small); font-weight: 400; }
+/* Muted, never red. A long gap is worth seeing and is not a failure state. */
+.fact > b.far { color: var(--muted); }
+
+.logbutton { display: block; width: 100%; min-height: 44px; margin-bottom: 12px;
+  color: var(--us); border-color: rgba(232, 143, 176, 0.3); background: rgba(232, 143, 176, 0.09); }
+.logbutton:hover { border-color: var(--us); }
+.logform { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  padding: 14px 15px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px; }
+.logform .logactions { display: flex; justify-content: flex-end; gap: 8px; }
+.logform .logactions button { min-height: 40px; }
+.logform .muted.small { margin: 0; }
+
+/* --- drawers ---
+   One at a time. This page used to stack seven sections down one scroll, so everything below the
+   fold was passed over every visit -- including the ideas, which only earn their keep by
+   resurfacing on an ordinary evening. */
+.drawers { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; margin-bottom: 12px;
+  scrollbar-width: none; }
+.drawers::-webkit-scrollbar { display: none; }
+.drawers .chip { min-height: 36px; white-space: nowrap; display: inline-flex; align-items: center;
+  gap: 6px; }
+.drawers .chip.active { border-color: var(--us); color: var(--us);
+  background: rgba(232, 143, 176, 0.12); }
+.drawers .chip b { font-weight: 400; color: var(--muted); }
+
+/* --- the thread ---
+   One rail. What is coming sits above today on the same line as what happened, because an
+   anniversary in 34 days and a date night 6 days ago are the same kind of thing. */
+.thread { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  padding: 14px 16px 0; }
+.thread .error { margin: 0 0 10px; }
+.rail { position: relative; padding-left: 26px; }
+.rail::before { content: ""; position: absolute; left: 5px; top: 6px; bottom: 6px; width: 1px;
+  background: var(--line); }
+.node { position: relative; margin: 0 -8px; padding: 9px 8px; border-radius: 8px;
+  display: flex; flex-wrap: wrap; align-items: flex-start; column-gap: 8px; }
+/* Every node carries the same offset so every dot lands on the line; a node that sets its own
+   margin puts its dot somewhere else, which reads as a rendering fault rather than a highlight. */
+.node::before { content: ""; position: absolute; left: -17px; top: 16px; width: 9px; height: 9px;
+  border-radius: 50%; background: var(--panel); border: 1px solid var(--line); }
+.node.us::before { background: var(--us); border-color: var(--us); }
+.node.ahead::before { background: var(--bg); border-color: var(--muted); }
+.node .when { flex: 1 1 100%; font-family: var(--mono); font-size: 11px; color: var(--muted);
+  letter-spacing: 0.04em; }
+.node .what { flex: 1; min-width: 0; font-size: 14.5px; margin-top: 1px; }
+.node .what .kindtag { font-family: var(--mono); font-size: 10px; letter-spacing: 0.06em;
+  color: var(--us); border: 1px solid rgba(232, 143, 176, 0.3); border-radius: 4px;
+  padding: 1px 6px; background: rgba(232, 143, 176, 0.09); margin-left: 7px; white-space: nowrap; }
+.node .what .soft { color: var(--muted); font-size: var(--fs-small); margin-left: 7px; }
+.node .empty { flex: 1 1 100%; }
+
+.rowdelete { display: flex; align-items: center; justify-content: center; min-width: 44px;
+  min-height: 44px; margin: -9px -8px -9px 0; padding: 0; border: none; background: none;
+  color: var(--muted); flex: none; }
+.rowdelete:hover { color: var(--red); border: none; }
+/* A mouse gets it on hover; a thumb has no hover, so it is always there on a touch screen. */
+@media (hover: hover) and (pointer: fine) {
+  .rowdelete { opacity: 0; transition: opacity 0.12s; }
+  .node:hover .rowdelete, .rowdelete:focus-visible { opacity: 1; }
+}
+
+/* Confirming happens in the row. A dialog covers the thing you are deciding about, and on a
+   timeline of near-identical entries the one you can still see is the only way to be sure. */
+.node.confirming { background: rgba(255, 77, 77, 0.06); }
+.node .confirm { flex: 1 1 100%; display: flex; align-items: center; gap: 8px; margin-top: 9px; }
+.node .confirm > span { flex: 1; font-family: var(--mono); font-size: 12px; color: var(--red); }
+.node .confirm button { min-height: 36px; }
+.node .confirm button.danger { color: var(--red); border-color: rgba(255, 77, 77, 0.4); }
+/* On a wide screen the question and its two answers would otherwise sit 900px apart. Keep the
+   cluster together and near the right edge, which is where the cursor already is — it just
+   came off the delete icon on that row. */
+@media (hover: hover) and (pointer: fine) {
+  .node .confirm { max-width: 420px; margin-left: auto; }
+}
+
+.today-rule { display: flex; align-items: center; gap: 10px; margin: 6px 0 2px; }
+.today-rule > span { flex: 1; height: 1px; background: var(--line2); }
+.today-rule > em { font-family: var(--mono); font-size: 10px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--muted); font-style: normal; }
+
+.pager { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  border-top: 1px solid var(--line2); margin: 6px -16px 0; padding: 10px 16px; }
+.pager .count { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+.pager > div { display: flex; gap: 6px; }
+.pager button { min-height: 38px; }
+.pager button:disabled { opacity: 0.4; cursor: default; }
+.pager button:disabled:hover { border-color: var(--line); }
 
 .us .section-head > div { display: flex; gap: 8px; align-items: center; }
 .ideas-table td:first-child, .reading-table td:first-child { line-height: 1.4; }
@@ -725,6 +830,13 @@ h4 { font-size: var(--fs-small); font-weight: 600; color: var(--muted); margin: 
   /* Icon-weight buttons (the × on a row) are the hardest things in the app to
      hit today at 25×24. Square them off. */
   button.ghost { min-width: 44px; padding: 10px; }
+
+  /* The us tab sets tighter heights for a mouse — a 44px drawer chip is a lot of
+     furniture on a wide screen. Those are more specific than the rule above, so
+     they win by accident unless the floor is restated here for them. */
+  .drawers .chip, .pager button, .node .confirm button, .logform .logactions button {
+    min-height: 44px;
+  }
 
   /* The reason this control exists. A stepper button is the whole interaction on a
      phone, so it gets the floor in both directions rather than just the height. */

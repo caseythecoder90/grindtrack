@@ -1,12 +1,29 @@
 /** Every relationship URL. See financeApi.ts for why these modules exist. */
 import { api, jsonInit } from "../../lib/api";
-import type { Idea, ReadingItem, RelationshipSummary, Upcoming } from "../../lib/types";
+import type {
+  Idea,
+  MomentPage,
+  ReadingItem,
+  RelationshipSummary,
+  Upcoming,
+} from "../../lib/types";
 
 const BASE = "/api/relationship";
 
 export const getSummary = () => api<RelationshipSummary>(`${BASE}/summary`);
 
 export const logMoment = (body: unknown) => api(`${BASE}/moments`, jsonInit("POST", body));
+
+/**
+ * A page of the timeline. The summary's `lately` stays the glance; this is reading back.
+ *
+ * <p>`offset` comes back snapped to a page boundary, so the caller should take the server's word
+ * for where it is rather than tracking its own.
+ */
+export const getMoments = (limit: number, offset: number) =>
+  api<MomentPage>(`${BASE}/moments?limit=${limit}&offset=${offset}`);
+
+export const deleteMoment = (id: number) => api(`${BASE}/moments/${id}`, { method: "DELETE" });
 
 // -------------------------------------------------------------------- ideas
 

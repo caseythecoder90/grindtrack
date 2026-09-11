@@ -160,8 +160,16 @@ rather than refetching the same payload on every tab switch.
 
 `App` holds a `Scope` in state, persisted to `localStorage` under `gt-scope`, and passes it to
 `StatBar`, `Heatmap`, and `StatsPage`. Because the backend returns all three scopes in one payload,
-switching is purely local — no refetch. Weekly targets live in `TARGETS` (`types.ts`): study 20,
-work 40, combined 60.
+switching is purely local — no refetch. Weekly targets live in `TARGETS` (`types.ts`) and nowhere
+else on this side: **study 15, work 28, combined 43**. The header reads them from there rather than
+writing them out.
+
+Both are deliberately below the workbook's aspiration. Work is 28 rather than 40 because 40 is
+hours *at* work — lunch and about an hour a day of meetings put the focused ceiling near 30, and a
+ceiling is not a target. A goal missed every single week stops being information, which on screens
+built to put an actual next to its target makes every number beside it worse. They must match
+`ContextService.STUDY_TARGET_HOURS` / `WORK_TARGET_HOURS`, which is what the assistant reasons
+against — see [assistant.md](assistant.md).
 
 Two rules the components follow:
 

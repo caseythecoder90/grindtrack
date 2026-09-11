@@ -20,6 +20,7 @@ import WorkPage from "./features/work/WorkPage";
 import { AuthError, errorMessage } from "./lib/api";
 import { useAppResume } from "./lib/resume";
 import { TABS, type Tab } from "./lib/tabs";
+import { TARGETS } from "./lib/types";
 import type { Scope, Stats } from "./lib/types";
 
 type View = "landing" | "login" | "app";
@@ -129,7 +130,11 @@ export default function App() {
     <div className="wrap">
       <header>
         <div className="brand"><b>grindtrack</b> // 5-year plan<span className="cursor">_</span></div>
-        <div className="sub">jul 2026 → jun 2031 · 20 h/wk study · 40 h/wk work</div>
+        {/* Read from TARGETS rather than written out: the same two numbers used to live in six
+            literals across two languages, which is how a target and the bar under it drift apart. */}
+        <div className="sub">
+          jul 2026 → jun 2031 · {TARGETS.study} h/wk study · {TARGETS.work} h/wk work
+        </div>
         <div className="spacer" />
         {view === "app" && (
           <>

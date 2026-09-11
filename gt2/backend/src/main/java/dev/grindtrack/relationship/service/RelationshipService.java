@@ -27,6 +27,8 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import org.springframework.data.domain.Limit;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -53,6 +55,9 @@ public class RelationshipService {
    * against anyone else's average is a verdict rather than context.
    */
   private static final int BASELINE_DAYS = 180;
+
+  /** The most rows one request may ask for. A page is for reading, not for scraping. */
+  private static final int MAX_PAGE = 100;
 
   /** A month, for the "how many times lately" figure. */
   private static final int RECENT_WINDOW_DAYS = 30;
@@ -309,6 +314,33 @@ public class RelationshipService {
         .limit(Math.max(1, limit))
         .toList();
   }
+
+  /**
+   * A page of the timeline, newest first, with the total beside it.
+   *
+   * <p>The summary's {@code lately} is a fixed preview and always will be — it is the glance. This
+   * is the other thing: reading back. A timeline you cannot page through is a diary with the old
+   * pages glued shut, and the total is what lets the screen say "12 of 48" rather than offering an
+   * "older" button that might do nothing.
+   *
+   * <p>An offset past the end is an empty page, not an error: it is what a stale tab does after
+   * something is deleted, and a 400 there would be a worse answer than no rows.
+   */
+  @Transactional(readOnly = true)
+  public MomentPage page(int limit, int offset) {
+    int size = Math.clamp(limit, 1, MAX_PAGE);
+    // Offsets snap to a page boundary, and the SNAPPED one is what comes back. Reporting the
+    // requested offset while returning the page it fell inside is how a footer ends up saying
+    // "5-16 of 48" over rows 1-12.
+    int page = Math.max(0, offset) / size;
+    Page<Moment> found = moments.findAllByOrderByOccurredOnDescIdDesc(PageRequest.of(page, size));
+    return new MomentPage(found.getContent(), found.getTotalElements(), page * size, size);
+  }
+
+  /**
+   * @param total every moment ever logged, not the size of this page
+   */
+  public record MomentPage(List<Moment> items, long total, int offset, int limit) {}
 
   @Transactional
   public Moment log(LocalDate occurredOn, MomentKind kind, String note, Short feltClose) {
