@@ -16,6 +16,9 @@ import dev.grindtrack.assistant.service.ChatModel;
 import dev.grindtrack.assistant.service.ChatService;
 import dev.grindtrack.web.ApiExceptionHandler;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -33,16 +36,26 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 class ChatControllerTest {
 
   private ChatService chat;
+  private ScheduledExecutorService heartbeats;
   private MockMvc mvc;
 
   @BeforeEach
   void setUp() {
     chat = mock(ChatService.class);
     Executor sameThread = Runnable::run;
+    // A real scheduler: the heartbeat must be cancellable and must not outlive the turn, and a
+    // mock would assert that by construction rather than exercise it.
+    heartbeats = Executors.newSingleThreadScheduledExecutor();
     mvc =
-        MockMvcBuilders.standaloneSetup(new ChatController(chat, new ObjectMapper(), sameThread))
+        MockMvcBuilders.standaloneSetup(
+                new ChatController(chat, new ObjectMapper(), sameThread, heartbeats))
             .setControllerAdvice(new ApiExceptionHandler())
             .build();
+  }
+
+  @AfterEach
+  void tearDown() {
+    heartbeats.shutdownNow();
   }
 
   private String streamed(String question) throws Exception {

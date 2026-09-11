@@ -270,4 +270,24 @@ class ChatServiceTest {
     verify(messages, times(2)).save(saved.capture());
     assertThat(saved.getAllValues().get(1).getProposedWeekStart()).isNull();
   }
+
+  /**
+   * The last lock on the door: nothing a model produced may fail a turn at the point of writing it
+   * down. By then the answer has been streamed and read, so losing the card is a disappointment and
+   * losing the turn is a bug the person cannot work around.
+   */
+  @Test
+  void anUnparseableProposedWeekLosesTheCardAndNotTheTurn() {
+    when(model.configured()).thenReturn(true);
+    when(conversations.save(any())).thenAnswer(inv -> inv.getArgument(0));
+    when(model.reply(anyString(), any(), anyString(), any()))
+        .thenReturn(new ChatModel.Reply("here is your week", 300, 400, 0, 0, "next monday"));
+
+    ChatService.ChatReply reply = service.chat(null, "plan next week");
+
+    assertThat(reply.reply()).isEqualTo("here is your week");
+    ArgumentCaptor<AssistantMessage> saved = ArgumentCaptor.forClass(AssistantMessage.class);
+    verify(messages, times(2)).save(saved.capture());
+    assertThat(saved.getAllValues().get(1).getProposedWeekStart()).isNull();
+  }
 }

@@ -5,6 +5,7 @@ import dev.grindtrack.assistant.service.ChatModel;
 import dev.grindtrack.assistant.service.ChatService;
 import java.util.List;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -40,14 +41,17 @@ public class ChatController {
   private final ChatService chat;
   private final ObjectMapper mapper;
   private final Executor executor;
+  private final ScheduledExecutorService heartbeats;
 
   public ChatController(
       ChatService chat,
       ObjectMapper mapper,
-      @Qualifier("assistantTurnExecutor") Executor executor) {
+      @Qualifier("assistantTurnExecutor") Executor executor,
+      ScheduledExecutorService heartbeats) {
     this.chat = chat;
     this.mapper = mapper;
     this.executor = executor;
+    this.heartbeats = heartbeats;
   }
 
   /** One turn. Takes ten to thirty seconds; the client should say so rather than spin silently. */
@@ -73,6 +77,8 @@ public class ChatController {
   public ResponseEntity<SseEmitter> stream(@RequestBody ChatRequest body) {
     SseEmitter emitter = new SseEmitter(TURN_TIMEOUT_MS);
     ChatStream events = new ChatStream(emitter, mapper);
+    // Before the work starts, because the first silence can begin immediately.
+    events.beat(heartbeats);
     executor.execute(
         () -> {
           try {

@@ -19,10 +19,15 @@ import com.anthropic.models.messages.TextBlockParam;
 import com.anthropic.models.messages.Tool;
 import com.anthropic.models.messages.ToolResultBlockParam;
 import com.anthropic.models.messages.ToolUseBlock;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.grindtrack.assistant.domain.AssistantMessage;
 import dev.grindtrack.config.AssistantProperties;
 import dev.grindtrack.web.UpstreamException;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -94,6 +99,9 @@ public class AnthropicChatModel implements ChatModel {
       and point at the tab that can.
       """;
 
+  /** Only ever reads a tool result this class just produced, so it needs no configuration. */
+  private static final ObjectMapper MAPPER = new ObjectMapper();
+
   private final AssistantProperties props;
   private final AssistantToolExecutor executor;
   private final AnthropicClient client;
@@ -154,11 +162,11 @@ public class AnthropicChatModel implements ChatModel {
               proposedWeekStart);
         }
         messages.add(response.toParam());
-        String proposed = proposedWeek(response);
-        if (proposed != null) {
-          proposedWeekStart = proposed;
+        Round executed = runTools(response);
+        if (executed.proposedWeekStart() != null) {
+          proposedWeekStart = executed.proposedWeekStart();
         }
-        messages.add(toolResults(response));
+        messages.add(executed.results());
       }
     } catch (AnthropicServiceException e) {
       throw new UpstreamException("the model call failed (" + e.statusCode() + ") — try again", e);
@@ -233,42 +241,58 @@ public class AnthropicChatModel implements ChatModel {
   }
 
   /**
-   * The week this round drafted, or null.
+   * Every tool call of the round, executed, answered in one user message — order preserved.
    *
-   * <p>Read from the call the model made rather than from the answer it wrote, because the answer
-   * is prose: a reply that mentions "next week" is not evidence that anything was drafted, and a
-   * card pointing at a draft that does not exist is worse than no card.
+   * <p>Also reports any week that was actually drafted, and "actually" is the whole point. This
+   * used to read the week out of the model's <em>request</em>, which records a draft that does not
+   * exist whenever the call was refused — and a refusal is not rare, since the model has to work
+   * out which day is a Monday. The turn then died on the stored week long after its answer had been
+   * streamed, which is about the worst moment available to fail in.
+   *
+   * <p>The result is the evidence, because only a call that produced a draft answers with one.
    */
-  private static String proposedWeek(Message response) {
-    return response.content().stream()
-        .flatMap(block -> block.toolUse().stream())
-        .filter(use -> "propose_week".equals(use.name()))
-        .map(use -> args(use).get("weekStart"))
-        .filter(week -> week != null)
-        .reduce((first, last) -> last)
-        .orElse(null);
+  private Round runTools(Message response) {
+    List<ContentBlockParam> results = new ArrayList<>();
+    String proposedWeekStart = null;
+    for (ContentBlock block : response.content()) {
+      ToolUseBlock use = block.toolUse().orElse(null);
+      if (use == null) {
+        continue;
+      }
+      String result = executor.execute(use.name(), args(use));
+      if ("propose_week".equals(use.name())) {
+        String drafted = draftedWeek(result);
+        if (drafted != null) {
+          proposedWeekStart = drafted;
+        }
+      }
+      results.add(
+          ContentBlockParam.ofToolResult(
+              ToolResultBlockParam.builder().toolUseId(use.id()).content(result).build()));
+    }
+    return new Round(
+        MessageParam.builder().role(MessageParam.Role.USER).contentOfBlockParams(results).build(),
+        proposedWeekStart);
   }
 
-  /** Every tool call of the round, executed, answered in one user message — order preserved. */
-  private MessageParam toolResults(Message response) {
-    List<ContentBlockParam> results = new ArrayList<>();
-    for (ContentBlock block : response.content()) {
-      block
-          .toolUse()
-          .ifPresent(
-              use ->
-                  results.add(
-                      ContentBlockParam.ofToolResult(
-                          ToolResultBlockParam.builder()
-                              .toolUseId(use.id())
-                              .content(executor.execute(use.name(), args(use)))
-                              .build())));
+  /**
+   * The week a {@code propose_week} result says it drafted, or null.
+   *
+   * <p>A refusal is a sentence, not JSON, so it does not parse and nothing is recorded — which is
+   * exactly the distinction being drawn. Anything unparseable is treated as "no draft" rather than
+   * as an error: this runs inside a turn whose answer is already on its way to a person.
+   */
+  static String draftedWeek(String toolResult) {
+    try {
+      JsonNode node = MAPPER.readTree(toolResult).get("weekStart");
+      return node == null || !node.isTextual() ? null : LocalDate.parse(node.asText()).toString();
+    } catch (JsonProcessingException | DateTimeParseException e) {
+      return null;
     }
-    return MessageParam.builder()
-        .role(MessageParam.Role.USER)
-        .contentOfBlockParams(results)
-        .build();
   }
+
+  /** One round's tool results, and the week they drafted if they drafted one. */
+  private record Round(MessageParam results, String proposedWeekStart) {}
 
   /** Tool inputs arrive as JSON; parse, never string-match — escaping varies by model. */
   private static Map<String, String> args(ToolUseBlock use) {
