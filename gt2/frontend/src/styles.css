@@ -911,3 +911,17 @@ h4 { font-size: var(--fs-small); font-weight: 600; color: var(--muted); margin: 
 /* A queued write, which is neither an error nor a success. Amber rather than red: the
    session is safe, it just is not on the server yet, and red would say it was lost. */
 .pending-note { font-family: var(--mono); font-size: 12px; color: var(--yellow); }
+
+/* --- the assistant's draft on the week tab ---------------------------------
+   Visibly not the review: its own bordered card above the form, in the muted
+   palette, with the model and the cost printed on it. The form below stays the
+   only thing that saves — "Use as my review" copies these fields into it and
+   the person edits and saves as always. */
+.ai-draft { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 18px; background: var(--panel2); }
+.ai-draft-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.ai-draft-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.ai-draft-kicker { font-family: var(--mono); font-size: var(--fs-label); letter-spacing: 0.1em; text-transform: uppercase; color: var(--cyan); }
+.ai-draft-body { font-size: 13px; display: flex; flex-direction: column; gap: 6px; }
+.ai-draft-body p { margin: 0; }
+.ai-draft-body b { color: var(--muted); font-weight: 600; margin-right: 6px; }
+.ai-draft-cost { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 10px; }
