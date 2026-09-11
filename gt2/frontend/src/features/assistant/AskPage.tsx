@@ -5,6 +5,7 @@ import {
   getConversation,
   listConversations,
   sendChat,
+  type AssistantStatus,
   type ChatTurn,
   type ConversationSummary,
 } from "./assistantApi";
@@ -21,6 +22,7 @@ import {
  * broken.
  */
 export default function AskPage() {
+  const [status, setStatus] = useState<AssistantStatus | null>(null);
   const [configured, setConfigured] = useState<boolean | null>(null);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [conversationId, setConversationId] = useState<number | null>(null);
@@ -41,7 +43,10 @@ export default function AskPage() {
 
   useEffect(() => {
     getAssistantStatus()
-      .then((s) => setConfigured(s.configured))
+      .then((s) => {
+        setStatus(s);
+        setConfigured(s.configured);
+      })
       .catch(() => setConfigured(false));
     refreshList();
   }, [refreshList]);
@@ -76,6 +81,7 @@ export default function AskPage() {
       // and a reload must show the same thing this does.
       setTurns(await getConversation(reply.conversationId));
       refreshList();
+      getAssistantStatus().then(setStatus).catch(() => {});
     } catch (e) {
       setError(errorMessage(e, "the assistant could not answer"));
       setDraft(message); // hand the question back rather than losing it
@@ -162,6 +168,15 @@ export default function AskPage() {
           {pending ? "thinking…" : "Ask"}
         </button>
       </div>
+
+      {status && (
+        <p className="askbill">
+          ${status.costThisMonthUsd.toFixed(2)} this month
+          {status.cacheSavingUsd > 0 && (
+            <> · caching saved ${status.cacheSavingUsd.toFixed(2)}</>
+          )}
+        </p>
+      )}
     </div>
   );
 }

@@ -41,6 +41,12 @@ public class WeeklyReviewService {
 
   private static final double OUTPUT_USD_PER_MTOK = 25.00;
 
+  /** Five-minute-TTL cache write, as a multiple of the base input rate. */
+  private static final double CACHE_WRITE_MULTIPLIER = 1.25;
+
+  /** Cache read, as a multiple of the base input rate — the whole point of caching. */
+  private static final double CACHE_READ_MULTIPLIER = 0.1;
+
   private final ContextService contextService;
   private final ReviewModel model;
   private final AssistantReportRepository reports;
@@ -118,7 +124,20 @@ public class WeeklyReviewService {
     long out =
         thisMonth.stream().mapToLong(AssistantReport::getOutputTokens).sum()
             + chat.stream().mapToLong(AssistantMessage::getOutputTokens).sum();
-    return new Status(model.configured(), props.model(), thisMonth.size(), in, out, cost(in, out));
+    // Only chat caches — a review is one call a week with nothing to reuse, so a breakpoint there
+    // would buy a write premium and never a read.
+    long cacheWrite = chat.stream().mapToLong(AssistantMessage::getCacheWriteTokens).sum();
+    long cacheRead = chat.stream().mapToLong(AssistantMessage::getCacheReadTokens).sum();
+    return new Status(
+        model.configured(),
+        props.model(),
+        thisMonth.size(),
+        in,
+        out,
+        cacheWrite,
+        cacheRead,
+        cost(in, out, cacheWrite, cacheRead),
+        cacheSaving(cacheWrite, cacheRead));
   }
 
   private void requireOn() {
@@ -129,10 +148,41 @@ public class WeeklyReviewService {
   }
 
   private static double cost(long inputTokens, long outputTokens) {
+    return cost(inputTokens, outputTokens, 0, 0);
+  }
+
+  /**
+   * What it actually cost, cached tokens priced as cached tokens.
+   *
+   * <p>The API reports cache writes and reads in their own fields and leaves them out of {@code
+   * inputTokens}, so ignoring them here would not merely lose the saving — it would report a month
+   * as cheaper than the invoice says. A write is 1.25x the base input rate, a read 0.1x.
+   */
+  private static double cost(
+      long inputTokens, long outputTokens, long cacheWriteTokens, long cacheReadTokens) {
     double dollars =
         inputTokens / 1_000_000.0 * INPUT_USD_PER_MTOK
+            + cacheWriteTokens / 1_000_000.0 * INPUT_USD_PER_MTOK * CACHE_WRITE_MULTIPLIER
+            + cacheReadTokens / 1_000_000.0 * INPUT_USD_PER_MTOK * CACHE_READ_MULTIPLIER
             + outputTokens / 1_000_000.0 * OUTPUT_USD_PER_MTOK;
     return Math.round(dollars * 10_000.0) / 10_000.0; // four decimal places: cents matter here
+  }
+
+  /**
+   * What caching is worth this month, net — and it can be negative.
+   *
+   * <p>A read saves 0.9x the base rate on a token that would otherwise have been billed in full; a
+   * write costs 0.25x extra on a token that may never be read back. Reporting only the reads would
+   * flatter the feature. A negative number here means the turns are too short or too far apart for
+   * the prefix to be reused, and the breakpoints should come out.
+   */
+  private static double cacheSaving(long cacheWriteTokens, long cacheReadTokens) {
+    double dollars =
+        (cacheReadTokens * (1 - CACHE_READ_MULTIPLIER)
+                - cacheWriteTokens * (CACHE_WRITE_MULTIPLIER - 1))
+            / 1_000_000.0
+            * INPUT_USD_PER_MTOK;
+    return Math.round(dollars * 10_000.0) / 10_000.0;
   }
 
   private String toJson(Object value) {
@@ -179,5 +229,8 @@ public class WeeklyReviewService {
       int reportsThisMonth,
       long inputTokens,
       long outputTokens,
-      double costThisMonthUsd) {}
+      long cacheWriteTokens,
+      long cacheReadTokens,
+      double costThisMonthUsd,
+      double cacheSavingUsd) {}
 }

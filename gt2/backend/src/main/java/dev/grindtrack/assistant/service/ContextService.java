@@ -25,7 +25,6 @@ import dev.grindtrack.work.service.WorkService;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDate;
-import java.time.OffsetDateTime;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -103,7 +102,6 @@ public class ContextService {
     double planned = plannedStudyHours(thisWeek);
 
     return new AssistantContext(
-        OffsetDateTime.now().toString(),
         today.toString(),
         currentQuarter(today),
         new Week(

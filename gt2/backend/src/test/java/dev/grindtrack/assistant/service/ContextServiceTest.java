@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.grindtrack.calendar.domain.CalendarEvent;
 import dev.grindtrack.calendar.domain.EventKind;
 import dev.grindtrack.calendar.service.CalendarService;
@@ -140,5 +141,22 @@ class ContextServiceTest {
     var week = service.build(TODAY).week();
     assertThat(week.studyTarget()).isEqualTo(20);
     assertThat(week.workTarget()).isEqualTo(40);
+  }
+
+  /**
+   * The context sits inside the chat's cached prompt prefix, and a prefix is matched on exact
+   * bytes. One clock reading, one unordered map, one re-sorted list and the cache stops hitting —
+   * silently, with the only symptom a bigger bill. This is the guard on that, and it is the reason
+   * {@link AssistantContext} carries no assembled-at timestamp.
+   */
+  @Test
+  void theSameDayBuildsByteIdenticalJson() throws Exception {
+    ObjectMapper mapper = new ObjectMapper();
+
+    String first = mapper.writeValueAsString(service.build(TODAY));
+    String second = mapper.writeValueAsString(service.build(TODAY));
+
+    assertThat(second).isEqualTo(first);
+    assertThat(first).doesNotContain("generatedAt");
   }
 }

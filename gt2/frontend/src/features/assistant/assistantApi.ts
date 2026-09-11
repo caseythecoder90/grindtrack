@@ -25,7 +25,13 @@ export interface AssistantStatus {
   reportsThisMonth: number;
   inputTokens: number;
   outputTokens: number;
+  /** Input tokens written to the prompt cache, billed at 1.25x — chat only. */
+  cacheWriteTokens: number;
+  /** Input tokens served from the prompt cache, billed at 0.1x. */
+  cacheReadTokens: number;
   costThisMonthUsd: number;
+  /** Reads saved minus writes paid for. Negative means caching is costing money. */
+  cacheSavingUsd: number;
 }
 
 const BASE = "/api/assistant";

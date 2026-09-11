@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -45,7 +46,7 @@ class ChatServiceTest {
   private void modelAnswers() {
     when(model.configured()).thenReturn(true);
     when(model.reply(anyString(), any(), anyString()))
-        .thenReturn(new ChatModel.Reply("the answer", 3000, 400));
+        .thenReturn(new ChatModel.Reply("the answer", 3000, 400, 0, 0));
     when(conversations.save(any())).thenAnswer(inv -> inv.getArgument(0));
   }
 
@@ -105,7 +106,7 @@ class ChatServiceTest {
     when(messages.findByConversationIdOrderByIdAsc(any()))
         .thenReturn(
             IntStream.range(0, 40)
-                .mapToObj(i -> new AssistantMessage(7L, "user", "turn " + i, 0, 0))
+                .mapToObj(i -> AssistantMessage.userTurn(7L, "turn " + i))
                 .toList());
 
     service.chat(7L, "and now?");
@@ -123,5 +124,26 @@ class ChatServiceTest {
     when(conversations.findById(99L)).thenReturn(Optional.empty());
 
     assertThatThrownBy(() -> service.chat(99L, "hi")).isInstanceOf(NoSuchElementException.class);
+  }
+
+  /** What the cache cost and what it saved is per-turn data; losing it loses the month's bill. */
+  @Test
+  void cacheUsageIsStoredOnTheAssistantTurn() {
+    when(model.configured()).thenReturn(true);
+    when(conversations.save(any())).thenAnswer(inv -> inv.getArgument(0));
+    when(model.reply(anyString(), any(), anyString()))
+        .thenReturn(new ChatModel.Reply("the answer", 300, 400, 5000, 12000));
+
+    service.chat(null, "how am I doing?");
+
+    ArgumentCaptor<AssistantMessage> saved = ArgumentCaptor.forClass(AssistantMessage.class);
+    verify(messages, times(2)).save(saved.capture());
+    AssistantMessage assistant = saved.getAllValues().get(1);
+    assertThat(assistant.getCacheWriteTokens()).isEqualTo(5000);
+    assertThat(assistant.getCacheReadTokens()).isEqualTo(12000);
+    // The user's own turn is billed as part of the reply, never separately.
+    AssistantMessage user = saved.getAllValues().get(0);
+    assertThat(user.getCacheWriteTokens()).isZero();
+    assertThat(user.getInputTokens()).isZero();
   }
 }

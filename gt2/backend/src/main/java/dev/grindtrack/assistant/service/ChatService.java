@@ -71,15 +71,16 @@ public class ChatService {
 
     ChatModel.Reply reply = model.reply(context(), history, message);
 
-    messages.save(
-        new AssistantMessage(conversation.getId(), AssistantMessage.ROLE_USER, message, 0, 0));
+    messages.save(AssistantMessage.userTurn(conversation.getId(), message));
     messages.save(
         new AssistantMessage(
             conversation.getId(),
             AssistantMessage.ROLE_ASSISTANT,
             reply.text(),
             reply.inputTokens(),
-            reply.outputTokens()));
+            reply.outputTokens(),
+            reply.cacheWriteTokens(),
+            reply.cacheReadTokens()));
     conversation.touch();
     conversations.save(conversation);
 

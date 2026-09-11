@@ -16,5 +16,14 @@ public interface ChatModel {
 
   record Turn(String role, String content) {}
 
-  record Reply(String text, long inputTokens, long outputTokens) {}
+  /**
+   * @param cacheWriteTokens input tokens written to the prompt cache, billed at 1.25x
+   * @param cacheReadTokens input tokens served from the prompt cache, billed at 0.1x
+   */
+  record Reply(
+      String text,
+      long inputTokens,
+      long outputTokens,
+      long cacheWriteTokens,
+      long cacheReadTokens) {}
 }
