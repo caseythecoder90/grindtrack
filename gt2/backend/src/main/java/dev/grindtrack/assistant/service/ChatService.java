@@ -127,12 +127,19 @@ public class ChatService {
                   reply.inputTokens(),
                   reply.outputTokens(),
                   reply.cacheWriteTokens(),
-                  reply.cacheReadTokens()));
+                  reply.cacheReadTokens(),
+                  reply.proposedWeekStart() == null
+                      ? null
+                      : LocalDate.parse(reply.proposedWeekStart())));
           conversation.touch();
           conversations.save(conversation);
 
           return new ChatReply(
-              conversation.getId(), reply.text(), reply.inputTokens(), reply.outputTokens());
+              conversation.getId(),
+              reply.text(),
+              reply.inputTokens(),
+              reply.outputTokens(),
+              reply.proposedWeekStart());
         });
   }
 
@@ -149,7 +156,13 @@ public class ChatService {
       throw new NoSuchElementException("conversation " + conversationId);
     }
     return messages.findByConversationIdOrderByIdAsc(conversationId).stream()
-        .map(m -> new TurnView(m.getRole(), m.getContent(), m.getCreatedAt().toString()))
+        .map(
+            m ->
+                new TurnView(
+                    m.getRole(),
+                    m.getContent(),
+                    m.getCreatedAt().toString(),
+                    m.getProposedWeekStart() == null ? null : m.getProposedWeekStart().toString()))
         .toList();
   }
 
@@ -174,9 +187,19 @@ public class ChatService {
     return message.length() <= 60 ? message : message.substring(0, 57) + "…";
   }
 
-  public record ChatReply(Long conversationId, String reply, long inputTokens, long outputTokens) {}
+  /**
+   * @param proposedWeekStart the Monday this turn drafted a week for, or null. The client renders a
+   *     card for it; the draft itself is fetched from the week-plan endpoint, and accepting is a
+   *     separate call
+   */
+  public record ChatReply(
+      Long conversationId,
+      String reply,
+      long inputTokens,
+      long outputTokens,
+      String proposedWeekStart) {}
 
   public record ConversationSummary(Long id, String title, String lastMessageAt) {}
 
-  public record TurnView(String role, String content, String createdAt) {}
+  public record TurnView(String role, String content, String createdAt, String proposedWeekStart) {}
 }

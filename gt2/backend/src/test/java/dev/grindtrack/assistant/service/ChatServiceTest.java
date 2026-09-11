@@ -58,7 +58,7 @@ class ChatServiceTest {
   private void modelAnswers() {
     when(model.configured()).thenReturn(true);
     when(model.reply(anyString(), any(), anyString(), any()))
-        .thenReturn(new ChatModel.Reply("the answer", 3000, 400, 0, 0));
+        .thenReturn(new ChatModel.Reply("the answer", 3000, 400, 0, 0, null));
     when(conversations.save(any())).thenAnswer(inv -> inv.getArgument(0));
   }
 
@@ -166,7 +166,7 @@ class ChatServiceTest {
               listener.onToolUse("get_plan");
               listener.onText("the ");
               listener.onText("answer");
-              return new ChatModel.Reply("the answer", 3000, 400, 0, 0);
+              return new ChatModel.Reply("the answer", 3000, 400, 0, 0, null);
             });
 
     List<String> tools = new java.util.ArrayList<>();
@@ -198,7 +198,7 @@ class ChatServiceTest {
     when(model.configured()).thenReturn(true);
     when(conversations.save(any())).thenAnswer(inv -> inv.getArgument(0));
     when(model.reply(anyString(), any(), anyString(), any()))
-        .thenReturn(new ChatModel.Reply("the answer", 300, 400, 5000, 12000));
+        .thenReturn(new ChatModel.Reply("the answer", 300, 400, 5000, 12000, null));
 
     service.chat(null, "how am I doing?");
 
@@ -234,5 +234,40 @@ class ChatServiceTest {
           @Override
           public void rollback(TransactionStatus status) {}
         });
+  }
+
+  /**
+   * A drafted week has to survive the turn that drafted it. Without this the card is gone the
+   * moment the conversation is reopened, and the reply above it refers to something unreachable.
+   */
+  @Test
+  void aDraftedWeekIsStoredOnTheTurnAndHandedToTheClient() {
+    when(model.configured()).thenReturn(true);
+    when(conversations.save(any())).thenAnswer(inv -> inv.getArgument(0));
+    when(model.reply(anyString(), any(), anyString(), any()))
+        .thenReturn(new ChatModel.Reply("drafted four mornings", 300, 400, 0, 0, "2026-09-14"));
+
+    ChatService.ChatReply reply = service.chat(null, "plan next week for me");
+
+    assertThat(reply.proposedWeekStart()).isEqualTo("2026-09-14");
+    ArgumentCaptor<AssistantMessage> saved = ArgumentCaptor.forClass(AssistantMessage.class);
+    verify(messages, times(2)).save(saved.capture());
+    assertThat(saved.getAllValues().get(1).getProposedWeekStart())
+        .isEqualTo(java.time.LocalDate.of(2026, 9, 14));
+  }
+
+  /** Which is nearly every turn: no card, and nothing on the row to render one from. */
+  @Test
+  void anOrdinaryTurnProposesNothing() {
+    when(model.configured()).thenReturn(true);
+    when(conversations.save(any())).thenAnswer(inv -> inv.getArgument(0));
+    when(model.reply(anyString(), any(), anyString(), any()))
+        .thenReturn(new ChatModel.Reply("you are behind", 300, 400, 0, 0, null));
+
+    assertThat(service.chat(null, "how am I doing?").proposedWeekStart()).isNull();
+
+    ArgumentCaptor<AssistantMessage> saved = ArgumentCaptor.forClass(AssistantMessage.class);
+    verify(messages, times(2)).save(saved.capture());
+    assertThat(saved.getAllValues().get(1).getProposedWeekStart()).isNull();
   }
 }

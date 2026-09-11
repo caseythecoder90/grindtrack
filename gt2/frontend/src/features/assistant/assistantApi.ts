@@ -56,6 +56,8 @@ export interface ChatTurn {
   role: "user" | "assistant";
   content: string;
   createdAt: string;
+  /** The Monday this turn drafted a week for, or null — which is nearly every turn. */
+  proposedWeekStart: string | null;
 }
 
 export interface ChatReply {
@@ -63,6 +65,11 @@ export interface ChatReply {
   reply: string;
   inputTokens: number;
   outputTokens: number;
+  /**
+   * Set when the turn drafted a week. A draft is a card, not a booking: the blocks live in the
+   * week-plan endpoint and the calendar is untouched until {@link acceptWeekPlan}.
+   */
+  proposedWeekStart: string | null;
 }
 
 export const listConversations = () => api<ConversationSummary[]>(`${BASE}/chat`);

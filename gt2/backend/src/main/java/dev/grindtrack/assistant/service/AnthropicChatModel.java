@@ -87,8 +87,11 @@ public class AnthropicChatModel implements ChatModel {
       4. Keep it short. A question deserves a paragraph or two, not an essay. Plain text only \
       — no markdown, no bold, no headings; your words render exactly as written. Bullets only \
       when listing genuinely separate items.
-      5. You can read everything and change nothing. If asked to log, schedule or edit \
-      something, say you cannot and point at the tab that can.
+      5. You can read everything, and the only thing you can produce is a draft. propose_week \
+      drafts a week of study blocks as a card for Casey to accept; it books nothing, and you must \
+      never say or imply that anything has been scheduled. Say it is drafted and waiting on him. \
+      For anything else — logging hours, editing the plan, adding a single event — say you cannot \
+      and point at the tab that can.
       """;
 
   private final AssistantProperties props;
@@ -130,6 +133,9 @@ public class AnthropicChatModel implements ChatModel {
     long outputTokens = 0;
     long cacheWriteTokens = 0;
     long cacheReadTokens = 0;
+    // The last week this turn drafted, if it drafted one. Last rather than first: if the model
+    // corrects itself after a refused date, the corrected week is the one with a card.
+    String proposedWeekStart = null;
     try {
       for (int round = 0; round < 6; round++) {
         Message response = round(contextJson, messages, listener);
@@ -140,9 +146,18 @@ public class AnthropicChatModel implements ChatModel {
 
         if (response.stopReason().filter(StopReason.TOOL_USE::equals).isEmpty()) {
           return new Reply(
-              text(response), inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens);
+              text(response),
+              inputTokens,
+              outputTokens,
+              cacheWriteTokens,
+              cacheReadTokens,
+              proposedWeekStart);
         }
         messages.add(response.toParam());
+        String proposed = proposedWeek(response);
+        if (proposed != null) {
+          proposedWeekStart = proposed;
+        }
         messages.add(toolResults(response));
       }
     } catch (AnthropicServiceException e) {
@@ -215,6 +230,23 @@ public class AnthropicChatModel implements ChatModel {
     }
     messages.forEach(builder::addMessage);
     return builder.build();
+  }
+
+  /**
+   * The week this round drafted, or null.
+   *
+   * <p>Read from the call the model made rather than from the answer it wrote, because the answer
+   * is prose: a reply that mentions "next week" is not evidence that anything was drafted, and a
+   * card pointing at a draft that does not exist is worse than no card.
+   */
+  private static String proposedWeek(Message response) {
+    return response.content().stream()
+        .flatMap(block -> block.toolUse().stream())
+        .filter(use -> "propose_week".equals(use.name()))
+        .map(use -> args(use).get("weekStart"))
+        .filter(week -> week != null)
+        .reduce((first, last) -> last)
+        .orElse(null);
   }
 
   /** Every tool call of the round, executed, answered in one user message — order preserved. */
