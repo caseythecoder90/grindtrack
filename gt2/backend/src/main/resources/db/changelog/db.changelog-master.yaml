@@ -47,3 +47,5 @@ databaseChangeLog:
       file: db/changelog/023-refresh-token-families.sql
   - include:
       file: db/changelog/024-assistant-reports.sql
+  - include:
+      file: db/changelog/025-assistant-chat.sql

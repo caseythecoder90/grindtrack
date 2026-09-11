@@ -2,6 +2,8 @@ package dev.grindtrack.assistant.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.grindtrack.assistant.domain.AssistantMessage;
+import dev.grindtrack.assistant.domain.AssistantMessageRepository;
 import dev.grindtrack.assistant.domain.AssistantReport;
 import dev.grindtrack.assistant.domain.AssistantReportRepository;
 import dev.grindtrack.assistant.service.ReviewModel.DraftedReview;
@@ -42,6 +44,7 @@ public class WeeklyReviewService {
   private final ContextService contextService;
   private final ReviewModel model;
   private final AssistantReportRepository reports;
+  private final AssistantMessageRepository chatMessages;
   private final AssistantProperties props;
   private final ObjectMapper mapper;
 
@@ -49,11 +52,13 @@ public class WeeklyReviewService {
       ContextService contextService,
       ReviewModel model,
       AssistantReportRepository reports,
+      AssistantMessageRepository chatMessages,
       AssistantProperties props,
       ObjectMapper mapper) {
     this.contextService = contextService;
     this.model = model;
     this.reports = reports;
+    this.chatMessages = chatMessages;
     this.props = props;
     this.mapper = mapper;
   }
@@ -105,8 +110,14 @@ public class WeeklyReviewService {
             .atStartOfDay(OffsetDateTime.now().getOffset())
             .toOffsetDateTime();
     List<AssistantReport> thisMonth = reports.findByGeneratedAtGreaterThanEqual(monthStart);
-    long in = thisMonth.stream().mapToLong(AssistantReport::getInputTokens).sum();
-    long out = thisMonth.stream().mapToLong(AssistantReport::getOutputTokens).sum();
+    // Chat spend counts the same as report spend: the bill is the bill.
+    List<AssistantMessage> chat = chatMessages.findByCreatedAtGreaterThanEqual(monthStart);
+    long in =
+        thisMonth.stream().mapToLong(AssistantReport::getInputTokens).sum()
+            + chat.stream().mapToLong(AssistantMessage::getInputTokens).sum();
+    long out =
+        thisMonth.stream().mapToLong(AssistantReport::getOutputTokens).sum()
+            + chat.stream().mapToLong(AssistantMessage::getOutputTokens).sum();
     return new Status(model.configured(), props.model(), thisMonth.size(), in, out, cost(in, out));
   }
 
