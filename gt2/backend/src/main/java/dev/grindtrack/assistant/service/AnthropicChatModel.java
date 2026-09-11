@@ -3,13 +3,16 @@ package dev.grindtrack.assistant.service;
 import com.anthropic.client.AnthropicClient;
 import com.anthropic.client.okhttp.AnthropicOkHttpClient;
 import com.anthropic.core.JsonValue;
+import com.anthropic.core.http.StreamResponse;
 import com.anthropic.errors.AnthropicServiceException;
+import com.anthropic.helpers.MessageAccumulator;
 import com.anthropic.models.messages.CacheControlEphemeral;
 import com.anthropic.models.messages.ContentBlock;
 import com.anthropic.models.messages.ContentBlockParam;
 import com.anthropic.models.messages.Message;
 import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.MessageParam;
+import com.anthropic.models.messages.RawMessageStreamEvent;
 import com.anthropic.models.messages.StopReason;
 import com.anthropic.models.messages.TextBlock;
 import com.anthropic.models.messages.TextBlockParam;
@@ -104,7 +107,8 @@ public class AnthropicChatModel implements ChatModel {
   }
 
   @Override
-  public Reply reply(String contextJson, List<Turn> history, String userMessage) {
+  public Reply reply(
+      String contextJson, List<Turn> history, String userMessage, Listener listener) {
     if (client == null) {
       throw new IllegalStateException("reply() called with no API key configured");
     }
@@ -127,7 +131,7 @@ public class AnthropicChatModel implements ChatModel {
     long cacheReadTokens = 0;
     try {
       for (int round = 0; round < 6; round++) {
-        Message response = client.messages().create(params(contextJson, messages));
+        Message response = round(contextJson, messages, listener);
         inputTokens += response.usage().inputTokens();
         outputTokens += response.usage().outputTokens();
         cacheWriteTokens += response.usage().cacheCreationInputTokens().orElse(0L);
@@ -144,6 +148,38 @@ public class AnthropicChatModel implements ChatModel {
       throw new UpstreamException("the model call failed (" + e.statusCode() + ") — try again", e);
     }
     throw new UpstreamException("the assistant kept reading instead of answering — try again");
+  }
+
+  /**
+   * One request, streamed.
+   *
+   * <p>Streaming rather than waiting for the whole message, even on the rounds that turn out to be
+   * tool calls with no text in them. The alternative is knowing in advance which round will answer,
+   * which is exactly what nobody knows; and a round that produces no text simply reports no text.
+   *
+   * <p>The accumulator rebuilds the {@link Message} the non-streaming call would have returned —
+   * content blocks, stop reason and usage — so the loop above is unchanged by any of this.
+   */
+  private Message round(String contextJson, List<MessageParam> messages, Listener listener) {
+    MessageAccumulator accumulator = MessageAccumulator.create();
+    try (StreamResponse<RawMessageStreamEvent> stream =
+        client.messages().createStreaming(params(contextJson, messages))) {
+      stream.stream()
+          .forEach(
+              event -> {
+                accumulator.accumulate(event);
+                listener.onProgress();
+                event
+                    .contentBlockStart()
+                    .flatMap(start -> start.contentBlock().toolUse())
+                    .ifPresent(use -> listener.onToolUse(use.name()));
+                event
+                    .contentBlockDelta()
+                    .flatMap(delta -> delta.delta().text())
+                    .ifPresent(text -> listener.onText(text.text()));
+              });
+    }
+    return accumulator.message();
   }
 
   private MessageCreateParams params(String contextJson, List<MessageParam> messages) {

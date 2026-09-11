@@ -966,3 +966,24 @@ h4 { font-size: var(--fs-small); font-weight: 600; color: var(--muted); margin: 
   color: var(--muted);
   text-align: right;
 }
+
+/* The cursor at the end of an answer still arriving. Purely a sign of life: the bubble already
+   grows as text lands, but a paused model looks identical to a finished one without it. */
+.bubble .caret {
+  display: inline-block;
+  width: 7px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: currentColor;
+  opacity: 0.55;
+  animation: caret-blink 1s step-end infinite;
+}
+
+@keyframes caret-blink {
+  50% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bubble .caret { animation: none; }
+}

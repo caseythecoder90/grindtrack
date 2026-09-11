@@ -9,10 +9,41 @@ public interface ChatModel {
 
   /**
    * One turn: prior text turns, the fresh context, the new message. The implementation may call
-   * read tools any number of times before answering; the caller only ever sees the final text and
-   * the total bill.
+   * read tools any number of times before answering; the return value is the final text and the
+   * total bill, whether or not anybody was listening along the way.
    */
-  Reply reply(String contextJson, List<Turn> history, String userMessage);
+  Reply reply(String contextJson, List<Turn> history, String userMessage, Listener listener);
+
+  /**
+   * What a turn looks like while it is still happening.
+   *
+   * <p>The turn is the same either way — one code path, no streaming variant of the loop. This is a
+   * window onto it, and the default implementation is the window boarded up: a caller that only
+   * wants the answer passes {@link #NONE} and the loop never notices the difference.
+   *
+   * <p>Both methods are called from the thread running the turn, in order, and must not block: a
+   * slow listener slows the model call it is watching.
+   */
+  interface Listener {
+
+    Listener NONE = new Listener() {};
+
+    /** The model has started reading something. Named so a waiting person can see which. */
+    default void onToolUse(String toolName) {}
+
+    /** A fragment of the answer. Fragments concatenate to exactly {@link Reply#text()}. */
+    default void onText(String delta) {}
+
+    /**
+     * The model is still working, called once for everything that arrives from upstream — the
+     * fragments above included, and also the events this app makes no use of.
+     *
+     * <p>It exists because "nothing has happened for a minute" and "the connection is dead" look
+     * identical from the far end of a proxy, and a model that is thinking hard about a hard
+     * question can be silent for longer than a proxy will wait.
+     */
+    default void onProgress() {}
+  }
 
   record Turn(String role, String content) {}
 

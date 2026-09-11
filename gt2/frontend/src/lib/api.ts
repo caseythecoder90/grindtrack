@@ -101,6 +101,35 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return (text ? JSON.parse(text) : null) as T;
 }
 
+/**
+ * Like {@link api}, but hands back the response instead of its parsed body.
+ *
+ * <p>For endpoints whose answer arrives in pieces: the caller reads {@code res.body} as a stream.
+ * Everything about the session is the same — same cookies, same one-shot refresh on a 401, same
+ * separation of "expired" from "the server is between pods" — because a streamed request that
+ * drops the user to the login screen over a redeploy is no better than a plain one that does.
+ *
+ * <p>Note what cannot be retried: once a stream has started, the status line is long gone, so a
+ * failure partway through arrives in the stream itself and is the caller's to handle.
+ */
+export async function stream(path: string, init?: RequestInit): Promise<Response> {
+  let res = await send(path, init);
+  if (res.status === 401) {
+    const outcome = await refreshOnce();
+    if (outcome === "expired") throw new AuthError("session expired");
+    if (outcome === "unavailable") throw new OfflineError(OFFLINE_MESSAGE);
+    res = await send(path, init);
+    if (res.status === 401) throw new AuthError("session expired");
+  }
+  if (unavailable(res.status)) throw new OfflineError(OFFLINE_MESSAGE);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error ?? res.statusText);
+  }
+  if (!res.body) throw new OfflineError(OFFLINE_MESSAGE);
+  return res;
+}
+
 export function jsonInit(method: string, body: unknown): RequestInit {
   return {
     method,
