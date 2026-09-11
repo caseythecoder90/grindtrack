@@ -18,6 +18,7 @@ import java.time.OffsetDateTime;
 public class AssistantReport {
 
   public static final String KIND_WEEKLY_REVIEW = "weekly_review";
+  public static final String KIND_WEEK_PLAN = "week_plan";
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)

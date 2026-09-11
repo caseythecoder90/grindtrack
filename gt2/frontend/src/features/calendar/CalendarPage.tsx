@@ -9,6 +9,7 @@ import { errorMessage } from "../../lib/api";
 import { addMonths, monthOf, todayISO } from "../../lib/dates";
 import type { CalendarEvent, PlanItem, UpkeepTask } from "../../lib/types";
 import { useAppResume } from "../../lib/resume";
+import WeekPlanCard from "../assistant/WeekPlanCard";
 
 const MONTH_NAME = new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" });
 
@@ -119,8 +120,17 @@ export default function CalendarPage() {
   const dayEvents = events.filter((e) => e.date === selected);
   const byId = new Map(planItems.map((p) => [p.id, p]));
 
+  // The Monday of next week: planning is always forward-looking, and "next week" is the only
+  // week a proposal can still change.
+  const nextMonday = (() => {
+    const d = new Date(todayISO() + "T00:00:00");
+    d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7));
+    return d.toISOString().slice(0, 10);
+  })();
+
   return (
     <>
+      <WeekPlanCard weekStart={nextMonday} onBooked={() => void loadMonth(month)} />
       <div className="panel">
         <div className="calnav">
           <button type="button" aria-label="previous month" onClick={() => move(-1)}>

@@ -3,6 +3,7 @@ package dev.grindtrack.assistant.api;
 import dev.grindtrack.assistant.api.AssistantDtos.ToolDescription;
 import dev.grindtrack.assistant.service.AssistantContext;
 import dev.grindtrack.assistant.service.ContextService;
+import dev.grindtrack.assistant.service.WeekPlanService;
 import dev.grindtrack.assistant.service.WeeklyReviewService;
 import dev.grindtrack.web.Requests;
 import java.time.DayOfWeek;
@@ -16,15 +17,17 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * The read surface an assistant reasons over.
+ * What the assistant reads, what it drafts, and the one thing it can be told to write.
  *
- * <p>Read-only, deliberately and for now completely. Every endpoint here is a GET and there is no
- * write path, because the first thing an assistant with a write path does wrong is mark the wrong
- * plan item done — and unlike a wrong sentence, that one is invisible until the next review.
+ * <p>This began read-only — every endpoint a GET — because the first thing an assistant with a
+ * write path does wrong is mark the wrong plan item done, and unlike a wrong sentence that one is
+ * invisible until the next review. That rule has not been dropped so much as made explicit: a model
+ * still writes nothing. It drafts into {@code assistant_reports}, and a person reads the draft and
+ * calls {@code /week-plan/accept}, which books what was <em>stored and shown</em> rather than
+ * anything a request body carries.
  *
- * <p>Nothing here calls a model. The context is useful on its own: paste it into a conversation and
- * ask for a week. Wiring it to the API is a separate change with a separate cost, and this half is
- * the half that has to be right either way.
+ * <p>So the money and the mutation are in different calls on purpose. Drafting spends and writes
+ * nothing; accepting writes and spends nothing. Neither can be mistaken for the other.
  */
 @RestController
 @RequestMapping("/api/assistant")
@@ -32,10 +35,13 @@ public class AssistantController {
 
   private final ContextService context;
   private final WeeklyReviewService reviews;
+  private final WeekPlanService weekPlans;
 
-  public AssistantController(ContextService context, WeeklyReviewService reviews) {
+  public AssistantController(
+      ContextService context, WeeklyReviewService reviews, WeekPlanService weekPlans) {
     this.context = context;
     this.reviews = reviews;
+    this.weekPlans = weekPlans;
   }
 
   /**
@@ -69,11 +75,41 @@ public class AssistantController {
   }
 
   /**
+   * Propose a week of study blocks. Spends money, writes nothing to the calendar — booking is a
+   * separate call, because a proposal a person has not read is not a plan.
+   */
+  @PostMapping("/week-plan")
+  public WeekPlanService.Draft proposeWeek(@RequestParam(required = false) String weekStart) {
+    return weekPlans.propose(nextWeek(weekStart));
+  }
+
+  /** The drafted plan for a week, or an empty body when none has been proposed. */
+  @GetMapping("/week-plan")
+  public WeekPlanService.Draft weekPlan(@RequestParam(required = false) String weekStart) {
+    return weekPlans.find(nextWeek(weekStart)).orElse(null);
+  }
+
+  /**
+   * Book the drafted blocks. The only endpoint in this package that writes anything, and it writes
+   * what was stored and shown — never what the request body says.
+   */
+  @PostMapping("/week-plan/accept")
+  public WeekPlanService.Accepted acceptWeek(@RequestParam(required = false) String weekStart) {
+    return weekPlans.accept(nextWeek(weekStart));
+  }
+
+  /**
    * Is the assistant on, and what has it cost this month. The week tab decides its UI from this.
    */
   @GetMapping("/status")
   public WeeklyReviewService.Status status() {
     return reviews.status();
+  }
+
+  /** Planning defaults to the week ahead; reviewing defaults to the week just lived. */
+  private static LocalDate nextWeek(String weekStart) {
+    LocalDate parsed = Requests.optionalDate(weekStart, "weekStart must be YYYY-MM-DD");
+    return parsed != null ? parsed : week(null).plusWeeks(1);
   }
 
   private static LocalDate week(String weekStart) {
