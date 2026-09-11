@@ -2,6 +2,12 @@
 import { useCallback, useEffect, useState } from "react";
 import WeekTotals from "../../components/WeekTotals";
 import { errorMessage } from "../../lib/api";
+import {
+  generateReviewDraft,
+  getAssistantStatus,
+  getReviewDraft,
+  type ReviewReport,
+} from "../assistant/assistantApi";
 import { getDays, getWeek, saveWeek } from "./trackingApi";
 import { addDays, mondayOf, todayISO } from "../../lib/dates";
 import type {DayLog} from "../../lib/types";
@@ -20,10 +26,19 @@ export default function Week() {
   const [onTrack, setOnTrack] = useState<boolean | null>(null);
   const [toast, setToast] = useState(false);
   const [loadError, setLoadError] = useState("");
+  /** Null while unknown; the panel renders nothing until the server has said the assistant is on. */
+  const [assistantOn, setAssistantOn] = useState<boolean | null>(null);
+  const [draft, setDraft] = useState<ReviewReport | null>(null);
+  const [drafting, setDrafting] = useState(false);
+  const [draftError, setDraftError] = useState("");
 
   /** Same reasoning as Today: an unreachable server says so rather than showing an empty week. */
   const load = useCallback(async () => {
     setLoadError("");
+    // The draft is a bonus on this page: if it cannot load, the review form must not care.
+    getReviewDraft(weekStart)
+      .then(setDraft)
+      .catch(() => setDraft(null));
     try {
       const end = addDays(weekStart, 6);
       setDays(await getDays(weekStart, end));
@@ -47,6 +62,40 @@ export default function Week() {
   }, [load]);
 
   const byDate = new Map(days.map((d) => [d.logDate, d]));
+
+  useEffect(() => {
+    getAssistantStatus()
+      .then((st) => setAssistantOn(st.configured))
+      .catch(() => setAssistantOn(false));
+  }, []);
+
+  /** The click that spends money — about three cents — and takes half a minute. */
+  async function draftReview() {
+    setDrafting(true);
+    setDraftError("");
+    try {
+      setDraft(await generateReviewDraft(weekStart));
+    } catch (e) {
+      setDraftError(errorMessage(e, "could not draft the review"));
+    } finally {
+      setDrafting(false);
+    }
+  }
+
+  /**
+   * The accept step, and the only path from a draft to real data: six fields copied into the form
+   * the user already owns, still editable, saved by the same button as a hand-written review.
+   * The model never writes to weekly_reviews; this click is a person deciding.
+   */
+  function useDraft() {
+    if (!draft) return;
+    setSummary(draft.draft.summary);
+    setWins(draft.draft.wins);
+    setBlockers(draft.draft.blockers);
+    setAdjustments(draft.draft.adjustments);
+    setNextFocus(draft.draft.nextFocus);
+    setOnTrack(draft.draft.onTrack);
+  }
 
   async function save() {
     await saveWeek(weekStart, { summary, wins, blockers, adjustments, nextFocus, onTrack });
@@ -85,6 +134,49 @@ export default function Week() {
         </tbody>
       </table>
       <h2 style={{ marginTop: 24 }}>weekly review</h2>
+      {assistantOn && (
+        <div className="ai-draft">
+          {!draft && (
+            <div className="ai-draft-bar">
+              <span className="muted small">No draft for this week yet.</span>
+              <button type="button" onClick={draftReview} disabled={drafting}>
+                {drafting ? "drafting — about half a minute…" : "Draft it for me"}
+              </button>
+            </div>
+          )}
+          {draft && (
+            <>
+              <div className="ai-draft-head">
+                <span className="ai-draft-kicker">assistant draft</span>
+                <span className={"badge " + (draft.draft.onTrack ? "badge-project" : "badge-cert")}>
+                  {draft.draft.onTrack ? "on track" : "off track"}
+                </span>
+              </div>
+              <div className="ai-draft-body">
+                <p>{draft.draft.summary}</p>
+                <p><b>Wins</b> {draft.draft.wins}</p>
+                {draft.draft.blockers && <p><b>Blockers</b> {draft.draft.blockers}</p>}
+                <p><b>Adjustments</b> {draft.draft.adjustments}</p>
+                <p><b>Next week</b> {draft.draft.nextFocus}</p>
+              </div>
+              {/* A feature that spends money per click says what it spent, every time. */}
+              <div className="ai-draft-cost">
+                {draft.model} · {draft.inputTokens} in / {draft.outputTokens} out · $
+                {draft.costUsd.toFixed(3)} · drafted {draft.generatedAt.slice(0, 16).replace("T", " ")}
+              </div>
+              <div className="actions" style={{ marginTop: 10 }}>
+                <button type="button" className="primary" onClick={useDraft}>
+                  Use as my review
+                </button>
+                <button type="button" onClick={draftReview} disabled={drafting}>
+                  {drafting ? "redrafting…" : "Redraft"}
+                </button>
+              </div>
+            </>
+          )}
+          {draftError && <div className="error">{draftError}</div>}
+        </div>
+      )}
       <div className="row">
         <div><label>Summary of the week</label>
           <textarea value={summary} onChange={(e) => setSummary(e.target.value)} /></div>
