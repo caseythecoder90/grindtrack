@@ -18,7 +18,8 @@ export type Tab =
   | "money"
   | "us"
   | "week"
-  | "stats";
+  | "stats"
+  | "ask";
 
 export const TABS: Tab[] = [
   "today",
@@ -31,6 +32,7 @@ export const TABS: Tab[] = [
   "us",
   "week",
   "stats",
+  "ask",
 ];
 
 /**

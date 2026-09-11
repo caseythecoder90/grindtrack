@@ -3,6 +3,7 @@ import BottomNav from "./components/BottomNav";
 import Heatmap from "./components/Heatmap";
 import StatBar from "./components/StatBar";
 import { forgetDevices, logout as endSession, logoutEverywhere as endEverySession, me } from "./features/auth/authApi";
+import AskPage from "./features/assistant/AskPage";
 import CalendarPage from "./features/calendar/CalendarPage";
 import Login from "./features/auth/Login";
 import FinancePage from "./features/finance/FinancePage";
@@ -174,6 +175,7 @@ export default function App() {
           {tab === "us" && <RelationshipPage />}
           {tab === "week" && <Week />}
           {tab === "stats" && stats && <StatsPage stats={stats} scope={scope} />}
+          {tab === "ask" && <AskPage />}
           <BottomNav
             tab={tab}
             onTab={setTab}
