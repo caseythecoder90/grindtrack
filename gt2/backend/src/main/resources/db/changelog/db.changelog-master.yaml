@@ -45,3 +45,5 @@ databaseChangeLog:
       file: db/changelog/022-trusted-devices.sql
   - include:
       file: db/changelog/023-refresh-token-families.sql
+  - include:
+      file: db/changelog/024-assistant-reports.sql
