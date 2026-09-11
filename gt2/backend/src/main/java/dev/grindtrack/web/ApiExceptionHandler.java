@@ -45,6 +45,16 @@ public class ApiExceptionHandler {
     return ResponseEntity.status(409).body(Map.of("error", e.getMessage()));
   }
 
+  @ExceptionHandler(UpstreamException.class)
+  ResponseEntity<Map<String, String>> onUpstream(UpstreamException e) {
+    return ResponseEntity.status(502).body(Map.of("error", e.getMessage()));
+  }
+
+  @ExceptionHandler(ServiceOffException.class)
+  ResponseEntity<Map<String, String>> onServiceOff(ServiceOffException e) {
+    return ResponseEntity.status(503).body(Map.of("error", e.getMessage()));
+  }
+
   @ExceptionHandler(NoSuchElementException.class)
   ResponseEntity<Map<String, String>> onNotFound(NoSuchElementException e) {
     return ResponseEntity.status(404).body(Map.of("error", "not found: " + e.getMessage()));

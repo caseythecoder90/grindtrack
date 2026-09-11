@@ -1,0 +1,172 @@
+package dev.grindtrack.assistant.service;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.grindtrack.assistant.domain.AssistantReport;
+import dev.grindtrack.assistant.domain.AssistantReportRepository;
+import dev.grindtrack.assistant.service.ReviewModel.DraftedReview;
+import dev.grindtrack.config.AssistantProperties;
+import dev.grindtrack.web.BadRequestException;
+import dev.grindtrack.web.ServiceOffException;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.temporal.TemporalAdjusters;
+import java.util.List;
+import java.util.Optional;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+/**
+ * Drafting the Friday review: assemble the week's context, have the model fill the review form's
+ * shape, keep the result where a person can accept it.
+ *
+ * <p>Everything around the model call — the Monday rule, the anchor clamp, the upsert, the cost
+ * arithmetic — lives here and runs against a fake model in tests. The one thing this class never
+ * does is write to {@code weekly_reviews}: accepting a draft is the user's click, in the UI,
+ * copying fields into the form they already own.
+ */
+@Service
+public class WeeklyReviewService {
+
+  /**
+   * Display pricing for the status endpoint, in dollars per million tokens (claude-opus-5).
+   * Hard-coded knowingly: this is a label on a personal dashboard, not billing. If the model in
+   * config changes, change these with it — the status endpoint carries the model name so a mismatch
+   * is at least visible.
+   */
+  private static final double INPUT_USD_PER_MTOK = 5.00;
+
+  private static final double OUTPUT_USD_PER_MTOK = 25.00;
+
+  private final ContextService contextService;
+  private final ReviewModel model;
+  private final AssistantReportRepository reports;
+  private final AssistantProperties props;
+  private final ObjectMapper mapper;
+
+  public WeeklyReviewService(
+      ContextService contextService,
+      ReviewModel model,
+      AssistantReportRepository reports,
+      AssistantProperties props,
+      ObjectMapper mapper) {
+    this.contextService = contextService;
+    this.model = model;
+    this.reports = reports;
+    this.props = props;
+    this.mapper = mapper;
+  }
+
+  /**
+   * Draft (or redraft) the review for the week starting {@code weekStart}.
+   *
+   * <p>The context is built as of a day <em>inside</em> that week — today when the week is the
+   * current one, its Sunday once it has passed — because "this week" in the context means the week
+   * containing the anchor date. Without the clamp, redrafting last week's review on a Monday would
+   * quietly review the new, empty week instead.
+   */
+  @Transactional
+  public Report generate(LocalDate weekStart) {
+    requireOn();
+    if (weekStart.getDayOfWeek() != DayOfWeek.MONDAY) {
+      throw new BadRequestException("weekStart must be a Monday");
+    }
+    LocalDate today = LocalDate.now();
+    LocalDate sunday = weekStart.plusDays(6);
+    LocalDate anchor =
+        today.isAfter(sunday) ? sunday : today.isBefore(weekStart) ? weekStart : today;
+
+    DraftedReview drafted = model.draft(toJson(contextService.build(anchor)));
+
+    AssistantReport report =
+        reports
+            .findByKindAndWeekStart(AssistantReport.KIND_WEEKLY_REVIEW, weekStart)
+            .orElseGet(() -> new AssistantReport(AssistantReport.KIND_WEEKLY_REVIEW, weekStart));
+    report.replaceDraft(
+        drafted.model(), drafted.inputTokens(), drafted.outputTokens(), toJson(drafted.draft()));
+    return toView(reports.save(report));
+  }
+
+  @Transactional(readOnly = true)
+  public Optional<Report> find(LocalDate weekStart) {
+    return reports
+        .findByKindAndWeekStart(AssistantReport.KIND_WEEKLY_REVIEW, weekStart)
+        .map(this::toView);
+  }
+
+  /** Whether the assistant can run, and what it has cost so far this month. */
+  @Transactional(readOnly = true)
+  public Status status() {
+    OffsetDateTime monthStart =
+        OffsetDateTime.now()
+            .with(TemporalAdjusters.firstDayOfMonth())
+            .toLocalDate()
+            .atStartOfDay(OffsetDateTime.now().getOffset())
+            .toOffsetDateTime();
+    List<AssistantReport> thisMonth = reports.findByGeneratedAtGreaterThanEqual(monthStart);
+    long in = thisMonth.stream().mapToLong(AssistantReport::getInputTokens).sum();
+    long out = thisMonth.stream().mapToLong(AssistantReport::getOutputTokens).sum();
+    return new Status(model.configured(), props.model(), thisMonth.size(), in, out, cost(in, out));
+  }
+
+  private void requireOn() {
+    if (!model.configured()) {
+      throw new ServiceOffException(
+          "the assistant is off — set ANTHROPIC_API_KEY on the deployment to turn it on");
+    }
+  }
+
+  private static double cost(long inputTokens, long outputTokens) {
+    double dollars =
+        inputTokens / 1_000_000.0 * INPUT_USD_PER_MTOK
+            + outputTokens / 1_000_000.0 * OUTPUT_USD_PER_MTOK;
+    return Math.round(dollars * 10_000.0) / 10_000.0; // four decimal places: cents matter here
+  }
+
+  private String toJson(Object value) {
+    try {
+      return mapper.writeValueAsString(value);
+    } catch (JsonProcessingException e) {
+      throw new IllegalStateException("could not serialize", e);
+    }
+  }
+
+  private Report toView(AssistantReport r) {
+    ReviewDraft draft;
+    try {
+      draft = mapper.readValue(r.getDraftJson(), ReviewDraft.class);
+    } catch (JsonProcessingException e) {
+      throw new IllegalStateException("stored draft no longer parses as ReviewDraft", e);
+    }
+    return new Report(
+        r.getWeekStart().toString(),
+        r.getGeneratedAt().toString(),
+        r.getModel(),
+        r.getInputTokens(),
+        r.getOutputTokens(),
+        cost(r.getInputTokens(), r.getOutputTokens()),
+        draft);
+  }
+
+  /** A stored draft plus what it cost — the week tab renders this directly. */
+  public record Report(
+      String weekStart,
+      String generatedAt,
+      String model,
+      long inputTokens,
+      long outputTokens,
+      double costUsd,
+      ReviewDraft draft) {}
+
+  /**
+   * @param configured false shows the week tab a "set the key" note instead of a broken button
+   */
+  public record Status(
+      boolean configured,
+      String model,
+      int reportsThisMonth,
+      long inputTokens,
+      long outputTokens,
+      double costThisMonthUsd) {}
+}

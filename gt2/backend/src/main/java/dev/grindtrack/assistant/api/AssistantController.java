@@ -3,10 +3,14 @@ package dev.grindtrack.assistant.api;
 import dev.grindtrack.assistant.api.AssistantDtos.ToolDescription;
 import dev.grindtrack.assistant.service.AssistantContext;
 import dev.grindtrack.assistant.service.ContextService;
+import dev.grindtrack.assistant.service.WeeklyReviewService;
 import dev.grindtrack.web.Requests;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.temporal.TemporalAdjusters;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -27,9 +31,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class AssistantController {
 
   private final ContextService context;
+  private final WeeklyReviewService reviews;
 
-  public AssistantController(ContextService context) {
+  public AssistantController(ContextService context, WeeklyReviewService reviews) {
     this.context = context;
+    this.reviews = reviews;
   }
 
   /**
@@ -42,6 +48,39 @@ public class AssistantController {
   public AssistantContext context(@RequestParam(required = false) String today) {
     LocalDate on = Requests.optionalDate(today, "today must be YYYY-MM-DD");
     return context.build(on == null ? LocalDate.now() : on);
+  }
+
+  /**
+   * Draft (or redraft) the review for a week. The one endpoint here that spends money — about six
+   * cents a click — which is why it is a POST and why the response says what it cost.
+   *
+   * @param weekStart a Monday; absent means the current week
+   */
+  @PostMapping("/reviews")
+  public WeeklyReviewService.Report generateReview(
+      @RequestParam(required = false) String weekStart) {
+    return reviews.generate(week(weekStart));
+  }
+
+  /** The stored draft for a week, or an empty body when none has been generated. */
+  @GetMapping("/reviews")
+  public WeeklyReviewService.Report review(@RequestParam(required = false) String weekStart) {
+    return reviews.find(week(weekStart)).orElse(null);
+  }
+
+  /**
+   * Is the assistant on, and what has it cost this month. The week tab decides its UI from this.
+   */
+  @GetMapping("/status")
+  public WeeklyReviewService.Status status() {
+    return reviews.status();
+  }
+
+  private static LocalDate week(String weekStart) {
+    LocalDate parsed = Requests.optionalDate(weekStart, "weekStart must be YYYY-MM-DD");
+    return parsed != null
+        ? parsed
+        : LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
   }
 
   /**

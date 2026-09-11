@@ -46,6 +46,14 @@ grindtrack:
   # The password is still required every time; only the authenticator code is skipped.
   trusted-device-days: 30
   cookie-secure: ${COOKIE_SECURE:false}
+  # The assistant. No key means off: the endpoints answer 503 with a sentence and the Friday
+  # job stays quiet, so this can deploy before the Kubernetes secret exists.
+  assistant:
+    api-key: ${ANTHROPIC_API_KEY:}
+    model: claude-opus-5
+    # "Friday at five" means the owner's Friday. Spring cron: second minute hour day month weekday.
+    zone: America/New_York
+    review-cron: "0 0 17 * * FRI"
   bootstrap-username: ${GRINDTRACK_USERNAME:}
   bootstrap-password: ${GRINDTRACK_PASSWORD:}
 
