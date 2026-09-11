@@ -9,8 +9,11 @@ import dev.grindtrack.assistant.domain.AssistantMessageRepository;
 import dev.grindtrack.web.Requests;
 import dev.grindtrack.web.ServiceOffException;
 import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.NoSuchElementException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -33,6 +36,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  */
 @Service
 public class ChatService {
+
+  private static final Logger log = LoggerFactory.getLogger(ChatService.class);
 
   /** Turns replayed per request. Beyond this the oldest fall off; the title keeps the thread. */
   private static final int HISTORY_TURNS = 30;
@@ -128,9 +133,7 @@ public class ChatService {
                   reply.outputTokens(),
                   reply.cacheWriteTokens(),
                   reply.cacheReadTokens(),
-                  reply.proposedWeekStart() == null
-                      ? null
-                      : LocalDate.parse(reply.proposedWeekStart())));
+                  monday(reply.proposedWeekStart())));
           conversation.touch();
           conversations.save(conversation);
 
@@ -179,6 +182,27 @@ public class ChatService {
       return mapper.writeValueAsString(contextService.build(LocalDate.now()));
     } catch (JsonProcessingException e) {
       throw new IllegalStateException("could not serialize the context", e);
+    }
+  }
+
+  /**
+   * The drafted week, or null if it is not a date.
+   *
+   * <p>The model half of this app must never be able to fail a turn at the point of writing it
+   * down. By the time this runs the answer has been streamed and read; losing the card is a
+   * disappointment, losing the whole turn to a parse error is a bug the person cannot work around.
+   * {@code AnthropicChatModel} already only reports weeks a tool actually drafted — this is the
+   * second lock on the same door, because that door is on the far side of everything expensive.
+   */
+  private static LocalDate monday(String value) {
+    if (value == null) {
+      return null;
+    }
+    try {
+      return LocalDate.parse(value);
+    } catch (DateTimeParseException e) {
+      log.warn("ignoring an unparseable proposed week from the model: {}", value);
+      return null;
     }
   }
 

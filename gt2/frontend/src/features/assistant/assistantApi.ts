@@ -132,6 +132,16 @@ export interface ChatStreamHandlers {
  * 200 for some seconds. So a rejected promise here and a failed turn look the same to the caller,
  * which is the point.
  */
+/**
+ * The stream stopped before the turn said how it went.
+ *
+ * <p>Its own type because the right response is the opposite of a normal failure's. A turn whose
+ * connection dropped was almost certainly finished and stored by the server — nothing about the
+ * work depends on anyone still listening — so the answer exists and asking again would buy the
+ * same answer a second time. The caller re-reads instead of retrying.
+ */
+export class StreamCutError extends Error {}
+
 export async function streamChat(
   conversationId: number | null,
   message: string,
@@ -147,7 +157,14 @@ export async function streamChat(
   let done: ChatReply | null = null;
 
   for (;;) {
-    const chunk = await reader.read();
+    let chunk;
+    try {
+      chunk = await reader.read();
+    } catch {
+      // The browser's own message here is "network error", which tells a person nothing and is
+      // wrong about what happened besides: the turn is fine, this end of the pipe is not.
+      throw new StreamCutError("the connection dropped while it was answering");
+    }
     if (chunk.done) break;
     buffer += decoder.decode(chunk.value, { stream: true });
 
@@ -177,6 +194,6 @@ export async function streamChat(
   // The stream ended without saying how it went — a dropped connection mid-answer. The turn may
   // well have finished and been stored on the server; what is certain is that this client cannot
   // say what it holds, so it says that rather than inventing a reply.
-  if (!done) throw new Error("the answer was cut off — reopen the conversation to see it");
+  if (!done) throw new StreamCutError("the connection dropped before it finished answering");
   return done;
 }

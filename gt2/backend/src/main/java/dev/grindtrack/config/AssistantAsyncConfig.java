@@ -1,6 +1,8 @@
 package dev.grindtrack.config;
 
 import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
@@ -19,6 +21,27 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
  */
 @Configuration
 public class AssistantAsyncConfig {
+
+  /**
+   * The clock behind a streamed turn's heartbeat.
+   *
+   * <p>One thread is plenty: its whole job is to ask, every few seconds, whether the connection has
+   * gone quiet — and the answer is almost always no, because the model is usually talking.
+   *
+   * <p>It is a scheduler rather than the pool above because a heartbeat cannot share a thread with
+   * the work it is watching. The turn occupies its thread for the entire time, including the thirty
+   * seconds a planning tool spends inside another model call, which is exactly the window the
+   * heartbeat exists to cover.
+   */
+  @Bean(destroyMethod = "shutdownNow")
+  public ScheduledExecutorService assistantHeartbeatScheduler() {
+    return Executors.newSingleThreadScheduledExecutor(
+        runnable -> {
+          Thread thread = new Thread(runnable, "assistant-heartbeat");
+          thread.setDaemon(true);
+          return thread;
+        });
+  }
 
   @Bean
   public Executor assistantTurnExecutor() {

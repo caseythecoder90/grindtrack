@@ -5,6 +5,7 @@ import {
   getConversation,
   listConversations,
   streamChat,
+  StreamCutError,
   type AssistantStatus,
   type ChatTurn,
   type ConversationSummary,
@@ -104,8 +105,22 @@ export default function AskPage() {
       refreshList();
       getAssistantStatus().then(setStatus).catch(() => {});
     } catch (e) {
-      setError(errorMessage(e, "the assistant could not answer"));
-      setDraft(message); // hand the question back rather than losing it
+      if (e instanceof StreamCutError) {
+        // The turn itself is almost certainly finished and stored — the server does not stop
+        // working when nobody is listening. So find the answer rather than throwing it away, and
+        // deliberately do NOT hand the question back: re-asking buys the same reply twice.
+        await refreshList();
+        const id = conversationId;
+        if (id !== null) setTurns(await getConversation(id).catch(() => turns));
+        setError(
+          id === null
+            ? "the connection dropped, but the reply was saved — it is in the list above"
+            : "the connection dropped while it was answering; this is what it saved",
+        );
+      } else {
+        setError(errorMessage(e, "the assistant could not answer"));
+        setDraft(message); // hand the question back rather than losing it
+      }
     } finally {
       setPending(null);
       setStreamed("");
