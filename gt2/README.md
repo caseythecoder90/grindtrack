@@ -26,8 +26,10 @@ Ten tabs over nine backend features:
 | [docs/architecture.md](docs/architecture.md) | System view, cluster topology diagram, request lifecycle, preliquibase → Liquibase → JPA flow, package layout |
 | [docs/architecture-conventions.md](docs/architecture-conventions.md) | How to *add* to the codebase without it drifting — layer rules, where validation goes, and the failure behind each |
 | [docs/backend.md](docs/backend.md) | Layers, endpoint tables, auth internals, data model (ER), migrations, config, build, request trace |
-| [docs/assistant.md](docs/assistant.md) | The five AI features, the read-only tool surface, prompt caching, streaming, and what it costs |
-| [docs/push-notifications.md](docs/push-notifications.md) | Design for Web Push: VAPID and payload encryption without a library, the subscription table, the two producers, the iOS constraints, and the runbook |
+| [docs/study-guide.md](docs/study-guide.md) | **Start here to learn the app**: a seven-day reading order with something to trace and something to build each day |
+| [docs/assistant.md](docs/assistant.md) | The AI features with diagrams: the map, a chat turn end to end, draft-then-accept, the scheduled jobs, prompt caching, the tables, what it costs, exercises |
+| [docs/push-notifications.md](docs/push-notifications.md) | Web Push: VAPID and payload encryption without a library, the subscription table, the two producers, the iOS constraints, the runbook, exercises |
+| [docs/speech-to-text.md](docs/speech-to-text.md) | Speech to text: the microphone relay to a transcription model, the frame protocol, the stop handshake, cost, the runbook, exercises |
 | [docs/frontend.md](docs/frontend.md) | Structure, view/tab state machine, the single-flight 401→refresh→retry wrapper, each screen |
 | [docs/auth.md](docs/auth.md) | The full auth design with Mermaid sequence diagrams and threat notes |
 | [docs/api.md](docs/api.md) | Endpoint reference |

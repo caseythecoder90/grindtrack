@@ -1,0 +1,96 @@
+@startuml
+' Grindtrack data model — the assistant, and the phones it can reach (Postgres schema `grindtrack`).
+' The effort side is in data-model.puml; money, relationship and calendar in their own files.
+' Render: see diagrams/render.sh
+hide circle
+skinparam linetype ortho
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontSize 13
+skinparam defaultFontName Helvetica
+skinparam shadowing false
+skinparam ArrowColor #33475B
+skinparam ArrowFontColor #1A2B3C
+skinparam entity {
+  BackgroundColor #EEF2F7
+  BorderColor #33475B
+  FontColor #12243A
+}
+skinparam note {
+  BackgroundColor #FFF8DC
+  BorderColor #C8B560
+}
+
+entity "assistant_reports" as reports #E3F0FF {
+  * id : bigint <<PK, identity>>
+  --
+  * kind : varchar(30)  CHECK
+      weekly_review | week_plan | day_log | morning_brief
+  * week_start : date  (the start of the period:
+      a Monday for a review or plan, the day itself
+      for a log or a brief)
+  * generated_at : timestamptz
+  * model : varchar(60)
+  * input_tokens / output_tokens : bigint
+  * draft_json : text  (the structured draft, exactly
+      as the model filled it — shape lives in *Draft.java)
+  --
+  UNIQUE (kind, week_start)  → one draft per period,
+      a redraft replaces
+}
+
+entity "assistant_conversations" as convs #E3F0FF {
+  * id : bigint <<PK, identity>>
+  --
+  * title : varchar(120)  (first words of the first question)
+  * created_at : timestamptz
+  * last_message_at : timestamptz
+}
+
+entity "assistant_messages" as msgs #E3F0FF {
+  * id : bigint <<PK, identity>>
+  --
+  * conversation_id : bigint <<FK → assistant_conversations, CASCADE>>
+  * role : varchar(12)  CHECK user | assistant
+  * content : text  (text turns only — tool calls are
+      not replayed, the answer they produced is)
+  * input_tokens / output_tokens : bigint
+  * cache_write_tokens / cache_read_tokens : bigint
+      (billed at 1.25× and 0.1×, so kept apart)
+  * created_at : timestamptz
+    proposed_week_start : date  (which Monday this
+      turn drafted, if it did)
+    proposed_log_date : date  (which day this turn
+      drafted a log for, if it did)
+  --
+  idx (conversation_id)
+}
+
+entity "push_subscriptions" as subs #F0E9FF {
+  * id : bigint <<PK, identity>>
+  --
+  * endpoint : text  UNIQUE  (the push service's
+      address for one browser on one device)
+  * p256dh : text  (device public key, base64url)
+  * auth : text  (device auth secret, base64url)
+    user_agent : text  ("iPhone · Safari (installed)")
+  * created_at : timestamptz
+    last_sent_at : timestamptz
+}
+
+convs ||--o{ msgs : has
+
+note bottom of reports
+  A model writes here and nowhere else.
+  Accepting a week_plan inserts calendar_events;
+  accepting a day_log merges into daily_logs.
+  The turn that drafted points at the row by
+  date, not by id, so the card always shows
+  what accepting will actually write.
+end note
+
+note bottom of subs
+  One account, so no owner column — on every
+  table here. The day a second user exists
+  it is a known change.
+end note
+@enduml

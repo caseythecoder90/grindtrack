@@ -403,7 +403,9 @@ slab nobody reads, and the schema already separates cleanly along the same lines
 
 ![Grindtrack data model — calendar and upkeep](diagrams/data-model-calendar.svg)
 
-<sub>PlantUML sources: [`diagrams/data-model.puml`](diagrams/data-model.puml), [`diagrams/data-model-finance.puml`](diagrams/data-model-finance.puml), [`diagrams/data-model-relationship.puml`](diagrams/data-model-relationship.puml), [`diagrams/data-model-calendar.puml`](diagrams/data-model-calendar.puml) — edit and regenerate with [`diagrams/render.sh`](diagrams/render.sh).</sub>
+![Grindtrack data model — the assistant, and the phones it can reach](diagrams/data-model-assistant.svg)
+
+<sub>PlantUML sources: [`diagrams/data-model.puml`](diagrams/data-model.puml), [`diagrams/data-model-finance.puml`](diagrams/data-model-finance.puml), [`diagrams/data-model-relationship.puml`](diagrams/data-model-relationship.puml), [`diagrams/data-model-calendar.puml`](diagrams/data-model-calendar.puml), [`diagrams/data-model-assistant.puml`](diagrams/data-model-assistant.puml) — edit and regenerate with [`diagrams/render.sh`](diagrams/render.sh).</sub>
 
 Design notes worth remembering:
 
@@ -477,6 +479,14 @@ Schema **`grindtrack`**; Hibernate is `validate`-only, so Liquibase is the singl
 | 021 | `refresh-rotation-grace.sql` | `refresh_tokens.rotated_at` — when a token was rotated away, so the loser of a race can be told from a replay |
 | 022 | `trusted-devices.sql` | `trusted_devices` (+ `idx_trusted_devices_user`) — the second factor, remembered per browser |
 | 023 | `refresh-token-families.sql` | `refresh_tokens.family_id` (+ `idx_refresh_tokens_family`) — reuse detection revokes one login's lineage, never every session the user has |
+| 024 | `assistant-reports.sql` | `assistant_reports` — what the assistant has drafted, its own table, `draft_json` as text so a new field in a `*Draft` record needs no migration; unique `(kind, week_start)` |
+| 025 | `assistant-chat.sql` | `assistant_conversations`, `assistant_messages` — text turns only; the tool calls a reply made are not replayed |
+| 026 | `assistant-week-plan.sql` | `week_plan` joins the `kind` CHECK — a proposed week is a report like any other |
+| 027 | `assistant-cache-tokens.sql` | `cache_write_tokens`, `cache_read_tokens` on messages, apart from `input_tokens` because they bill at 1.25× and 0.1× |
+| 028 | `chat-proposals.sql` | `assistant_messages.proposed_week_start` — which Monday a turn drafted, when it did |
+| 029 | `chat-log-drafts.sql` | `day_log` joins the `kind` CHECK; `assistant_messages.proposed_log_date` |
+| 030 | `morning-brief.sql` | `morning_brief` joins the `kind` CHECK — one row per day |
+| 031 | `push-subscriptions.sql` | `push_subscriptions` — one browser on one device; the endpoint is the identity |
 
 - Every changeset has a `--rollback` (018's is a documented no-op — the values it cleared were
   wrong and there is nothing to restore them to). Time columns are `TIMESTAMPTZ DEFAULT now()`.
@@ -499,6 +509,10 @@ Schema **`grindtrack`**; Hibernate is `validate`-only, so Liquibase is the singl
 | `grindtrack.cookie-secure` | `COOKIE_SECURE` | `false` | `AppProperties` |
 | `grindtrack.bootstrap-username` | `GRINDTRACK_USERNAME` | empty | `AppProperties` |
 | `grindtrack.bootstrap-password` | `GRINDTRACK_PASSWORD` | empty | `AppProperties` |
+| `grindtrack.assistant.api-key` | `ANTHROPIC_API_KEY` | empty = off | `AssistantProperties` |
+| `grindtrack.assistant.model` / `zone` / `review-cron` / `brief-cron` | — | `claude-opus-5` / `America/New_York` / Fri 17:00 / 06:00 daily | `AssistantProperties` |
+| `grindtrack.push.vapid-public-key` / `vapid-private-key` / `subject` | `PUSH_VAPID_PUBLIC_KEY` / `PUSH_VAPID_PRIVATE_KEY` / `PUSH_VAPID_SUBJECT` | empty = off | `PushProperties` |
+| `grindtrack.speech.api-key` / `model` / `language` | `OPENAI_API_KEY` / — / — | empty = off / `gpt-4o-mini-transcribe` / `en` | `SpeechProperties` |
 
 Also: `spring.threads.virtual.enabled: true` (Java 21 virtual threads), `ddl-auto: validate`,
 `hibernate.default_schema: grindtrack`, `server.port: 8080`. **No Spring profiles** — environment

@@ -1,0 +1,76 @@
+@startuml
+' Speech to text: the microphone on one side, the transcription model on the other, the app in
+' the middle holding the key. Render: see diagrams/render.sh
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontSize 13
+skinparam defaultFontName Helvetica
+skinparam shadowing false
+skinparam ArrowColor #33475B
+skinparam sequence {
+  ParticipantBackgroundColor #E3F0FF
+  ParticipantBorderColor #2D6CDF
+  ActorBackgroundColor #FFE7BA
+  ActorBorderColor #B5651D
+  LifeLineBorderColor #33475B
+  GroupBorderColor #33475B
+  GroupBackgroundColor #EEF2F7
+}
+skinparam note {
+  BackgroundColor #FFF8DC
+  BorderColor #C8B560
+}
+
+actor "You" as you
+participant "AskPage\nuseSpeech (lib/speech.ts)" as ui
+participant "AudioWorklet\npcm16" as worklet
+participant "SpeechSocketHandler\n/api/speech/ws" as handler
+participant "TranscriptionRelay" as relay
+participant "OpenAI Realtime\nwss://…/realtime?intent=transcription" as openai
+
+ui -> handler : GET /api/speech/status (on mount)\n→ no key, no button
+you -> ui : tap the mic
+ui -> ui : getUserMedia({audio}) — first, inside the tap
+ui -> handler : WebSocket handshake\n(session cookie checked by the security filter)
+handler -> relay : new relay, start()
+relay -> openai : open socket, Authorization: Bearer <key>
+relay -> openai : session.update {type: transcription,\naudio/pcm 24 kHz, near_field, model, language, server_vad}
+openai --> relay : session.updated
+relay --> ui : {type: "ready"}
+ui -> worklet : AudioContext(24 kHz) + addModule(worklet)
+
+loop every 100 ms while listening
+  worklet --> ui : 4800 bytes PCM16 (resampled if needed)
+  ui -> handler : binary frame
+  handler -> relay : onAudio
+  relay -> openai : input_audio_buffer.append {audio: base64}
+end
+
+openai --> relay : input_audio_buffer.speech_started
+relay --> ui : {type: "speech", state: "started"}
+openai --> relay : …transcription.delta {delta}
+relay --> ui : {type: "delta", text}
+ui --> you : words appear in the box (interim)
+openai --> relay : …transcription.completed {transcript}
+relay --> ui : {type: "final", text}
+ui --> you : phrase committed to the draft
+
+== Stop — a handshake, not a hang-up ==
+you -> ui : tap the mic again
+ui -> ui : microphone off, socket kept
+ui -> handler : {"type": "stop"}
+handler -> relay : onStop
+relay -> openai : input_audio_buffer.commit
+relay -> relay : grace timer, 4 s
+openai --> relay : …transcription.completed (the last phrase)
+relay --> ui : {type: "final", text}
+relay -> openai : close
+relay -> handler : close the browser socket
+ui --> you : ready to read, edit, Ask
+
+note over relay
+  Five minutes is the limit for one dictation.
+  A service error is one {type: "error", message}
+  frame and a close; typing mid-phrase aborts
+  from the browser side and keeps what is shown.
+end note
+@enduml

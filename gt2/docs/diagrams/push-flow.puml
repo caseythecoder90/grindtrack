@@ -1,0 +1,68 @@
+@startuml
+' Web Push end to end: subscribing once, then one send. Three parties, two key pairs.
+' Render: see diagrams/render.sh
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontSize 13
+skinparam defaultFontName Helvetica
+skinparam shadowing false
+skinparam ArrowColor #33475B
+skinparam sequence {
+  ParticipantBackgroundColor #E3F0FF
+  ParticipantBorderColor #2D6CDF
+  ActorBackgroundColor #FFE7BA
+  ActorBorderColor #B5651D
+  LifeLineBorderColor #33475B
+  GroupBorderColor #33475B
+  GroupBackgroundColor #EEF2F7
+}
+skinparam note {
+  BackgroundColor #FFF8DC
+  BorderColor #C8B560
+}
+
+actor "You" as you
+participant "NotificationsPanel\n(lib/push.ts)" as panel
+participant "service worker\nsw.js" as sw
+participant "Push service\nApple / Google / Mozilla" as psvc
+participant "PushController\nPushService" as server
+database "push_subscriptions" as subs
+
+== Turn on (once per device) ==
+panel -> server : GET /api/push/status (on mount)
+server --> panel : {configured, publicKey}
+you -> panel : tap "turn on notifications"
+panel -> panel : Notification.requestPermission()\nFIRST — nothing awaited before it (iOS)
+panel -> sw : pushManager.subscribe({applicationServerKey: publicKey})
+sw -> psvc : register
+psvc --> sw : endpoint URL + device keys (p256dh, auth)
+panel -> server : PUT /api/push/subscriptions {endpoint, keys, userAgent}
+server -> subs : upsert by endpoint
+server --> panel : {id, devices}
+you -> panel : "send a test"
+panel -> server : POST /api/push/test {endpoint}
+
+== One send (test, brief, review) ==
+server -> server : PayloadCipher.encrypt(JSON, p256dh, auth)\nRFC 8291: ECDH → HKDF ×2 → AES-128-GCM
+server -> server : Vapid.authorization(endpoint)\nRFC 8292: ES256 JWT, aud = push service origin
+server -> psvc : POST endpoint\nAuthorization: vapid t=…, k=…\nContent-Encoding: aes128gcm · TTL · Urgency
+alt 201
+  psvc --> server : queued
+  server -> subs : last_sent_at = now
+else 404 / 410
+  psvc --> server : gone
+  server -> subs : delete the row
+else 429 / 5xx / timeout
+  psvc --> server : not now
+  server -> server : log, keep the row, no retry
+end
+psvc -> sw : push event (browser decrypts with the device keys)
+sw -> sw : showNotification(title, body, tag, data.tab)
+you -> sw : tap
+sw -> panel : focus an open window + postMessage {open-tab}\nor openWindow("/?tab=today")
+
+note over server, psvc
+  The push service relays ciphertext it cannot read;
+  the VAPID private key never leaves the Secret; the
+  endpoint is a capability and is logged truncated.
+end note
+@enduml
