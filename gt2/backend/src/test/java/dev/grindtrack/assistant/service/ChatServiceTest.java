@@ -290,4 +290,47 @@ class ChatServiceTest {
     verify(messages, times(2)).save(saved.capture());
     assertThat(saved.getAllValues().get(1).getProposedWeekStart()).isNull();
   }
+
+  /**
+   * Two threads that began with the same question have the same title, and a retry begins with
+   * exactly the same question — so the list carries what tells them apart: how long each is, and
+   * whether a week was drafted inside it.
+   */
+  @Test
+  void theListSaysHowLongEachThreadIsAndWhetherItDraftedAWeek() {
+    AssistantConversation real = conversationWithId(1L, "Can you plan my week?");
+    AssistantConversation attempt = conversationWithId(2L, "Can you plan my week?");
+    when(conversations.findAllByOrderByLastMessageAtDesc()).thenReturn(List.of(real, attempt));
+    when(messages.turnCounts()).thenReturn(List.of(new Object[] {1L, 2L}, new Object[] {2L, 1L}));
+    when(messages.conversationsWithADraft()).thenReturn(List.of(1L));
+
+    List<ChatService.ConversationSummary> list = service.list();
+
+    assertThat(list).hasSize(2);
+    assertThat(list.get(0).turns()).isEqualTo(2);
+    assertThat(list.get(0).hasDraft()).isTrue();
+    assertThat(list.get(1).turns()).isEqualTo(1);
+    assertThat(list.get(1).hasDraft()).isFalse();
+  }
+
+  /** A conversation with no messages yet counts as zero turns, not as a missing row. */
+  @Test
+  void aThreadWithNoTurnsCountsAsZero() {
+    // Built before the stub, not inside it: a mock created while another stubbing is open is
+    // Mockito's UnfinishedStubbing, and it is the same trap this file fell into once already.
+    AssistantConversation empty = conversationWithId(9L, "empty");
+    when(conversations.findAllByOrderByLastMessageAtDesc()).thenReturn(List.of(empty));
+    when(messages.turnCounts()).thenReturn(List.of());
+    when(messages.conversationsWithADraft()).thenReturn(List.of());
+
+    assertThat(service.list().get(0).turns()).isZero();
+  }
+
+  private static AssistantConversation conversationWithId(long id, String title) {
+    AssistantConversation c = org.mockito.Mockito.mock(AssistantConversation.class);
+    when(c.getId()).thenReturn(id);
+    when(c.getTitle()).thenReturn(title);
+    when(c.getLastMessageAt()).thenReturn(java.time.OffsetDateTime.now());
+    return c;
+  }
 }
