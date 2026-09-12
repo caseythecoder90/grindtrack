@@ -10,6 +10,7 @@ import {
   type ChatTurn,
   type ConversationSummary,
 } from "./assistantApi";
+import { useSpeech } from "../../lib/speech";
 import ConversationsSheet from "./ConversationsSheet";
 import ProposedLog from "./ProposedLog";
 import ProposedWeek from "./ProposedWeek";
@@ -51,6 +52,10 @@ export default function AskPage() {
   const [draft, setDraft] = useState("");
   const [error, setError] = useState("");
   const [listOpen, setListOpen] = useState(false);
+  // Spoken phrases land in the box next to whatever was typed; nothing is sent until Ask.
+  const speech = useSpeech((phrase) =>
+    setDraft((d) => (d.trim() ? d.replace(/\s*$/, " ") : "") + phrase),
+  );
   const foot = useRef<HTMLDivElement>(null);
 
   const refreshList = useCallback(async () => {
@@ -91,6 +96,7 @@ export default function AskPage() {
   async function send() {
     const message = draft.trim();
     if (!message || pending) return;
+    speech.stop();
     setDraft("");
     setPending(message);
     setDoing("reading your data…");
@@ -188,7 +194,8 @@ export default function AskPage() {
         {turns.length === 0 && !pending && (
           <div className="empty">
             Ask about the week, the plan, what to study next. It can read your logs, plan,
-            calendar and sessions — and change none of them.
+            calendar and sessions, and draft a week or a day's log for you to approve — it changes
+            nothing on its own.
           </div>
         )}
         {turns.map((t, i) => (
@@ -220,11 +227,16 @@ export default function AskPage() {
 
       {error && <div className="error">{error}</div>}
 
-      <div className="askform">
+      <div className={"askform" + (speech.listening ? " listening" : "")}>
         <textarea
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder="e.g. am I on pace for CKA in December?"
+          value={speech.interim ? draft + (draft.trim() ? " " : "") + speech.interim : draft}
+          onChange={(e) => {
+            // Typing takes the box back: the words on screen become the draft as they stand, and
+            // the phrase in flight is dropped so it cannot land a second time.
+            if (speech.listening) speech.abort();
+            setDraft(e.target.value);
+          }}
+          placeholder={speech.listening ? "listening…" : "e.g. am I on pace for CKA in December?"}
           rows={2}
           onKeyDown={(e) => {
             // Enter sends, Shift+Enter breaks the line — the shape every chat box has.
@@ -234,10 +246,27 @@ export default function AskPage() {
             }
           }}
         />
+        {speech.supported && (
+          <button
+            type="button"
+            className={"mic" + (speech.listening ? " on" : "")}
+            aria-pressed={speech.listening}
+            aria-label={speech.listening ? "stop listening" : "speak your question"}
+            disabled={!!pending}
+            onClick={() => (speech.listening ? speech.stop() : speech.start())}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <rect x="9" y="3" width="6" height="11" rx="3" />
+              <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+            </svg>
+          </button>
+        )}
         <button type="button" className="primary" onClick={send} disabled={!draft.trim() || !!pending}>
           {pending ? "thinking…" : "Ask"}
         </button>
       </div>
+      {speech.error && <div className="askhint">{speech.error}</div>}
 
       {status && (
         <p className="askbill">
