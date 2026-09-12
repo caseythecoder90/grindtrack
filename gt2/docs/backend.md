@@ -22,6 +22,7 @@ Each feature is a top-level package split into layer subpackages:
 | `web` | shared, feature-agnostic: request parsing, exception→status mapping | — |
 | `assistant` | the context an assistant reasons over, and the three features on it | `/api/assistant` |
 | `push` | Web Push to the installed app: subscriptions, the VAPID signer, the payload cipher, the two producers' hook | `/api/push` |
+| `speech` | speech to text for the ask box: a WebSocket relay from the microphone to a transcription model | `/api/speech` |
 | `calendar` | events on days, and recurring upkeep | `/api/calendar`, `/api/upkeep` |
 | `config` | cross-cutting: `SecurityConfig`, `StaticContentConfig`, `AppProperties` | — |
 
@@ -340,6 +341,19 @@ The sending side is `push/service/`: `Vapid` (RFC 8292, the signed sender header
 `PushService` (one row per endpoint; 404/410 deletes it; anything else is logged and kept) and
 `PushTransport` (the one outbound call, an interface so tests need no network). The two schedulers
 call `PushService.send` after their draft is stored. See [push-notifications.md](push-notifications.md).
+
+### `SpeechController` / `SpeechSocketHandler` — `/api/speech`
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/status` | `{configured, model}` |
+| WS | `/ws` | one socket per dictation; audio in as binary frames, text out as JSON frames |
+
+`speech/service/TranscriptionRelay` is the whole protocol: it opens the transcription session,
+turns audio frames into `input_audio_buffer.append` events, and turns the service's transcript
+events into `ready` / `delta` / `final` / `speech` / `error` frames. `TranscriptionUpstream` is
+the socket behind an interface, so the relay is tested against a fake service and a fake browser.
+See the "Speaking a question" section of [assistant.md](assistant.md).
 
 ## Auth internals (summary)
 

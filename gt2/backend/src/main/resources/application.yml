@@ -64,6 +64,14 @@ grindtrack:
     vapid-public-key: ${PUSH_VAPID_PUBLIC_KEY:}
     vapid-private-key: ${PUSH_VAPID_PRIVATE_KEY:}
     subject: ${PUSH_VAPID_SUBJECT:mailto:grindtrack@example.invalid}
+  # Speech to text for the ask box. No key means off: the mic button is not rendered and the
+  # socket refuses with a sentence. gpt-4o-mini-transcribe is about a third of a cent a minute and
+  # transcribes each phrase once you pause; gpt-live-transcribe streams word by word at several
+  # times the price — one line to switch.
+  speech:
+    api-key: ${OPENAI_API_KEY:}
+    model: gpt-4o-mini-transcribe
+    language: en
   bootstrap-username: ${GRINDTRACK_USERNAME:}
   bootstrap-password: ${GRINDTRACK_PASSWORD:}
 

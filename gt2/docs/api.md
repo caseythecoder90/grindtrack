@@ -354,3 +354,13 @@ the writes answer 503.
 | PUT | `/api/push/subscriptions` | `{endpoint, keys: {p256dh, auth}, userAgent?}` — what `pushManager.subscribe` returned | upsert by endpoint; `{id, devices}`. 400 with a sentence when the keys are not a browser's |
 | DELETE | `/api/push/subscriptions/{id}` | – | `{deleted: id}` |
 | POST | `/api/push/test` | `{endpoint?}` | sends the test notification to that device, or to all when absent; `{sent, gone, failed}` |
+
+## Speech to text (authenticated)
+
+| Method | Path | Body | Answer |
+|---|---|---|---|
+| GET | `/api/speech/status` | – | `{configured, model}` — whether the mic button should exist |
+| WS | `/api/speech/ws` | binary frames of PCM16 mono 24 kHz; one text frame `{"type":"stop"}` | text frames `{type: "ready" \| "delta" \| "final" \| "speech" \| "error", text?, state?, message?}`; the server closes after the last phrase or on error |
+
+The handshake is an ordinary GET through the security filter, so the session cookie gates it.
+Off (no `OPENAI_API_KEY`) is an `error` frame and a close.
