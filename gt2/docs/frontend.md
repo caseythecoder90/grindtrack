@@ -15,7 +15,6 @@ src/
 ├── App.tsx             top-level shell: view/tab state machine, session probe, header
 ├── styles.css          single global stylesheet (dstyle palette; no CSS framework)
 ├── vite-env.d.ts       pulls in vite/client types (import.meta.env)
-├── lib/tabs.ts         the section list, and which four the bottom bar shows
 ├── components/         shared, presentational
 │   ├── BottomNav.tsx   the phone's navigation: 4 sections + a "more" sheet
 │   ├── MoreSheet.tsx   modal sheet holding the sections the bar cannot fit
@@ -28,6 +27,14 @@ src/
 │   ├── StatBar.tsx     scope switcher + KPI row (week / streak / total / days)
 │   └── WeekTotals.tsx  study · work · total for one week, on both week tabs
 ├── features/
+│   ├── assistant/
+│   │   ├── AskPage.tsx          the chat: streamed turns, a mic, the drafted-week and drafted-log cards
+│   │   ├── ConversationsSheet.tsx  the thread list as a bottom sheet, grouped by day, with delete
+│   │   ├── ProposedWeek.tsx     a week the assistant drafted, and the Book button (the one write)
+│   │   ├── ProposedLog.tsx      a day's log it drafted, merged over the day, and the Save button
+│   │   ├── WeekPlanCard.tsx     the planner on the week tab: propose, read the blocks, Book
+│   │   ├── MorningBrief.tsx     the 06:00 brief above the daily log; a redraft button when it is stale
+│   │   └── assistantApi.ts      the endpoints, and streamChat over the SSE reader in lib/api.ts
 │   ├── auth/Login.tsx           username + password + TOTP form
 │   ├── calendar/
 │   │   ├── CalendarPage.tsx     month + selected day + upkeep, one request per month
@@ -43,6 +50,9 @@ src/
 │   │   ├── timer.ts             pure pomodoro state machine (framework-free, nowMs-parameterized)
 │   │   ├── useFocusTimer.ts     hook: persistence, 500ms tick, transitions, alert wiring
 │   │   └── alerts.ts            chime / notification side effects
+│   ├── push/
+│   │   ├── NotificationsPanel.tsx  five honest states and a "send a test"; in the more sheet and behind a header button
+│   │   └── pushApi.ts           status, subscriptions, test
 │   ├── plan/
 │   │   ├── PlanPage.tsx         orchestration: load, update, import, composition
 │   │   ├── PlanHeader.tsx       progress bar + type filter chips
@@ -82,8 +92,13 @@ src/
 │       ├── ReadingPanel.tsx     reading list; a takeaway can be promoted to an idea
 │       └── kinds.ts             moment/idea/reading kind labels
 └── lib/                framework-free
-    ├── api.ts          fetch wrapper + 401/refresh/retry; AuthError vs OfflineError
+    ├── api.ts          fetch wrapper + 401/refresh/retry; AuthError vs OfflineError; stream() for SSE
     ├── dates.ts        todayISO, mondayOf, addDays (local-tz safe)
+    ├── push.ts         Web Push from the browser's side: the five states, subscribe, unsubscribe
+    ├── pwa.ts          service worker registration (production only)
+    ├── resume.ts       useAppResume: refresh when the app comes back to the foreground
+    ├── speech.ts       useSpeech: microphone → worklet → WebSocket relay → words in the box
+    ├── tabs.ts         the section list, and which four the bottom bar shows
     └── types.ts        interfaces + constants (CATEGORIES, TARGETS, FOCUS_DEFAULTS)
 ```
 
@@ -268,6 +283,11 @@ sequenceDiagram
 | `relationship/IdeasPanel` | `GET/POST/PUT/DELETE /api/relationship/ideas`, `POST /ideas/{id}/done` | least effort first, so there is always something doable tonight; marking one done logs it as a moment |
 | `relationship/OccasionsPanel` | `GET/POST/PUT/DELETE /api/relationship/occasions` | anniversaries and birthdays with per-occasion lead time; a write answers with the whole list because every next date shifts together |
 | `relationship/ReadingPanel` | `GET/POST/DELETE /api/relationship/reading`, `POST /{id}/read`, `POST /{id}/promote` | reading list where the takeaway is the point — and can be promoted straight into a gesture idea |
+| `assistant/AskPage` | `POST /api/assistant/chat/stream`, `GET/DELETE /chat/{id}`, `GET /chat`, `GET /status`; `WS /api/speech/ws` via `lib/speech.ts` | streamed turns with a heartbeat-tolerant SSE reader; a stream cut re-reads the thread instead of handing the question back; the mic renders only when `/api/speech/status` says configured. See [assistant.md](assistant.md), [speech-to-text.md](speech-to-text.md) |
+| `assistant/ProposedWeek` · `ProposedLog` | `GET /api/assistant/week-plan`, `POST /week-plan/accept`; `GET /day-log`, `POST /day-log/accept` | the two cards a chat turn can leave behind. Book and Save are the only writes; each fetches the stored draft rather than trusting the turn |
+| `assistant/MorningBrief` | `GET/POST /api/assistant/brief` | three short pieces above the daily log; off is one line with a button that says what a redraft costs |
+| `tracking/Week` (review) | `GET/POST /api/assistant/reviews` | the Friday draft, and a redraft button |
+| `push/NotificationsPanel` | `GET /api/push/status`, `GET/PUT /subscriptions`, `DELETE /subscriptions/{id}`, `POST /test` | unsupported (not rendered) / needs-install / blocked / off / on; the permission prompt is the first thing the tap does. See [push-notifications.md](push-notifications.md) |
 
 ### FocusPage — a durable timer
 

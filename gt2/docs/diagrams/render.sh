@@ -44,8 +44,14 @@ if command -v java >/dev/null 2>&1; then
     mkdir -p "$(dirname "$jar")"
     curl -fsSL -o "$jar" "$url"
   fi
-  # -Smetana: pure-Java layout, no Graphviz install needed.
-  java -jar "$jar" -tsvg -Smetana -nbthread auto "$here"/*.puml
+  # Graphviz when it is installed (nicer orthogonal lines); otherwise PlantUML's built-in
+  # Smetana layout, pure Java. The old -Smetana flag stopped selecting it in 1.2025.x and
+  # silently produced "Dot Executable not found" images instead.
+  if command -v dot >/dev/null 2>&1; then
+    java -jar "$jar" -tsvg -nbthread auto "$here"/*.puml
+  else
+    java -jar "$jar" -tsvg -Playout=smetana -nbthread auto "$here"/*.puml
+  fi
 elif docker info >/dev/null 2>&1; then
   docker run --rm -v "${here}:/data" plantuml/plantuml -tsvg /data/*.puml
 else

@@ -1,0 +1,52 @@
+@startuml
+' What one chat request looks like on the wire, and where the two cache breakpoints sit.
+' Everything above a breakpoint is charged once (write, 1.25×) and read back cheaply (0.1×)
+' on the next request — as long as the bytes are identical. Render: see diagrams/render.sh
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontSize 13
+skinparam defaultFontName Helvetica
+skinparam shadowing false
+skinparam rectangle {
+  BorderColor #33475B
+  FontColor #12243A
+}
+skinparam note {
+  BackgroundColor #FFF8DC
+  BorderColor #C8B560
+}
+
+rectangle "One request to the Messages API (sent again every round)" as req {
+  rectangle "1. tools — six JSON schemas\nget_plan, get_days, get_calendar, get_focus_sessions,\npropose_week, propose_log" as t #E3F0FF
+  rectangle "2. system prompt — the rules\n(read everything, draft only, never say 'scheduled')" as s #E3F0FF
+  rectangle "3. AssistantContext — this week, targets,\nnear plan items, next fortnight, recent days\n(no timestamp: 'today' is the only clock)" as c #E3F0FF
+  rectangle "★ explicit breakpoint on the last system block\n   covers 1 + 2 + 3 — changes once per TURN" as bp1 #FFE7BA
+  rectangle "4. conversation history — earlier turns" as h #E4F9EC
+  rectangle "5. this turn's tool results so far\n(all of a round's results in ONE user message)" as r #E4F9EC
+  rectangle "★ automatic top-level breakpoint\n   covers 4 + 5 — changes once per ROUND" as bp2 #FFE7BA
+  rectangle "6. the newest message" as n #F0E9FF
+}
+
+t -down-> s
+s -down-> c
+c -down-> bp1
+bp1 -down-> h
+h -down-> r
+r -down-> bp2
+bp2 -down-> n
+
+note right of bp1
+  Opus 5 caches a prefix only from
+  512 tokens up; the tools and context
+  alone are past that. TTL five minutes,
+  refreshed by every read — rounds are
+  seconds apart.
+end note
+
+note right of bp2
+  Why the same bytes matter: a clock
+  reading in the context, or tools in a
+  different order, would change segment
+  3 and silently miss every read.
+  ContextServiceTest guards it.
+end note
+@enduml

@@ -1,0 +1,146 @@
+@startuml
+' The assistant, push and speech features: every class that touches a model or a phone, and the
+' one table every draft lands in. Structural view; the sequences are in chat-turn.puml,
+' draft-accept.puml, push-flow.puml and speech-relay.puml. Render: see diagrams/render.sh
+skinparam componentStyle rectangle
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontSize 13
+skinparam defaultFontName Helvetica
+skinparam shadowing false
+skinparam linetype ortho
+skinparam ArrowColor #33475B
+skinparam ArrowFontColor #1A2B3C
+skinparam actor {
+  BackgroundColor #FFE7BA
+  BorderColor #B5651D
+}
+skinparam node {
+  BorderColor #33475B
+  FontColor #12243A
+  FontStyle bold
+}
+skinparam nodeBackgroundColor #EEF2F7
+skinparam component {
+  BackgroundColor #E3F0FF
+  BorderColor #2D6CDF
+  FontColor #12243A
+}
+skinparam database {
+  BackgroundColor #E4F9EC
+  BorderColor #2F9E57
+  FontColor #123322
+}
+skinparam cloud {
+  BackgroundColor #F0E9FF
+  BorderColor #6E44C4
+}
+skinparam note {
+  BackgroundColor #FFF8DC
+  BorderColor #C8B560
+}
+
+actor "You" as you
+
+node "Browser (React PWA)" as browser {
+  component "today tab\nMorningBrief" as uiToday
+  component "week tab\nreview · planner" as uiWeek
+  component "ask tab\nAskPage · mic" as uiAsk
+  component "more sheet\nNotificationsPanel" as uiMore
+  component "service worker\nsw.js" as sw
+}
+
+node "Spring Boot — assistant/" as assistant {
+  component "AssistantController\n/api/assistant/*" as ac
+  component "ChatController\n/chat/stream (SSE)" as cc
+  component "ContextService" as ctx
+  component "WeeklyReviewService" as wrs
+  component "WeekPlanService" as wps
+  component "DayLogService" as dls
+  component "MorningBriefService" as mbs
+  component "ChatService" as cs
+  component "AnthropicChatModel\n(tool loop, caching)" as chatModel
+  component "AssistantToolExecutor\n4 reads · 2 drafts" as tools
+  component "Anthropic*Model\nreview · plan · brief" as models
+  component "WeeklyReviewScheduler\nFri 17:00" as sched1
+  component "MorningBriefScheduler\n06:00 daily" as sched2
+}
+
+node "Spring Boot — push/" as push {
+  component "PushController\n/api/push/*" as pc
+  component "PushService" as ps
+  component "Vapid · PayloadCipher" as crypto
+}
+
+node "Spring Boot — speech/" as speech {
+  component "SpeechSocketHandler\n/api/speech/ws" as ssh
+  component "TranscriptionRelay" as relay
+}
+
+database "Postgres" as db {
+  component "assistant_reports\n(every draft)" as reports
+  component "assistant_conversations\nassistant_messages" as convs
+  component "push_subscriptions" as subs
+  component "daily_logs · calendar_events\nplan_items · focus_sessions" as data
+}
+
+cloud "Anthropic API\nMessages" as anthropic
+cloud "OpenAI Realtime\ntranscription" as openai
+cloud "Push services\nApple · Google · Mozilla" as pushsvc
+
+you --> browser
+uiToday --> ac
+uiWeek --> ac
+uiAsk --> cc
+uiAsk --> ssh : audio (WebSocket)
+uiMore --> pc
+
+ac --> wrs
+ac --> wps
+ac --> dls
+ac --> mbs
+cc --> cs
+cs --> chatModel
+chatModel --> tools
+chatModel --> anthropic
+tools --> wps : propose_week
+tools --> dls : propose_log
+tools --> data : reads
+wrs --> models
+wps --> models
+mbs --> models
+models --> anthropic
+wrs --> ctx
+wps --> ctx
+mbs --> ctx
+cs --> ctx
+ctx --> data : reads
+wrs --> reports
+wps --> reports
+dls --> reports
+mbs --> reports
+cs --> convs
+wps --> data : accept → calendar_events
+dls --> data : accept → daily_logs
+
+sched1 --> wrs
+sched2 --> mbs
+sched1 --> ps : push
+sched2 --> ps : push
+pc --> ps
+ps --> crypto
+ps --> subs
+ps --> pushsvc : encrypted body
+pushsvc --> sw : wake
+sw --> uiToday : open tab
+
+ssh --> relay
+relay --> openai : session · audio
+openai --> relay : transcript
+
+note bottom of reports
+  The rule of the whole surface: a model
+  writes here and nowhere else. A person
+  turns a draft into the real thing by
+  pressing Book or Save.
+end note
+@enduml

@@ -143,6 +143,81 @@ kubectl -n grindtrack rollout restart deploy/grindtrack
 **4. Import the plan.** Plan content is personal and never ships in git: generate `plan.json`
 locally with `gt2/tools/plan-import/xlsx_to_plan_json.py` and upload it through the Plan tab.
 
+## Optional features: the assistant, push, and speech
+
+Three features are off until a key exists in `grindtrack-secrets`. Off is a state, not an
+error: the app deploys and runs without any of them, each answers "off" with a sentence, and
+the env vars are already on the deployment (`base/app-deployment.yaml` in the k8s repo, all
+`optional: true`). Turning one on is the same three moves every time.
+
+| Feature | Key(s) in the secret | Where it comes from | Off looks like | Detailed doc |
+|---|---|---|---|---|
+| Assistant (review, planner, chat, brief) | `ANTHROPIC_API_KEY` | console.anthropic.com | 503 with a sentence; scheduled jobs quiet; the ask tab explains | [assistant.md](assistant.md) |
+| Push notifications | `PUSH_VAPID_PUBLIC_KEY`, `PUSH_VAPID_PRIVATE_KEY`, `PUSH_VAPID_SUBJECT` | generated once on a laptop (node one-liner in the doc) | panel says "push is off on the server" | [push-notifications.md](push-notifications.md#runbook) |
+| Speech to text | `OPENAI_API_KEY` | platform.openai.com | no mic button on the ask tab | [speech-to-text.md](speech-to-text.md#runbook) |
+
+**1. Put the value in the secret.** `patch --type=merge` adds or replaces only the keys named,
+and `stringData` takes the plain value (Kubernetes base64-encodes it):
+
+```bash
+kubectl -n grindtrack patch secret grindtrack-secrets --type=merge -p '{"stringData":{
+  "ANTHROPIC_API_KEY":"sk-ant-…",
+  "OPENAI_API_KEY":"sk-…",
+  "PUSH_VAPID_PUBLIC_KEY":"…","PUSH_VAPID_PRIVATE_KEY":"…","PUSH_VAPID_SUBJECT":"mailto:you@example.com"
+}}'
+```
+
+Any subset is fine; each feature reads only its own keys.
+
+**2. Restart.** Env vars are resolved once at container start; a patched Secret changes nothing
+until the pod is replaced:
+
+```bash
+kubectl -n grindtrack rollout restart deploy/grindtrack
+kubectl -n grindtrack rollout status deploy/grindtrack
+```
+
+**3. Verify from both sides.** The pod, then the app:
+
+```bash
+kubectl -n grindtrack exec deploy/grindtrack -- sh -c '
+  for v in ANTHROPIC_API_KEY OPENAI_API_KEY PUSH_VAPID_PRIVATE_KEY; do
+    eval "val=\$$v"; [ -n "$val" ] && echo "$v present" || echo "$v MISSING"; done'
+```
+
+Then, logged in, open each status endpoint in a browser tab:
+
+| Endpoint | Should read |
+|---|---|
+| `/api/assistant/status` | `configured: true`, the model, this month's spend |
+| `/api/push/status` | `configured: true`, the public key you generated |
+| `/api/speech/status` | `configured: true`, `model: gpt-4o-mini-transcribe` |
+
+A `configured: false` after a restart means the env var did not reach the pod: the patch went
+to a different cluster or namespace, or the manifest with the env var was never applied
+(`kubectl apply -k kubernetes/apps/grindtrack/overlays/prod` from the k8s repo).
+
+**4. The one live check each.** Nothing in the test suite talks to a real provider.
+
+- Assistant: ask tab, ask a question. The status line under the box shows the cost.
+- Push: installed app → more → **turn on notifications** → **send a test**. It should arrive
+  within seconds.
+- Speech: ask tab → tap the mic → say a sentence → pause. The phrase lands in the box.
+
+Each doc's runbook has a table of what the app says when it does not work, and what to do.
+
+**Rotating a key** is the same three moves. Rotating the VAPID pair also invalidates every
+phone's subscription; each re-subscribes with one tap.
+
+**Reading their logs:**
+
+```bash
+kubectl -n grindtrack logs deploy/grindtrack | grep -iE "Drafted|review|brief|Push|transcription"
+```
+
+The Friday review logs `Drafted the weekly review for …`, the brief `Drafted the morning brief
+for …`, a push `Pushed the …: Outcome[sent=1, gone=0, failed=0]`.
+
 ## Day-2 operations
 
 ```bash
@@ -206,6 +281,9 @@ implement. **Prove the restore path once** after building it — an untested bac
 - [ ] `KUBE_CONFIG` set → a push to `main` rolls out automatically
 - [ ] Login works from your phone over HTTPS
 - [ ] Plan imported through the Plan tab
+- [ ] `ANTHROPIC_API_KEY` in the secret, `/api/assistant/status` says configured, a question answered on the ask tab
+- [ ] VAPID pair in the secret, `/api/push/status` says configured, **send a test** arrived on the phone
+- [ ] `OPENAI_API_KEY` in the secret, `/api/speech/status` says configured, a sentence dictated into the ask box
 - [ ] **Backup CronJob built, and a restore actually tested** ← open
 
 ## History

@@ -22,6 +22,20 @@ Two real ones and a test. Both real ones are things the scheduler already produc
 is one more line after the row is written. They fire only when the draft *succeeded* — a push
 saying "your brief is ready" with no brief behind it is worse than silence.
 
+### Where the code lives
+
+| Piece | Backend | Frontend |
+|---|---|---|
+| The sender's identity (RFC 8292) | `push/service/Vapid` | — |
+| The body, encrypted to the device (RFC 8291) | `push/service/PayloadCipher` | — |
+| Subscriptions and sends | `push/service/PushService`, `push/domain/PushSubscription` + repository | `features/push/pushApi.ts` |
+| The one outbound call | `push/service/PushTransport`, `HttpPushTransport` | — |
+| HTTP | `push/api/PushController` | — |
+| The device's side | — | `lib/push.ts` (states, subscribe, unsubscribe), `features/push/NotificationsPanel.tsx` |
+| Showing it, and the tap | — | `public/sw.js` (`push`, `notificationclick`), `App.tsx` (`?tab=`, worker messages) |
+| The producers | `assistant/service/MorningBriefScheduler`, `WeeklyReviewScheduler` | — |
+| Configuration | `config/PushProperties` | — |
+
 **Not in this round**, and deliberately: reminders for calendar blocks. That needs a scheduler
 that scans the calendar every few minutes and remembers what it already sent, which is a
 different piece of work from "tell me when the scheduled job finishes". The plumbing below is
@@ -29,28 +43,9 @@ built so it is one more producer when the time comes.
 
 ## How Web Push works, in the part that matters here
 
-```mermaid
-sequenceDiagram
-  participant P as Phone (installed app)
-  participant SW as Service worker
-  participant A as grindtrack
-  participant PS as Push service (Apple / Google / Mozilla)
+![Web Push end to end: subscribing once, then one send](diagrams/push-flow.svg)
 
-  P->>SW: pushManager.subscribe(applicationServerKey)
-  SW->>PS: register
-  PS-->>SW: endpoint URL + device keys (p256dh, auth)
-  P->>A: PUT /api/push/subscriptions {endpoint, keys}
-  Note over A: one row per endpoint
-
-  Note over A: 06:00 — brief drafted
-  A->>A: encrypt payload to the device keys (RFC 8291)
-  A->>A: sign a VAPID token with our private key (RFC 8292)
-  A->>PS: POST endpoint, TTL, Urgency, encrypted body
-  PS-->>P: wake the service worker
-  SW->>P: showNotification(title, body)
-  P->>SW: tap
-  SW->>P: focus or open the app on the right tab
-```
+<sub>PlantUML source: [`diagrams/push-flow.puml`](diagrams/push-flow.puml) — edit it and regenerate with [`diagrams/render.sh`](diagrams/render.sh).</sub>
 
 Three parties, two key pairs.
 
@@ -256,16 +251,54 @@ The one thing no test covers is the real push service accepting a real message. 
 
 ## Runbook
 
-1. Generate the pair (above) on a laptop. Do not commit either half.
-2. Patch the secret and restart:
+The three env vars are already on the deployment (k8s repo, `base/app-deployment.yaml`, all
+`optional: true`). They need values.
+
+1. **Generate the pair** on a laptop with the node one-liner above. Commit neither half; the
+   private one is a credential.
+2. **Patch the secret and restart.** Env vars are resolved once at container start, so the
+   restart is not optional:
    ```bash
    kubectl -n grindtrack patch secret grindtrack-secrets --type=merge \
      -p '{"stringData":{"PUSH_VAPID_PUBLIC_KEY":"…","PUSH_VAPID_PRIVATE_KEY":"…","PUSH_VAPID_SUBJECT":"mailto:you@example.com"}}'
-   kubectl -n grindtrack rollout restart deployment/grindtrack
+   kubectl -n grindtrack rollout restart deploy/grindtrack
+   kubectl -n grindtrack rollout status deploy/grindtrack
    ```
-3. On the phone, in the installed app: more → **turn on notifications** → allow.
-4. **Send a test.** It should arrive within a few seconds.
-5. Tomorrow at six, the brief.
+3. **Prove the pod has them**, then that the app agrees:
+   ```bash
+   kubectl -n grindtrack exec deploy/grindtrack -- sh -c 'test -n "$PUSH_VAPID_PRIVATE_KEY" && echo keys present'
+   ```
+   Logged in, open `/api/push/status`: `configured` should be `true` and `publicKey` the value
+   you generated. If `configured` is false, the pod did not get the env vars — check the restart
+   ran against the same cluster.
+4. **On the phone, in the installed app** (iOS 16.4+, added to the home screen): more → **turn on
+   notifications** → allow. The panel should read *on · this device* and list it.
+5. **Send a test.** It should arrive within a few seconds. This is the only check that exercises
+   a real push service; nothing in the test suite does.
+6. Tomorrow at six, the brief. Friday at five, the review.
+
+**If the test does not arrive:**
+
+| Panel says | Means | Do |
+|---|---|---|
+| needs the installed app | Safari in the browser proper has no push | share → add to home screen, open from there |
+| blocked | permission was denied once | Settings → Notifications → grindtrack → allow, reopen |
+| push is off on the server | no VAPID pair reached the pod | steps 2–3 |
+| sent — it should arrive… but nothing does | the push service accepted it; the device did not show it | check Focus / Do Not Disturb; `kubectl logs` for `Push`; on iOS, delete and re-add the app once |
+| this device's subscription had lapsed | the push service answered 404/410 | turn on again — the phone re-subscribes |
+
+**Reading the logs:**
+
+```bash
+kubectl -n grindtrack logs deploy/grindtrack | grep -iE "push"
+```
+
+Endpoints appear truncated (`https://web.push.apple.com/…fXkqLm2P`) on purpose: they are
+capabilities.
+
+**Rotating the keys** invalidates every subscription — the push services refuse sends signed with
+a key other than the one each phone subscribed to. Each phone re-subscribes with one tap; the
+app cannot do it silently, because permission is granted per key.
 
 ## What this sets up
 
@@ -274,3 +307,15 @@ a block starting in ten minutes (a scan of the calendar every five minutes, reme
 sent); an upkeep item due today; the streak about to break at nine in the evening with no log.
 Each is one more `PushService.send` and one more scheduler, and none of them needs another
 key, table, or permission.
+
+## Exercises
+
+1. **Read a real send.** Turn notifications on locally (a `localhost` origin counts as secure for
+   push), send a test, and read the `Authorization` and `Content-Encoding` headers the transport
+   logged at debug level. Decode the JWT's middle segment and find the audience.
+2. **Change the RFC vector** in `PayloadCipherTest` by one byte of salt and watch the expected body
+   fail to match. That is the whole reason the test exists.
+3. **Add a producer.** An upkeep item due today, pushed at 08:00: a scheduler, one `PushService.send`,
+   a `Notification` factory with its own `tag` and TTL. No new key, table or permission.
+4. **Make a third state visible.** The panel lists devices; add "last sent" (the column already
+   exists) so a phone that has not buzzed since Tuesday says so.

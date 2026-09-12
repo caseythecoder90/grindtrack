@@ -1,0 +1,63 @@
+@startuml
+' Draft, then accept: the shape every assistant feature shares. The money and the mutation are
+' in different calls on purpose. Render: see diagrams/render.sh
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontSize 13
+skinparam defaultFontName Helvetica
+skinparam shadowing false
+skinparam ArrowColor #33475B
+skinparam sequence {
+  ParticipantBackgroundColor #E3F0FF
+  ParticipantBorderColor #2D6CDF
+  ActorBackgroundColor #FFE7BA
+  ActorBorderColor #B5651D
+  LifeLineBorderColor #33475B
+  GroupBorderColor #33475B
+  GroupBackgroundColor #EEF2F7
+}
+skinparam note {
+  BackgroundColor #FFF8DC
+  BorderColor #C8B560
+}
+
+actor "You" as you
+participant "week tab / ask tab" as ui
+participant "WeekPlanService\n(or DayLogService)" as svc
+participant "model" as model
+database "assistant_reports" as reports
+database "calendar_events\n(or daily_logs)" as real
+
+== Draft — spends money, writes nothing real ==
+you -> ui : "plan next week" / a chat turn that plans
+ui -> svc : propose(monday)
+svc -> svc : refuse a non-Monday before spending
+svc -> model : structured call → DraftedWeek
+model --> svc : blocks with plan item ids
+svc -> svc : validate every block:\nreal ids, sane times, inside the week
+svc -> reports : upsert (kind, week_start) → draft_json
+svc --> ui : Draft {blocks, generatedAt, cost}
+ui --> you : ProposedWeek card — read it
+
+== Accept — writes, spends nothing ==
+you -> ui : Book
+ui -> svc : accept(monday)
+svc -> reports : re-read the STORED draft\n(never the request body)
+svc -> svc : validate again, now
+svc -> real : insert the blocks
+svc --> ui : Accepted {blocksBooked}
+ui --> you : "booked 5 blocks"
+
+note over svc, reports
+  Two stores, one path: a week drafted from the
+  week tab and one drafted mid-chat land in the
+  same row and are booked by the same accept.
+  The chat turn records only which Monday.
+end note
+
+note over svc, real
+  DayLogService differs in one way: its draft is a set
+  of CHANGES. Null means "leave what is there", and the
+  merge happens at read time against the day as it
+  stands now — so the card shows what saving will write.
+end note
+@enduml

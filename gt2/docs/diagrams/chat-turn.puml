@@ -1,0 +1,75 @@
+@startuml
+' One streamed chat turn: what happens between pressing Ask and the answer settling.
+' Three phases, and only the outer two hold a database connection. Render: see diagrams/render.sh
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontSize 13
+skinparam defaultFontName Helvetica
+skinparam shadowing false
+skinparam ArrowColor #33475B
+skinparam sequence {
+  ParticipantBackgroundColor #E3F0FF
+  ParticipantBorderColor #2D6CDF
+  ActorBackgroundColor #FFE7BA
+  ActorBorderColor #B5651D
+  LifeLineBorderColor #33475B
+  GroupBorderColor #33475B
+  GroupBackgroundColor #EEF2F7
+}
+skinparam note {
+  BackgroundColor #FFF8DC
+  BorderColor #C8B560
+}
+
+actor "AskPage" as ui
+participant "ChatController\n(SSE emitter)" as cc
+participant "ChatStream\n+ heartbeat timer" as stream
+participant "ChatService" as cs
+participant "AnthropicChatModel" as model
+participant "AssistantToolExecutor" as tools
+database "Postgres" as db
+participant "Anthropic API" as api
+
+ui -> cc : POST /api/assistant/chat/stream\n{conversationId, message}
+cc -> stream : open, arm heartbeat (tick every 15 s)
+cc --> ui : 200, text/event-stream
+cc -> cs : chat(id, message, listener)\non assistantTurnExecutor
+
+group Phase 1 — replay (short transaction)
+  cs -> db : load conversation turns
+  cs -> cs : ContextService.build(today)
+end
+
+group Phase 2 — the model loop (no connection held)
+  loop up to 6 rounds
+    cs -> model : round(history, context)
+    model -> api : messages.createStreaming\n(system + tools cached)
+    api --> model : text deltas, tool_use blocks
+    model --> stream : onProgress → tick\nonText → text {delta}
+    stream --> ui : SSE: text …
+    alt the model asked for a tool
+      model -> tools : execute(name, args)
+      tools -> db : reads (own short transactions)
+      tools --> model : result JSON\n(a draft's date, if it drafted)
+      model --> stream : onToolUse → tool {name}
+    end
+  end
+  model --> cs : Reply(text, tokens,\nproposedWeekStart, proposedLogDate)
+end
+
+group Phase 3 — store (short transaction)
+  cs -> db : conversation row (created now, not before)\nuser turn + assistant turn, token columns
+end
+
+cs --> cc : ChatReply
+cc -> stream : done {ChatReply}, close
+stream --> ui : SSE: done
+ui -> ui : render reply;\nif proposedWeekStart → fetch /week-plan → ProposedWeek card\nif proposedLogDate → fetch /day-log → ProposedLog card
+
+note over stream
+  tick frames keep ingress-nginx from closing
+  an idle upstream at 60 s while the model
+  thinks or a tool runs. A stream that ends
+  without done makes the client re-read the
+  thread rather than hand the question back.
+end note
+@enduml

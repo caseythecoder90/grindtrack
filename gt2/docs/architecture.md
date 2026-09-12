@@ -5,10 +5,11 @@ React SPA from one origin, backed by its own Postgres. It runs in its own namesp
 **kubeadm cluster on Hetzner Cloud**, behind ingress-nginx with TLS from cert-manager, alongside
 the personal-website stack. See [deployment.md](deployment.md) for the operational detail.
 
-> Diagram convention: **PlantUML for structural/topology diagrams**, **Mermaid for sequence
-> diagrams**. PlantUML renders in IntelliJ (PlantUML plugin), VS Code, and plantuml.com — but
-> **not** on GitHub, which is why the SVGs in [`diagrams/`](diagrams/) are committed. Mermaid
-> renders on GitHub and in the IDE.
+> Diagram convention: **PlantUML, rendered to SVG and committed** — structural diagrams and,
+> since the assistant docs, sequence diagrams too, so every picture renders everywhere (GitHub
+> does not render PlantUML source). Sources live in [`diagrams/`](diagrams/) next to their SVGs;
+> [`diagrams/render.sh`](diagrams/render.sh) regenerates them with a local JRE and no Graphviz.
+> Mermaid is fine for a quick sequence in a doc that only needs GitHub.
 
 ## Deployment topology (on the cluster)
 

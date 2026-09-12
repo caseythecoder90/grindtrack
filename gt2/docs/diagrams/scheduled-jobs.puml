@@ -1,0 +1,56 @@
+@startuml
+' The two things the assistant does without being asked, and how each reaches the phone.
+' Render: see diagrams/render.sh
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontSize 13
+skinparam defaultFontName Helvetica
+skinparam shadowing false
+skinparam ArrowColor #33475B
+skinparam sequence {
+  ParticipantBackgroundColor #E3F0FF
+  ParticipantBorderColor #2D6CDF
+  LifeLineBorderColor #33475B
+  GroupBorderColor #33475B
+  GroupBackgroundColor #EEF2F7
+}
+skinparam note {
+  BackgroundColor #FFF8DC
+  BorderColor #C8B560
+}
+
+participant "Spring @Scheduled\n(zone America/New_York)" as cron
+participant "MorningBriefScheduler\n06:00 every day" as mbs
+participant "WeeklyReviewScheduler\nFriday 17:00" as wrs
+participant "MorningBriefService /\nWeeklyReviewService" as svc
+participant "model" as model
+database "assistant_reports" as reports
+participant "PushService" as push
+participant "phone" as phone
+
+== 06:00 — the brief ==
+cron -> mbs : brief-cron fires
+mbs -> mbs : model.configured()? else return quietly
+mbs -> svc : generate(today)
+svc -> model : one structured call (~2¢)
+model --> svc : BriefDraft {headline, today, suggestion}
+svc -> reports : upsert (morning_brief, today)
+svc --> mbs : Brief
+mbs -> push : send(morningBrief(headline))\nin its OWN try — a push failure\ncannot make a drafted brief look failed
+push --> phone : "morning brief" · headline · TTL 6 h
+phone -> phone : tap → today tab, the card is waiting
+
+== Friday 17:00 — the review ==
+cron -> wrs : review-cron fires
+wrs -> svc : generate(this Monday)
+svc -> model : one structured call (~3¢)
+svc -> reports : upsert (weekly_review, monday)
+wrs -> push : send(weeklyReview())
+push --> phone : "weekly review is ready" · TTL 24 h
+
+note over mbs, wrs
+  Off is a state: no ANTHROPIC_API_KEY → return before
+  spending; no VAPID pair → push.send answers zeros.
+  A failed draft is logged, never rethrown — the button
+  on the tab is the retry.
+end note
+@enduml
