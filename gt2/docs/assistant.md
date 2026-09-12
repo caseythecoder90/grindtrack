@@ -205,17 +205,28 @@ exists.**
 
 ## Speaking a question
 
-The mic button in the ask box uses the browser's own recognizer (the Web Speech API), not an
-audio endpoint of ours: the Messages API takes no audio, and a second vendor for transcription
-would be a key, a bill and a privacy question for a rougher result than the phone already
-produces. Interim words stream into the box as you talk, get revised as the recognizer settles
-them, and stay there to be read and edited. Nothing is sent until Ask.
+The mic button in the ask box captures the microphone, turns it into 16-bit PCM at 24 kHz in an
+`AudioWorklet`, and streams it down a WebSocket to `/api/speech/ws`. The server relays it to a
+transcription model over the Realtime API and sends text back as each phrase settles; the words
+land in the box, get revised as the model revises them, and stay there to be read and edited.
+Nothing is sent until Ask.
 
-The edges are the browser's. Firefox has no recognizer, so the button is not rendered there rather
-than rendered dead. An installed iOS web app has historically been unreliable about the microphone
-prompt; if it fails, the failure is a sentence under the box, not a spinner. Typing while it is
-listening hands the box back to you: the words on screen become the draft as they stand and the
-phrase in flight is dropped, so nothing lands twice.
+Why a relay rather than the phone talking to the model: the key. It travels in the server's
+handshake header and nowhere else. And why a model rather than the browser's own recognizer,
+which the first version used: that one was free but unreliable in the installed iPhone app and
+absent in Firefox. A microphone, a worklet and a socket every current browser has.
+
+The service decides where phrases end (server-side voice detection), so with the default model
+— `gpt-4o-mini-transcribe`, about a third of a cent a minute — a phrase appears about a second
+after you pause. `gpt-live-transcribe` streams word by word at several times the price; it is
+one line in `application.yml` to switch. Five minutes is the limit for one dictation, so a mic
+left on cannot run up a bill.
+
+Stop is a handshake. The browser stops the microphone and asks the server to commit what is
+buffered; the server closes once that last phrase's transcript has arrived, or after four seconds
+if it never does. Typing while it is listening hands the box back: the words on screen become the
+draft as they stand and the phrase in flight is dropped, so nothing lands twice. Off — no
+`OPENAI_API_KEY` — means the button is not rendered rather than rendered dead.
 
 ## Testing without spending money
 
