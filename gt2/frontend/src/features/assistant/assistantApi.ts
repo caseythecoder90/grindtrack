@@ -50,6 +50,10 @@ export interface ConversationSummary {
   id: number;
   title: string;
   lastMessageAt: string;
+  /** Messages in the thread, both sides. One is an attempt, not a conversation. */
+  turns: number;
+  /** A week was drafted somewhere in it. The draft survives the thread being deleted. */
+  hasDraft: boolean;
 }
 
 export interface ChatTurn {
@@ -73,6 +77,10 @@ export interface ChatReply {
 }
 
 export const listConversations = () => api<ConversationSummary[]>(`${BASE}/chat`);
+
+/** The thread and its turns. A drafted week inside it is untouched — it belongs to the week. */
+export const deleteConversation = (id: number) =>
+  api(`${BASE}/chat/${id}`, { method: "DELETE" });
 
 export const getConversation = (id: number) => api<ChatTurn[]>(`${BASE}/chat/${id}`);
 

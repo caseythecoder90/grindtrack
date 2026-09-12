@@ -10,6 +10,7 @@ import {
   type ChatTurn,
   type ConversationSummary,
 } from "./assistantApi";
+import ConversationsSheet from "./ConversationsSheet";
 import ProposedWeek from "./ProposedWeek";
 
 /**
@@ -48,6 +49,7 @@ export default function AskPage() {
   const [streamed, setStreamed] = useState("");
   const [draft, setDraft] = useState("");
   const [error, setError] = useState("");
+  const [listOpen, setListOpen] = useState(false);
   const foot = useRef<HTMLDivElement>(null);
 
   const refreshList = useCallback(async () => {
@@ -148,20 +150,37 @@ export default function AskPage() {
         </button>
       </div>
 
+      {/* One line until you want the list: the thread is what you came for. */}
       {conversations.length > 0 && (
-        <div className="askthreads">
-          {conversations.slice(0, 8).map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              className={"chip" + (c.id === conversationId ? " active" : "")}
-              aria-pressed={c.id === conversationId}
-              onClick={() => open(c.id)}
-            >
-              {c.title}
-            </button>
-          ))}
-        </div>
+        <button type="button" className="threadline" onClick={() => setListOpen(true)}>
+          <span className="threadline-title">
+            {conversations.find((c) => c.id === conversationId)?.title ?? "new conversation"}
+          </span>
+          <span className="threadline-count">{conversations.length}</span>
+          <span className="threadline-chev" aria-hidden="true">
+            ⌄
+          </span>
+        </button>
+      )}
+
+      {listOpen && (
+        <ConversationsSheet
+          conversations={conversations}
+          currentId={conversationId}
+          onOpen={(id) => {
+            setListOpen(false);
+            open(id);
+          }}
+          onNew={() => {
+            setListOpen(false);
+            startNew();
+          }}
+          onDeleted={(id) => {
+            setConversations((all) => all.filter((c) => c.id !== id));
+            if (id === conversationId) startNew();
+          }}
+          onClose={() => setListOpen(false)}
+        />
       )}
 
       <div className="askthread">

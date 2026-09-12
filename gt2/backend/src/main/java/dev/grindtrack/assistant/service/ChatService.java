@@ -10,8 +10,12 @@ import dev.grindtrack.web.Requests;
 import dev.grindtrack.web.ServiceOffException;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -148,8 +152,20 @@ public class ChatService {
 
   @Transactional(readOnly = true)
   public List<ConversationSummary> list() {
+    Map<Long, Long> turns = new HashMap<>();
+    for (Object[] row : messages.turnCounts()) {
+      turns.put((Long) row[0], (Long) row[1]);
+    }
+    Set<Long> drafted = new HashSet<>(messages.conversationsWithADraft());
     return conversations.findAllByOrderByLastMessageAtDesc().stream()
-        .map(c -> new ConversationSummary(c.getId(), c.getTitle(), c.getLastMessageAt().toString()))
+        .map(
+            c ->
+                new ConversationSummary(
+                    c.getId(),
+                    c.getTitle(),
+                    c.getLastMessageAt().toString(),
+                    turns.getOrDefault(c.getId(), 0L),
+                    drafted.contains(c.getId())))
         .toList();
   }
 
@@ -223,7 +239,13 @@ public class ChatService {
       long outputTokens,
       String proposedWeekStart) {}
 
-  public record ConversationSummary(Long id, String title, String lastMessageAt) {}
+  /**
+   * @param turns messages in the thread, both sides. One means an attempt, not a conversation
+   * @param hasDraft whether any turn drafted a week — worth knowing before deleting the thread,
+   *     though the draft itself lives with the week and survives the thread being removed
+   */
+  public record ConversationSummary(
+      Long id, String title, String lastMessageAt, long turns, boolean hasDraft) {}
 
   public record TurnView(String role, String content, String createdAt, String proposedWeekStart) {}
 }

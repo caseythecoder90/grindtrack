@@ -133,7 +133,7 @@ Full design notes: [assistant.md](assistant.md).
 | GET | `/api/assistant/week-plan?weekStart=` | The stored proposal, or `null`. No model call |
 | POST | `/api/assistant/week-plan?weekStart=` | **Spends money.** Proposes a week. Writes a draft and nothing else |
 | POST | `/api/assistant/week-plan/accept?weekStart=` | The one write. Books the stored draft — re-read and re-validated server-side, never taken from the request |
-| GET | `/api/assistant/chat` | Conversations, most recent first |
+| GET | `/api/assistant/chat` | Conversations, most recent first: `{id, title, lastMessageAt, turns, hasDraft}`. `turns` and `hasDraft` exist because a title taken from the first message cannot tell two threads apart when both began with the same question — and a retry begins with exactly the same question |
 | GET | `/api/assistant/chat/{id}` | One conversation's turns |
 | POST | `/api/assistant/chat` | **Spends money.** One turn, answered when it is finished |
 | POST | `/api/assistant/chat/stream` | The same turn as server-sent events: `tool`, `text`, `tick`, `done`, `error`. A failure arrives as an event, not a status — by then the response has been 200 for seconds |
