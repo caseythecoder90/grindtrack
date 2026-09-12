@@ -4,6 +4,7 @@ import dev.grindtrack.assistant.api.AssistantDtos.ToolDescription;
 import dev.grindtrack.assistant.service.AssistantContext;
 import dev.grindtrack.assistant.service.ContextService;
 import dev.grindtrack.assistant.service.DayLogService;
+import dev.grindtrack.assistant.service.MorningBriefService;
 import dev.grindtrack.assistant.service.WeekPlanService;
 import dev.grindtrack.assistant.service.WeeklyReviewService;
 import dev.grindtrack.web.Requests;
@@ -38,16 +39,19 @@ public class AssistantController {
   private final WeeklyReviewService reviews;
   private final WeekPlanService weekPlans;
   private final DayLogService dayLogs;
+  private final MorningBriefService briefs;
 
   public AssistantController(
       ContextService context,
       WeeklyReviewService reviews,
       WeekPlanService weekPlans,
-      DayLogService dayLogs) {
+      DayLogService dayLogs,
+      MorningBriefService briefs) {
     this.context = context;
     this.reviews = reviews;
     this.weekPlans = weekPlans;
     this.dayLogs = dayLogs;
+    this.briefs = briefs;
   }
 
   /**
@@ -119,6 +123,24 @@ public class AssistantController {
   @PostMapping("/day-log/accept")
   public DayLogService.Accepted acceptDayLog(@RequestParam String date) {
     return dayLogs.accept(Requests.requireDate(date, "invalid date"));
+  }
+
+  /** Today's brief, or an empty body before the scheduler has run. Today unless a date is given. */
+  @GetMapping("/brief")
+  public MorningBriefService.Brief brief(@RequestParam(required = false) String date) {
+    return briefs.find(dateOrToday(date)).orElse(null);
+  }
+
+  /** Redraft the brief. Spends money; the scheduler does this at six without being asked. */
+  @PostMapping("/brief")
+  public MorningBriefService.Brief draftBrief(@RequestParam(required = false) String date) {
+    return briefs.generate(dateOrToday(date));
+  }
+
+  private static LocalDate dateOrToday(String date) {
+    return date == null || date.isBlank()
+        ? LocalDate.now()
+        : Requests.requireDate(date, "invalid date");
   }
 
   /**

@@ -5,6 +5,7 @@ import { getDay, saveDay } from "./trackingApi";
 import { todayISO } from "../../lib/dates";
 import { CATEGORIES } from "../../lib/types";
 import { useAppResume } from "../../lib/resume";
+import MorningBrief from "../assistant/MorningBrief";
 
 interface Props {
   onSaved: () => void;
@@ -84,8 +85,10 @@ export default function Today({ onSaved }: Props) {
   }
 
   return (
-    <div className="panel">
-      <h2>daily log</h2>
+    <>
+      <MorningBrief />
+      <div className="panel">
+        <h2>daily log</h2>
       <div className="row3">
         <div>
           <label htmlFor="d-date">Date</label>
@@ -149,5 +152,6 @@ export default function Today({ onSaved }: Props) {
         <span className={"toast" + (toast ? " show" : "")}>saved ✓</span>
       </div>
     </div>
+    </>
   );
 }

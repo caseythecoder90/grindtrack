@@ -46,7 +46,8 @@ class DayLogServiceTest {
         new DayLogService(
             tracking,
             reports,
-            new AssistantProperties("key", "claude-opus-5", "America/New_York", "0 0 17 * * FRI"),
+            new AssistantProperties(
+                "key", "claude-opus-5", "America/New_York", "0 0 17 * * FRI", "0 0 6 * * *"),
             new ObjectMapper());
   }
 

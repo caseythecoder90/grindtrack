@@ -20,6 +20,7 @@ to deploy this before the secret exists.
 | Week planner | week tab | 1 per proposal | calendar blocks — only on **Book** |
 | Planning in chat | ask tab | +1 on the turn that plans | a stored draft; the card's **Book** is the same accept path |
 | Logging in chat | ask tab | none beyond the turn | a stored draft of *changes*; the card's **Save** merges them over the day |
+| Morning brief | today tab, and a 06:00 job | 1 per day | a stored draft, replaced by a redraft; nothing else |
 
 ## Configuration
 
@@ -29,6 +30,7 @@ grindtrack.assistant:
   model: claude-opus-5
   zone: America/New_York           # "Friday at five" means the owner's Friday, not the pod's UTC
   review-cron: "0 0 17 * * FRI"    # Spring cron: second minute hour day month weekday
+  brief-cron: "0 0 6 * * *"        # before the morning block; every day, because "nothing booked" is an answer
 ```
 
 `AssistantProperties.configured()` is the single switch. It is deliberately separate from
@@ -98,6 +100,23 @@ instantiates tool classes itself and these are thin wrappers over Spring service
 rules. Every tool result of a round goes back in **one** user message — splitting them trains the
 model out of parallel calls. And it is bounded at six rounds: a model still reading after six is not
 going to be saved by a seventh, and the turn fails with a message rather than running up a bill.
+
+## The morning brief
+
+The one thing the assistant says without being asked, so it has to earn the space every day. Three
+short pieces — what today is shaped like, where the nearest plan item stands and what last night's
+notes said, one suggestion for the morning block — read in under a minute, above the daily log.
+
+It is told what it is *not* as firmly as what it is: not a plan (that is the planner with worse
+information) and not a review (that is the review a week early). Numbers only from the context,
+plan items by title, and a short quote from yesterday's notes rather than a paraphrase, because a
+blocker written last night is the most useful sentence available at six the next morning.
+
+Drafted by `MorningBriefScheduler` on `brief-cron` in the owner's zone; one row per day in
+`assistant_reports`, so the today tab's **redraft** replaces rather than accumulates. About 2¢. Off
+is a quiet state: before six, or with no key, the card is one line and the log is where it always
+was. Prices for every drafted thing come from one place, `Costs`, because a rate that lives in
+three files is wrong in one of them.
 
 ## Caching
 
