@@ -340,3 +340,17 @@ Deliberately absent from `/api/public/**`. Nothing here has a public shape.
 | POST | `/api/relationship/reading/{id}/read` | `{takeaway, readOn?}` |
 | POST | `/api/relationship/reading/{id}/promote` | Turns a takeaway into a gesture idea — the reason the takeaway field exists |
 | DELETE | `/api/relationship/reading/{id}` | |
+
+## Push notifications (authenticated)
+
+Web Push to the installed app. Design, key generation and the runbook are in
+[push-notifications.md](push-notifications.md). With no VAPID pair configured, `status` says so and
+the writes answer 503.
+
+| Method | Path | Body | Answer |
+|---|---|---|---|
+| GET | `/api/push/status` | – | `{configured, publicKey, devices}` — the VAPID public key a browser subscribes with, and how many have |
+| GET | `/api/push/subscriptions` | – | `[{id, label, createdAt, lastSentAt, endpoint}]` |
+| PUT | `/api/push/subscriptions` | `{endpoint, keys: {p256dh, auth}, userAgent?}` — what `pushManager.subscribe` returned | upsert by endpoint; `{id, devices}`. 400 with a sentence when the keys are not a browser's |
+| DELETE | `/api/push/subscriptions/{id}` | – | `{deleted: id}` |
+| POST | `/api/push/test` | `{endpoint?}` | sends the test notification to that device, or to all when absent; `{sent, gone, failed}` |

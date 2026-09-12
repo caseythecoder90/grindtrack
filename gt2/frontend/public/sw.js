@@ -95,3 +95,46 @@ self.addEventListener("fetch", (event) => {
     ),
   );
 });
+
+/*
+ * --- push ---------------------------------------------------------------------
+ * The worker is where a push must be handled: the page may not be open, and on a phone the
+ * app is usually not running. The server encrypted the payload to this browser's keys and
+ * the browser decrypted it before this event fires; what arrives here is the JSON the server
+ * wrote: {title, body, tab, tag}. Anything else is shown as plain text rather than dropped,
+ * because a notification the server sent and the phone swallowed is the worst outcome.
+ */
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { title: "grindtrack", body: event.data ? event.data.text() : "" };
+  }
+  event.waitUntil(
+    self.registration.showNotification(data.title || "grindtrack", {
+      body: data.body || "",
+      icon: "/icon-192.png",
+      badge: "/icon-192.png",
+      // Same tag replaces: a redrafted brief updates the morning's notification, not stacks on it.
+      tag: data.tag || undefined,
+      data: { tab: data.tab || "today" },
+    }),
+  );
+});
+
+/* A tap lands on the tab the notification named: in an open window if there is one, else a new one. */
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const tab = (event.notification.data && event.notification.data.tab) || "today";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+      const open = clients.find((c) => "focus" in c);
+      if (open) {
+        open.postMessage({ type: "open-tab", tab });
+        return open.focus();
+      }
+      return self.clients.openWindow("/?tab=" + encodeURIComponent(tab));
+    }),
+  );
+});
