@@ -248,3 +248,21 @@ export const getDayLogDraft = (date: string) =>
 /** The write. Saves what was stored and shown, merged over the day as it is at that moment. */
 export const acceptDayLog = (date: string) =>
   api<{ logDate: string }>(`${BASE}/day-log/accept?date=${date}`, jsonInit("POST", {}));
+
+// ---------------------------------------------------------------- morning brief
+
+export interface MorningBrief {
+  date: string;
+  generatedAt: string;
+  model: string;
+  costUsd: number;
+  draft: { headline: string; today: string; suggestion: string };
+}
+
+/** Null when nothing has been drafted for that day yet — before six, or with the assistant off. */
+export const getMorningBrief = (date: string) =>
+  api<MorningBrief | null>(`${BASE}/brief?date=${date}`);
+
+/** Spends money (~2¢) and replaces the day's brief. The scheduler does this at six on its own. */
+export const draftMorningBrief = (date: string) =>
+  api<MorningBrief>(`${BASE}/brief?date=${date}`, jsonInit("POST", {}));

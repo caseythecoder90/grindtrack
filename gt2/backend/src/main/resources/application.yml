@@ -54,6 +54,9 @@ grindtrack:
     # "Friday at five" means the owner's Friday. Spring cron: second minute hour day month weekday.
     zone: America/New_York
     review-cron: "0 0 17 * * FRI"
+    # Before the morning block. Every day: a Saturday brief that says "nothing booked" costs two
+    # cents and is the honest answer, and weekends are when plans get reconsidered.
+    brief-cron: "0 0 6 * * *"
   bootstrap-username: ${GRINDTRACK_USERNAME:}
   bootstrap-password: ${GRINDTRACK_PASSWORD:}
 

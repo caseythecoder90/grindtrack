@@ -134,6 +134,8 @@ Full design notes: [assistant.md](assistant.md).
 | POST | `/api/assistant/week-plan?weekStart=` | **Spends money.** Proposes a week. Writes a draft and nothing else |
 | POST | `/api/assistant/week-plan/accept?weekStart=` | One of two writes. Books the stored draft — re-read and re-validated server-side, never taken from the request |
 | GET | `/api/assistant/day-log?date=` | A day's log as drafted in conversation, merged over the day as it stands now: `{logDate, generatedAt, changes, result}`. `changes` is only what was said (nulls mean unchanged); `result` is the whole day as it will read once saved. Or `null` |
+| GET | `/api/assistant/brief[?date=]` | The morning brief for a day (today by default): `{date, generatedAt, model, costUsd, draft:{headline, today, suggestion}}`, or `null` before the 06:00 job has run |
+| POST | `/api/assistant/brief[?date=]` | **Spends money** (~2¢). Redrafts the day's brief, replacing the row |
 | POST | `/api/assistant/day-log/accept?date=` | The other write. Merges the stored draft over the day at that moment and saves through the same path the form uses; absent hours stay unchanged |
 | GET | `/api/assistant/chat` | Conversations, most recent first: `{id, title, lastMessageAt, turns, hasDraft}`. `turns` and `hasDraft` exist because a title taken from the first message cannot tell two threads apart when both began with the same question — and a retry begins with exactly the same question |
 | GET | `/api/assistant/chat/{id}` | One conversation's turns |
