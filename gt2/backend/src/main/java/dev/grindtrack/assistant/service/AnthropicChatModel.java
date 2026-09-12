@@ -92,11 +92,12 @@ public class AnthropicChatModel implements ChatModel {
       4. Keep it short. A question deserves a paragraph or two, not an essay. Plain text only \
       — no markdown, no bold, no headings; your words render exactly as written. Bullets only \
       when listing genuinely separate items.
-      5. You can read everything, and the only thing you can produce is a draft. propose_week \
-      drafts a week of study blocks as a card for Casey to accept; it books nothing, and you must \
-      never say or imply that anything has been scheduled. Say it is drafted and waiting on him. \
-      For anything else — logging hours, editing the plan, adding a single event — say you cannot \
-      and point at the tab that can.
+      5. You can read everything, and the only things you can produce are drafts. propose_week \
+      drafts a week of study blocks; propose_log drafts a day's log entry from what Casey tells \
+      you. Each becomes a card he accepts or ignores. Neither books or saves anything, and you \
+      must never say or imply that something has been scheduled or logged — say it is drafted \
+      and waiting on him. For anything else — editing the plan, a single calendar event, money — \
+      say you cannot and point at the tab that can.
       """;
 
   /** Only ever reads a tool result this class just produced, so it needs no configuration. */
@@ -144,6 +145,7 @@ public class AnthropicChatModel implements ChatModel {
     // The last week this turn drafted, if it drafted one. Last rather than first: if the model
     // corrects itself after a refused date, the corrected week is the one with a card.
     String proposedWeekStart = null;
+    String proposedLogDate = null;
     try {
       for (int round = 0; round < 6; round++) {
         Message response = round(contextJson, messages, listener);
@@ -159,12 +161,16 @@ public class AnthropicChatModel implements ChatModel {
               outputTokens,
               cacheWriteTokens,
               cacheReadTokens,
-              proposedWeekStart);
+              proposedWeekStart,
+              proposedLogDate);
         }
         messages.add(response.toParam());
         Round executed = runTools(response);
         if (executed.proposedWeekStart() != null) {
           proposedWeekStart = executed.proposedWeekStart();
+        }
+        if (executed.proposedLogDate() != null) {
+          proposedLogDate = executed.proposedLogDate();
         }
         messages.add(executed.results());
       }
@@ -254,6 +260,7 @@ public class AnthropicChatModel implements ChatModel {
   private Round runTools(Message response) {
     List<ContentBlockParam> results = new ArrayList<>();
     String proposedWeekStart = null;
+    String proposedLogDate = null;
     for (ContentBlock block : response.content()) {
       ToolUseBlock use = block.toolUse().orElse(null);
       if (use == null) {
@@ -261,9 +268,15 @@ public class AnthropicChatModel implements ChatModel {
       }
       String result = executor.execute(use.name(), args(use));
       if ("propose_week".equals(use.name())) {
-        String drafted = draftedWeek(result);
+        String drafted = draftedDate(result, "weekStart");
         if (drafted != null) {
           proposedWeekStart = drafted;
+        }
+      }
+      if ("propose_log".equals(use.name())) {
+        String drafted = draftedDate(result, "logDate");
+        if (drafted != null) {
+          proposedLogDate = drafted;
         }
       }
       results.add(
@@ -272,27 +285,28 @@ public class AnthropicChatModel implements ChatModel {
     }
     return new Round(
         MessageParam.builder().role(MessageParam.Role.USER).contentOfBlockParams(results).build(),
-        proposedWeekStart);
+        proposedWeekStart,
+        proposedLogDate);
   }
 
   /**
-   * The week a {@code propose_week} result says it drafted, or null.
+   * The date a drafting tool's result says it drafted for, under the given key, or null.
    *
    * <p>A refusal is a sentence, not JSON, so it does not parse and nothing is recorded — which is
    * exactly the distinction being drawn. Anything unparseable is treated as "no draft" rather than
    * as an error: this runs inside a turn whose answer is already on its way to a person.
    */
-  static String draftedWeek(String toolResult) {
+  static String draftedDate(String toolResult, String key) {
     try {
-      JsonNode node = MAPPER.readTree(toolResult).get("weekStart");
+      JsonNode node = MAPPER.readTree(toolResult).get(key);
       return node == null || !node.isTextual() ? null : LocalDate.parse(node.asText()).toString();
     } catch (JsonProcessingException | DateTimeParseException e) {
       return null;
     }
   }
 
-  /** One round's tool results, and the week they drafted if they drafted one. */
-  private record Round(MessageParam results, String proposedWeekStart) {}
+  /** One round's tool results, and whatever they drafted: a week, a day's log, both, or neither. */
+  private record Round(MessageParam results, String proposedWeekStart, String proposedLogDate) {}
 
   /** Tool inputs arrive as JSON; parse, never string-match — escaping varies by model. */
   private static Map<String, String> args(ToolUseBlock use) {

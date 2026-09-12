@@ -9,6 +9,7 @@ import dev.grindtrack.tracking.service.FocusService;
 import dev.grindtrack.tracking.service.TrackingService;
 import dev.grindtrack.web.BadRequestException;
 import dev.grindtrack.web.ServiceOffException;
+import java.math.BigDecimal;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
@@ -50,6 +51,7 @@ public class AssistantToolExecutor {
   private final CalendarService calendar;
   private final FocusService focus;
   private final WeekPlanService weekPlan;
+  private final DayLogService dayLog;
   private final ObjectMapper mapper;
 
   public AssistantToolExecutor(
@@ -58,12 +60,14 @@ public class AssistantToolExecutor {
       CalendarService calendar,
       FocusService focus,
       WeekPlanService weekPlan,
+      DayLogService dayLog,
       ObjectMapper mapper) {
     this.plan = plan;
     this.tracking = tracking;
     this.calendar = calendar;
     this.focus = focus;
     this.weekPlan = weekPlan;
+    this.dayLog = dayLog;
     this.mapper = mapper;
   }
 
@@ -108,7 +112,42 @@ public class AssistantToolExecutor {
                     "string",
                     "description",
                     "The MONDAY of the week to plan, YYYY-MM-DD. Work it out from today's date"
-                        + " in the context; a date that is not a Monday is refused."))));
+                        + " in the context; a date that is not a Monday is refused."))),
+        new ToolSpec(
+            "propose_log",
+            "Draft a day's log entry for Casey to approve. Saves NOTHING: it produces a card he"
+                + " can save or ignore, and the day is untouched unless he presses the button."
+                + " Use it when he tells you what he did, studied or how a day went and wants it"
+                + " logged. Pass ONLY what he said — every omitted field keeps whatever the day"
+                + " already holds, so never pass empty strings to mean unchanged. Returns the day"
+                + " as it will read once saved; tell him what it drafted and that it is waiting on"
+                + " him. Never say it has been logged.",
+            Map.of(
+                "date",
+                Map.of(
+                    "type", "string", "description", "YYYY-MM-DD, today unless he said otherwise."),
+                "hours",
+                Map.of(
+                    "type",
+                    "string",
+                    "description",
+                    "Total study hours for the day, e.g. 2 or 1.5."),
+                "categories",
+                Map.of(
+                    "type",
+                    "string",
+                    "description",
+                    "Comma-separated, matching names already used in the logs where possible."),
+                "focus",
+                Map.of("type", "string", "description", "What the block was for."),
+                "did",
+                Map.of("type", "string", "description", "What actually happened."),
+                "wins",
+                Map.of("type", "string", "description", "Wins."),
+                "blockers",
+                Map.of("type", "string", "description", "Blockers or notes."),
+                "energy",
+                Map.of("type", "string", "description", "1-5, only if he said how he felt."))));
   }
 
   /** Dispatch one call. The result is what the model reads next, so errors are sentences. */
@@ -120,6 +159,7 @@ public class AssistantToolExecutor {
         case "get_calendar" -> json(eventRows(range(args)));
         case "get_focus_sessions" -> json(sessionRows(date(args.get("date"))));
         case "propose_week" -> proposeWeek(args.get("weekStart"));
+        case "propose_log" -> proposeLog(args);
         default -> "unknown tool: " + name;
       };
     } catch (ToolArgumentException e) {
@@ -149,6 +189,70 @@ public class AssistantToolExecutor {
       return json(result);
     } catch (ServiceOffException | BadRequestException e) {
       return "could not draft that week: " + e.getMessage();
+    }
+  }
+
+  /**
+   * Draft a day's entry from what was said, and hand back the day as it will read.
+   *
+   * <p>Absent and blank both mean "leave it" — the tool description says so, and a model that sends
+   * an empty string for a field it was not told about should not blank a morning's notes.
+   */
+  private String proposeLog(Map<String, String> args) {
+    LocalDate date = date(args.get("date"));
+    DayLogDraft draft =
+        new DayLogDraft(
+            decimal(args.get("hours"), "hours"),
+            list(args.get("categories")),
+            text(args.get("focus")),
+            text(args.get("did")),
+            text(args.get("wins")),
+            text(args.get("blockers")),
+            integer(args.get("energy"), "energy"));
+    try {
+      DayLogService.Draft stored = dayLog.propose(date, draft);
+      Map<String, Object> result = new LinkedHashMap<>();
+      result.put("logDate", stored.logDate());
+      result.put("day", stored.result());
+      result.put("status", "drafted and waiting for Casey to save it — nothing has been logged");
+      return json(result);
+    } catch (BadRequestException e) {
+      return "could not draft that log: " + e.getMessage();
+    }
+  }
+
+  private static String text(String value) {
+    return value == null || value.isBlank() ? null : value.trim();
+  }
+
+  private static List<String> list(String value) {
+    String t = text(value);
+    return t == null
+        ? null
+        : Arrays.stream(t.split(",")).map(String::trim).filter(x -> !x.isEmpty()).toList();
+  }
+
+  private static BigDecimal decimal(String value, String name) {
+    String t = text(value);
+    if (t == null) {
+      return null;
+    }
+    try {
+      return new BigDecimal(t);
+    } catch (NumberFormatException e) {
+      throw new ToolArgumentException(name + " must be a number, e.g. 1.5");
+    }
+  }
+
+  private static Integer integer(String value, String name) {
+    String t = text(value);
+    if (t == null) {
+      return null;
+    }
+    try {
+      return Integer.valueOf(t);
+    } catch (NumberFormatException e) {
+      throw new ToolArgumentException(name + " must be a whole number");
     }
   }
 

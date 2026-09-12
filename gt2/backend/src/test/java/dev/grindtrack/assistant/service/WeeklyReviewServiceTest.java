@@ -140,7 +140,8 @@ class WeeklyReviewServiceTest {
     // Chat spend joins the same bill: 100k in at $5 + 20k out at $25 = another $1.
     when(chatMessages.findByCreatedAtGreaterThanEqual(any(OffsetDateTime.class)))
         .thenReturn(
-            List.of(new AssistantMessage(1L, "assistant", "hi", 100_000, 20_000, 0, 0, null)));
+            List.of(
+                new AssistantMessage(1L, "assistant", "hi", 100_000, 20_000, 0, 0, null, null)));
 
     WeeklyReviewService.Status status = service.status();
 
@@ -165,7 +166,9 @@ class WeeklyReviewServiceTest {
     // no output.
     when(chatMessages.findByCreatedAtGreaterThanEqual(any(OffsetDateTime.class)))
         .thenReturn(
-            List.of(new AssistantMessage(1L, "assistant", "hi", 0, 0, 1_000_000, 2_000_000, null)));
+            List.of(
+                new AssistantMessage(
+                    1L, "assistant", "hi", 0, 0, 1_000_000, 2_000_000, null, null)));
 
     WeeklyReviewService.Status status = service.status();
 
@@ -186,7 +189,8 @@ class WeeklyReviewServiceTest {
     when(reports.findByGeneratedAtGreaterThanEqual(any(OffsetDateTime.class)))
         .thenReturn(List.of());
     when(chatMessages.findByCreatedAtGreaterThanEqual(any(OffsetDateTime.class)))
-        .thenReturn(List.of(new AssistantMessage(1L, "assistant", "hi", 0, 0, 1_000_000, 0, null)));
+        .thenReturn(
+            List.of(new AssistantMessage(1L, "assistant", "hi", 0, 0, 1_000_000, 0, null, null)));
 
     // 1 MTok written at 1.25x $5 rather than $5: a quarter of $5 wasted.
     assertThat(service.status().cacheSavingUsd()).isEqualTo(-1.25);

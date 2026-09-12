@@ -1196,3 +1196,15 @@ h4 { font-size: var(--fs-small); font-weight: 600; color: var(--muted); margin: 
   /* No hover on a thumb: the delete is always there. */
   .convrow .rowdelete { opacity: 1; }
 }
+
+/* A drafted day's log, in the thread. The whole day, with the parts the conversation changed
+   marked — the button is a merge, and a card that showed only the new bits would hide what else
+   it is about to write. */
+.proposal-day { margin: 10px 0 0; display: flex; flex-direction: column; gap: 0; }
+.proposal-field { display: flex; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--line2); }
+.proposal-field:last-child { border-bottom: 0; }
+.proposal-field dt { flex: 0 0 82px; font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--muted); padding-top: 2px; }
+.proposal-field dd { margin: 0; flex: 1; min-width: 0; font-size: 13.5px; color: var(--muted); white-space: pre-wrap; }
+.proposal-field.changed dd { color: var(--text); }
+.proposal-field.changed dt { color: var(--cyan); }

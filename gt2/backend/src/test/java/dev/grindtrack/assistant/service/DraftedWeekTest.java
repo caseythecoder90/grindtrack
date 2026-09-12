@@ -23,30 +23,34 @@ class DraftedWeekTest {
         "{\"weekStart\":\"2026-09-14\",\"rationale\":\"four mornings\",\"blocks\":[],"
             + "\"status\":\"drafted and waiting\"}";
 
-    assertThat(AnthropicChatModel.draftedWeek(result)).isEqualTo("2026-09-14");
+    assertThat(AnthropicChatModel.draftedDate(result, "weekStart")).isEqualTo("2026-09-14");
   }
 
   /** The model has to work out which day is a Monday, so it will sometimes get it wrong. */
   @Test
   void aRefusalRecordsNothing() {
     assertThat(
-            AnthropicChatModel.draftedWeek("weekStart must be a Monday; 2026-09-16 is a WEDNESDAY"))
+            AnthropicChatModel.draftedDate(
+                "weekStart must be a Monday; 2026-09-16 is a WEDNESDAY", "weekStart"))
         .isNull();
   }
 
   @Test
   void anUnreadableDateRecordsNothing() {
     assertThat(
-            AnthropicChatModel.draftedWeek("a drafted block has an unreadable date: next monday"))
+            AnthropicChatModel.draftedDate(
+                "a drafted block has an unreadable date: next monday", "weekStart"))
         .isNull();
   }
 
   /** JSON that parses but is not a draft is still not a draft. */
   @Test
   void jsonWithoutAWeekRecordsNothing() {
-    assertThat(AnthropicChatModel.draftedWeek("{\"error\":\"the assistant is off\"}")).isNull();
-    assertThat(AnthropicChatModel.draftedWeek("{\"weekStart\":null}")).isNull();
-    assertThat(AnthropicChatModel.draftedWeek("{\"weekStart\":\"not a date\"}")).isNull();
-    assertThat(AnthropicChatModel.draftedWeek("{\"weekStart\":20260914}")).isNull();
+    assertThat(AnthropicChatModel.draftedDate("{\"error\":\"the assistant is off\"}", "weekStart"))
+        .isNull();
+    assertThat(AnthropicChatModel.draftedDate("{\"weekStart\":null}", "weekStart")).isNull();
+    assertThat(AnthropicChatModel.draftedDate("{\"weekStart\":\"not a date\"}", "weekStart"))
+        .isNull();
+    assertThat(AnthropicChatModel.draftedDate("{\"weekStart\":20260914}", "weekStart")).isNull();
   }
 }

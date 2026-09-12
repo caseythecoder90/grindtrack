@@ -10,8 +10,12 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 
 /**
- * One drafted report — today only ever a weekly review. Model output lands here and nowhere else; a
- * person copies it into the real review by clicking, or does not.
+ * One drafted thing: a weekly review, a week of study blocks, or a day's log. Model output lands
+ * here and nowhere else; a person turns it into the real thing by clicking, or does not.
+ *
+ * <p>{@code weekStart} is the start of the period the draft covers. For a review or a plan that is
+ * a Monday; for a day's log it is the day. The column keeps its original name because renaming a
+ * column to fit a third kind would cost a migration to say the same thing.
  */
 @Entity
 @Table(name = "assistant_reports")
@@ -19,6 +23,7 @@ public class AssistantReport {
 
   public static final String KIND_WEEKLY_REVIEW = "weekly_review";
   public static final String KIND_WEEK_PLAN = "week_plan";
+  public static final String KIND_DAY_LOG = "day_log";
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)

@@ -19,6 +19,7 @@ to deploy this before the secret exists.
 | Chat | ask tab | 1–6 per turn | conversation history |
 | Week planner | week tab | 1 per proposal | calendar blocks — only on **Book** |
 | Planning in chat | ask tab | +1 on the turn that plans | a stored draft; the card's **Book** is the same accept path |
+| Logging in chat | ask tab | none beyond the turn | a stored draft of *changes*; the card's **Save** merges them over the day |
 
 ## Configuration
 
@@ -48,7 +49,7 @@ reasons over, and a per-request clock reading would sit inside the cached prefix
 every call — see caching below. `ContextServiceTest` asserts that two builds of the same day
 serialize to identical bytes, which guards the invariant rather than the one field that broke it.
 
-## The tools: four reads and one draft
+## The tools: four reads and two drafts
 
 `AssistantToolExecutor` is the whole tool surface.
 
@@ -59,6 +60,7 @@ serialize to identical bytes, which guards the invariant rather than the one fie
 | `get_calendar` | reads calendar events over a range |
 | `get_focus_sessions` | reads one day's focus sessions |
 | `propose_week` | **drafts** a week of study blocks — a row and a card, never a booking |
+| `propose_log` | **drafts** a day's log entry from what was said — a row and a card, never a save |
 
 Ranges are capped at 120 days. Bad arguments come back to the model as an error string rather than
 throwing, so it can correct itself instead of failing the turn.
@@ -77,6 +79,19 @@ fetched from the week-plan endpoint, so the card always shows what accepting wil
 
 A `weekStart` that is not a Monday is refused before a model call is spent, as a sentence the model
 can act on rather than an exception that ends a turn someone is waiting on.
+
+### `propose_log` is a merge, not a day
+
+The chat turn is the drafter — there is no second model call. The draft holds **only what was
+said**; every field it does not mention is null, and null means *leave what is there*. That is the
+whole contract, and it is what makes "logged two hours on etcd" safe over a day that already has the
+morning's wins written down.
+
+The merge happens at read time, against the day as it stands *now* — so the card always shows the
+whole day as it will read once saved, with the changed fields marked, and a day edited on the phone
+after the draft was made is still the base. `DayLogService.accept` re-reads the stored draft, merges
+again, and hands the result to `TrackingService.saveDay`, whose own validation runs on it. Hours
+follow the form's rule: absent means unchanged, never zero.
 
 The loop in `AnthropicChatModel` is manual rather than the SDK's runner, because the runner
 instantiates tool classes itself and these are thin wrappers over Spring services. It enforces two

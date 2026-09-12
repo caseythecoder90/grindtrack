@@ -78,7 +78,7 @@ class ChatControllerTest {
               listener.onToolUse("get_plan");
               listener.onText("you are ");
               listener.onText("behind");
-              return new ChatService.ChatReply(4L, "you are behind", 3000, 400, null);
+              return new ChatService.ChatReply(4L, "you are behind", 3000, 400, null, null);
             });
 
     String body = streamed("how am I doing?");
@@ -102,7 +102,7 @@ class ChatControllerTest {
         .thenAnswer(
             inv -> {
               ((ChatModel.Listener) inv.getArgument(2)).onText("first\n\nsecond");
-              return new ChatService.ChatReply(1L, "first\n\nsecond", 1, 1, null);
+              return new ChatService.ChatReply(1L, "first\n\nsecond", 1, 1, null, null);
             });
 
     assertThat(streamed("two paragraphs please"))
@@ -127,7 +127,7 @@ class ChatControllerTest {
   @Test
   void theQuestionAndTheConversationReachTheService() throws Exception {
     when(chat.chat(eq(9L), eq("and now?"), any()))
-        .thenReturn(new ChatService.ChatReply(9L, "now this", 1, 1, null));
+        .thenReturn(new ChatService.ChatReply(9L, "now this", 1, 1, null, null));
 
     String body =
         mvc.perform(
