@@ -21,6 +21,7 @@ Each feature is a top-level package split into layer subpackages:
 | `security` | (auth only) the JWT filter | `service` |
 | `web` | shared, feature-agnostic: request parsing, exception→status mapping | — |
 | `assistant` | the context an assistant reasons over, and the three features on it | `/api/assistant` |
+| `push` | Web Push to the installed app: subscriptions, the VAPID signer, the payload cipher, the two producers' hook | `/api/push` |
 | `calendar` | events on days, and recurring upkeep | `/api/calendar`, `/api/upkeep` |
 | `config` | cross-cutting: `SecurityConfig`, `StaticContentConfig`, `AppProperties` | — |
 
@@ -323,6 +324,22 @@ A blank `ANTHROPIC_API_KEY` is a switched-off feature, not a broken deployment: 
 503 with a sentence and the GETs keep working. The package owns three tables (conversations,
 messages, reports) and otherwise reads the other features. Design notes in
 [assistant.md](assistant.md), shapes in [api.md](api.md).
+
+### `PushController` — `/api/push`
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/status` | `{configured, publicKey, devices}` |
+| GET | `/subscriptions` | the devices, with their endpoints so a browser can recognise its own |
+| PUT | `/subscriptions` | upsert by endpoint; validates the keys are a browser's (65-byte point, 16-byte secret) |
+| DELETE | `/subscriptions/{id}` | `{deleted}` |
+| POST | `/test` | the test notification, to one endpoint or all |
+
+The sending side is `push/service/`: `Vapid` (RFC 8292, the signed sender header), `PayloadCipher`
+(RFC 8291, the body encrypted to the device — tested against the RFC's own worked example),
+`PushService` (one row per endpoint; 404/410 deletes it; anything else is logged and kept) and
+`PushTransport` (the one outbound call, an interface so tests need no network). The two schedulers
+call `PushService.send` after their draft is stored. See [push-notifications.md](push-notifications.md).
 
 ## Auth internals (summary)
 

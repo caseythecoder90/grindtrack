@@ -57,6 +57,13 @@ grindtrack:
     # Before the morning block. Every day: a Saturday brief that says "nothing booked" costs two
     # cents and is the honest answer, and weekends are when plans get reconsidered.
     brief-cron: "0 0 6 * * *"
+  # Push notifications. No VAPID pair means off: the status endpoint says so, subscribing answers
+  # 503 with a sentence, and the schedulers skip their push line. docs/push-notifications.md has
+  # the one-liner that generates the pair.
+  push:
+    vapid-public-key: ${PUSH_VAPID_PUBLIC_KEY:}
+    vapid-private-key: ${PUSH_VAPID_PRIVATE_KEY:}
+    subject: ${PUSH_VAPID_SUBJECT:mailto:grindtrack@example.invalid}
   bootstrap-username: ${GRINDTRACK_USERNAME:}
   bootstrap-password: ${GRINDTRACK_PASSWORD:}
 

@@ -28,7 +28,7 @@ GHCR; the cluster only pulls. Nothing is ever compiled on a server.
 | TLS | cert-manager `ClusterIssuer/letsencrypt-prod`, HTTP-01, into Secret `track-caseyrquinn-com-tls`. Renewal is automatic — there is no reload hook to maintain any more |
 | Database | `Deployment/postgres` (`postgres:16-alpine`), `strategy: Recreate`, ClusterIP `:5432` |
 | Storage | PVC `postgres-data`, 5Gi, `local-path-provisioner` |
-| Secrets | `Secret/grindtrack-secrets` — `POSTGRES_DB/USER/PASSWORD`, `JWT_SECRET`, `GRINDTRACK_USERNAME/PASSWORD` |
+| Secrets | `Secret/grindtrack-secrets` — `POSTGRES_DB/USER/PASSWORD`, `JWT_SECRET`, `GRINDTRACK_USERNAME/PASSWORD`; optional `ANTHROPIC_API_KEY` (assistant) and `PUSH_VAPID_PUBLIC_KEY`/`PUSH_VAPID_PRIVATE_KEY`/`PUSH_VAPID_SUBJECT` (push, see [push-notifications.md](push-notifications.md)) |
 
 The app publishes no host port. It is reachable only through the ingress, and Postgres has no
 ingress at all.

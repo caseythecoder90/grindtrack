@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import TabIcon from "./TabIcon";
 import { SECONDARY_TABS, type Tab } from "../lib/tabs";
+import NotificationsPanel from "../features/push/NotificationsPanel";
 
 interface Props {
   current: Tab;
@@ -90,6 +91,8 @@ export default function MoreSheet({
             </button>
           ))}
         </div>
+        {/* About this device rather than about today, like the two rows below it. */}
+        <NotificationsPanel />
         <div className="sheet-actions">
           <button type="button" onClick={onExport}>
             export json

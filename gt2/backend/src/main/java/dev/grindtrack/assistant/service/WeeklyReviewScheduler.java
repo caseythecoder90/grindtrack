@@ -1,6 +1,7 @@
 package dev.grindtrack.assistant.service;
 
 import dev.grindtrack.config.AssistantProperties;
+import dev.grindtrack.push.service.PushService;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -25,12 +26,14 @@ public class WeeklyReviewScheduler {
   private final WeeklyReviewService reviews;
   private final ReviewModel model;
   private final AssistantProperties props;
+  private final PushService push;
 
   public WeeklyReviewScheduler(
-      WeeklyReviewService reviews, ReviewModel model, AssistantProperties props) {
+      WeeklyReviewService reviews, ReviewModel model, AssistantProperties props, PushService push) {
     this.reviews = reviews;
     this.model = model;
     this.props = props;
+    this.push = push;
   }
 
   @Scheduled(cron = "${grindtrack.assistant.review-cron}", zone = "${grindtrack.assistant.zone}")
@@ -50,10 +53,23 @@ public class WeeklyReviewScheduler {
           report.inputTokens(),
           report.outputTokens(),
           report.costUsd());
+      tell(PushService.Notification.weeklyReview());
     } catch (Exception e) {
       // Deliberately broad: a failed Friday draft must not take the scheduler thread with it.
       // The button on the week tab is the retry.
       log.error("The scheduled weekly review draft failed", e);
+    }
+  }
+
+  /** Its own try: a review that drafted and did not buzz the phone is still a review. */
+  private void tell(PushService.Notification notification) {
+    try {
+      PushService.Outcome outcome = push.send(notification);
+      if (outcome.sent() + outcome.failed() + outcome.gone() > 0) {
+        log.info("Pushed the weekly review: {}", outcome);
+      }
+    } catch (Exception e) {
+      log.error("The weekly review drafted but the push failed", e);
     }
   }
 }

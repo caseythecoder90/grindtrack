@@ -19,6 +19,7 @@ import TodoPage from "./features/todo/TodoPage";
 import WorkPage from "./features/work/WorkPage";
 import { AuthError, errorMessage } from "./lib/api";
 import { useAppResume } from "./lib/resume";
+import NotificationsPanel from "./features/push/NotificationsPanel";
 import { TABS, type Tab } from "./lib/tabs";
 import { TARGETS } from "./lib/types";
 import type { Scope, Stats } from "./lib/types";
@@ -32,9 +33,24 @@ function storedScope(): Scope {
   return raw === "study" || raw === "work" || raw === "all" ? raw : "all";
 }
 
+function isTab(value: unknown): value is Tab {
+  return typeof value === "string" && (TABS as string[]).includes(value);
+}
+
+/** `/?tab=week` from a notification tap opens on that tab, once, and the URL is cleaned. */
+function initialTab(): Tab {
+  const wanted = new URLSearchParams(window.location.search).get("tab");
+  if (isTab(wanted)) {
+    window.history.replaceState(null, "", window.location.pathname);
+    return wanted;
+  }
+  return "today";
+}
+
 export default function App() {
   const [view, setView] = useState<View>("landing");
-  const [tab, setTab] = useState<Tab>("today");
+  const [tab, setTab] = useState<Tab>(initialTab);
+  const [notifOpen, setNotifOpen] = useState(false);
   const [stats, setStats] = useState<Stats | null>(null);
   const [scope, setScope] = useState<Scope>(storedScope);
   const [forgetLabel, setForgetLabel] = useState("forget trusted devices");
@@ -80,6 +96,18 @@ export default function App() {
   useEffect(() => {
     checkSession();
   }, [checkSession]);
+
+  // A tap on a notification names a tab. With a window open the worker posts it here; with none it
+  // opens /?tab=…, which initialTab reads once.
+  useEffect(() => {
+    if (!("serviceWorker" in navigator)) return;
+    const onMessage = (e: MessageEvent) => {
+      const data = e.data as { type?: string; tab?: string } | null;
+      if (data?.type === "open-tab" && isTab(data.tab)) setTab(data.tab);
+    };
+    navigator.serviceWorker.addEventListener("message", onMessage);
+    return () => navigator.serviceWorker.removeEventListener("message", onMessage);
+  }, []);
 
   // Coming back to a window that has been open since this morning: re-check the session
   // (a laptop that woke with no network recovers here) and refresh the header numbers.
@@ -139,6 +167,9 @@ export default function App() {
         {view === "app" && (
           <>
             <button onClick={() => (window.location.href = EXPORT_URL)}>Export JSON</button>
+            <button onClick={() => setNotifOpen((o) => !o)} aria-expanded={notifOpen}>
+              Notifications
+            </button>
             <button onClick={logout}>Log out</button>
             <button onClick={logoutEverywhere}>{logoutEverywhereLabel}</button>
           </>
@@ -152,6 +183,12 @@ export default function App() {
       )}
       {view === "app" && (
         <>
+          {/* The desktop door to the same panel the phone reaches through the more sheet. */}
+          {notifOpen && (
+            <div className="notif-pop">
+              <NotificationsPanel />
+            </div>
+          )}
           {stats && (
             <>
               <StatBar stats={stats} scope={scope} onScopeChange={changeScope} />

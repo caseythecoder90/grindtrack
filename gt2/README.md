@@ -27,6 +27,7 @@ Ten tabs over nine backend features:
 | [docs/architecture-conventions.md](docs/architecture-conventions.md) | How to *add* to the codebase without it drifting — layer rules, where validation goes, and the failure behind each |
 | [docs/backend.md](docs/backend.md) | Layers, endpoint tables, auth internals, data model (ER), migrations, config, build, request trace |
 | [docs/assistant.md](docs/assistant.md) | The five AI features, the read-only tool surface, prompt caching, streaming, and what it costs |
+| [docs/push-notifications.md](docs/push-notifications.md) | Design for Web Push: VAPID and payload encryption without a library, the subscription table, the two producers, the iOS constraints, and the runbook |
 | [docs/frontend.md](docs/frontend.md) | Structure, view/tab state machine, the single-flight 401→refresh→retry wrapper, each screen |
 | [docs/auth.md](docs/auth.md) | The full auth design with Mermaid sequence diagrams and threat notes |
 | [docs/api.md](docs/api.md) | Endpoint reference |
