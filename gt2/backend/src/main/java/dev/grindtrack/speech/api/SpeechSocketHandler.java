@@ -10,6 +10,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.BinaryMessage;
 import org.springframework.web.socket.CloseStatus;
@@ -46,7 +47,7 @@ public class SpeechSocketHandler extends AbstractWebSocketHandler {
       SpeechProperties props,
       TranscriptionUpstream upstream,
       ObjectMapper mapper,
-      ScheduledExecutorService speechScheduler) {
+      @Qualifier("speechScheduler") ScheduledExecutorService speechScheduler) {
     this.props = props;
     this.upstream = upstream;
     this.mapper = mapper;

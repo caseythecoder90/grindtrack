@@ -47,7 +47,7 @@ public class ChatController {
       ChatService chat,
       ObjectMapper mapper,
       @Qualifier("assistantTurnExecutor") Executor executor,
-      ScheduledExecutorService heartbeats) {
+      @Qualifier("assistantHeartbeatScheduler") ScheduledExecutorService heartbeats) {
     this.chat = chat;
     this.mapper = mapper;
     this.executor = executor;

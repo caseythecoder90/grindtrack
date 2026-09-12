@@ -1,7 +1,5 @@
 package dev.grindtrack.speech.api;
 
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.socket.config.annotation.EnableWebSocket;
@@ -11,7 +9,9 @@ import org.springframework.web.socket.server.standard.ServletServerContainerFact
 
 /**
  * The one WebSocket endpoint. No allowed-origins list means Spring's default: the handshake's
- * Origin must match the host, which is exactly right for a same-origin app.
+ * Origin must match the host, which is exactly right for a same-origin app. The handler's timer
+ * lives in {@code SpeechAsyncConfig}: a bean defined here would make this class and the handler
+ * depend on each other.
  */
 @Configuration
 @EnableWebSocket
@@ -35,16 +35,5 @@ public class SpeechSocketConfig implements WebSocketConfigurer {
     container.setMaxBinaryMessageBufferSize(64 * 1024);
     container.setMaxTextMessageBufferSize(64 * 1024);
     return container;
-  }
-
-  /** The stop-grace timer. One daemon thread; the work on it is a close. */
-  @Bean(destroyMethod = "shutdownNow")
-  public ScheduledExecutorService speechScheduler() {
-    return Executors.newSingleThreadScheduledExecutor(
-        r -> {
-          Thread t = new Thread(r, "speech-timer");
-          t.setDaemon(true);
-          return t;
-        });
   }
 }
