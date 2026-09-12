@@ -203,6 +203,20 @@ principal (the app has one user and the services are written without one), so th
 staying behind on the request thread costs nothing. **That stops being true the day a second user
 exists.**
 
+## Speaking a question
+
+The mic button in the ask box uses the browser's own recognizer (the Web Speech API), not an
+audio endpoint of ours: the Messages API takes no audio, and a second vendor for transcription
+would be a key, a bill and a privacy question for a rougher result than the phone already
+produces. Interim words stream into the box as you talk, get revised as the recognizer settles
+them, and stay there to be read and edited. Nothing is sent until Ask.
+
+The edges are the browser's. Firefox has no recognizer, so the button is not rendered there rather
+than rendered dead. An installed iOS web app has historically been unreliable about the microphone
+prompt; if it fails, the failure is a sentence under the box, not a spinner. Typing while it is
+listening hands the box back to you: the words on screen become the draft as they stand and the
+phrase in flight is dropped, so nothing lands twice.
+
 ## Testing without spending money
 
 `ChatModel`, `ReviewModel` and `WeekPlanModel` are interfaces for one reason: tests must not call
