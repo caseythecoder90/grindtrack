@@ -37,6 +37,13 @@ const READING: Record<string, string> = {
   get_calendar: "reading your calendar…",
   get_focus_sessions: "reading your focus sessions…",
 };
+/** Three ways into a blank box. Each is a question the assistant is good at. */
+const STARTERS = [
+  "am I on pace for the CKA?",
+  "plan next week for me",
+  "what did I get done this week?",
+];
+
 export default function AskPage() {
   const [status, setStatus] = useState<AssistantStatus | null>(null);
   const [configured, setConfigured] = useState<boolean | null>(null);
@@ -57,6 +64,17 @@ export default function AskPage() {
     setDraft((d) => (d.trim() ? d.replace(/\s*$/, " ") : "") + phrase),
   );
   const foot = useRef<HTMLDivElement>(null);
+  const box = useRef<HTMLTextAreaElement>(null);
+  /** What the box shows: the draft, plus the phrase still being heard. */
+  const shown = speech.interim ? draft + (draft.trim() ? " " : "") + speech.interim : draft;
+
+  // The box grows with what is in it, one line to six, like every chat composer does.
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    el.style.height = "0px";
+    el.style.height = Math.min(el.scrollHeight, 168) + "px";
+  }, [shown]);
 
   const refreshList = useCallback(async () => {
     try {
@@ -152,8 +170,13 @@ export default function AskPage() {
     <div className="panel askpanel">
       <div className="panelhead">
         <h2>ask</h2>
-        <button type="button" onClick={startNew} disabled={conversationId === null && !turns.length}>
-          new conversation
+        <button
+          type="button"
+          onClick={startNew}
+          disabled={conversationId === null && !turns.length}
+          aria-label="new conversation"
+        >
+          + new
         </button>
       </div>
 
@@ -192,10 +215,27 @@ export default function AskPage() {
 
       <div className="askthread">
         {turns.length === 0 && !pending && (
-          <div className="empty">
-            Ask about the week, the plan, what to study next. It can read your logs, plan,
-            calendar and sessions, and draft a week or a day's log for you to approve — it changes
-            nothing on its own.
+          <div className="askempty">
+            <p className="empty">
+              It can read your logs, plan, calendar and sessions, and draft a week or a day's log
+              for you to approve. It changes nothing on its own.
+            </p>
+            {/* Three ways in, because a blank box is the hardest kind of question. */}
+            <div className="starters">
+              {STARTERS.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  className="starter"
+                  onClick={() => {
+                    setDraft(s);
+                    box.current?.focus();
+                  }}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
           </div>
         )}
         {turns.map((t, i) => (
@@ -227,17 +267,22 @@ export default function AskPage() {
 
       {error && <div className="error">{error}</div>}
 
-      <div className={"askform" + (speech.listening ? " listening" : "")}>
+      {/* The composer: one rounded card, the words on top, the controls in a row beneath — the
+          shape every chat app has settled on, so the thumb already knows where the send is. It
+          sticks to the bottom of the screen while the thread scrolls above it. */}
+      <div className={"composer" + (speech.listening ? " listening" : "")}>
         <textarea
-          value={speech.interim ? draft + (draft.trim() ? " " : "") + speech.interim : draft}
+          ref={box}
+          className="composer-box"
+          value={shown}
           onChange={(e) => {
             // Typing takes the box back: the words on screen become the draft as they stand, and
             // the phrase in flight is dropped so it cannot land a second time.
             if (speech.listening) speech.abort();
             setDraft(e.target.value);
           }}
-          placeholder={speech.listening ? "listening…" : "e.g. am I on pace for CKA in December?"}
-          rows={2}
+          placeholder={speech.listening ? "listening…" : "ask about your week…"}
+          rows={1}
           onKeyDown={(e) => {
             // Enter sends, Shift+Enter breaks the line — the shape every chat box has.
             if (e.key === "Enter" && !e.shiftKey) {
@@ -246,36 +291,56 @@ export default function AskPage() {
             }
           }}
         />
-        {speech.supported && (
-          <button
-            type="button"
-            className={"mic" + (speech.listening ? " on" : "")}
-            aria-pressed={speech.listening}
-            aria-label={speech.listening ? "stop listening" : "speak your question"}
-            disabled={!!pending}
-            onClick={() => (speech.listening ? speech.stop() : speech.start())}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <rect x="9" y="3" width="6" height="11" rx="3" />
-              <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
-            </svg>
-          </button>
-        )}
-        <button type="button" className="primary" onClick={send} disabled={!draft.trim() || !!pending}>
-          {pending ? "thinking…" : "Ask"}
-        </button>
+        <div className="composer-row">
+          <div className="composer-left">
+            {speech.listening ? (
+              <span className="listening-pill">
+                <span className="dot" aria-hidden="true" />
+                listening
+              </span>
+            ) : speech.error ? (
+              <span className="composer-hint">{speech.error}</span>
+            ) : (
+              status && (
+                <span className="composer-cost" title="the assistant's bill this month">
+                  ${status.costThisMonthUsd.toFixed(2)} this month
+                  {status.cacheSavingUsd > 0 && <> · saved ${status.cacheSavingUsd.toFixed(2)}</>}
+                </span>
+              )
+            )}
+          </div>
+          <div className="composer-right">
+            {speech.supported && (
+              <button
+                type="button"
+                className={"mic" + (speech.listening ? " on" : "")}
+                aria-pressed={speech.listening}
+                aria-label={speech.listening ? "stop listening" : "speak your question"}
+                disabled={!!pending}
+                onClick={() => (speech.listening ? speech.stop() : speech.start())}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <rect x="9" y="3" width="6" height="11" rx="3" />
+                  <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+                </svg>
+              </button>
+            )}
+            <button
+              type="button"
+              className="send"
+              aria-label={pending ? "thinking" : "send"}
+              onClick={send}
+              disabled={!draft.trim() || !!pending}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M12 19V5M5 12l7-7 7 7" />
+              </svg>
+            </button>
+          </div>
+        </div>
       </div>
-      {speech.error && <div className="askhint">{speech.error}</div>}
-
-      {status && (
-        <p className="askbill">
-          ${status.costThisMonthUsd.toFixed(2)} this month
-          {status.cacheSavingUsd > 0 && (
-            <> · caching saved ${status.cacheSavingUsd.toFixed(2)}</>
-          )}
-        </p>
-      )}
     </div>
   );
 }
