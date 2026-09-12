@@ -55,3 +55,5 @@ databaseChangeLog:
       file: db/changelog/027-assistant-cache-tokens.sql
   - include:
       file: db/changelog/028-chat-proposals.sql
+  - include:
+      file: db/changelog/029-chat-log-drafts.sql

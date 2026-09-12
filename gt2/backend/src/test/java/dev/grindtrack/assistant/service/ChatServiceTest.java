@@ -58,7 +58,7 @@ class ChatServiceTest {
   private void modelAnswers() {
     when(model.configured()).thenReturn(true);
     when(model.reply(anyString(), any(), anyString(), any()))
-        .thenReturn(new ChatModel.Reply("the answer", 3000, 400, 0, 0, null));
+        .thenReturn(new ChatModel.Reply("the answer", 3000, 400, 0, 0, null, null));
     when(conversations.save(any())).thenAnswer(inv -> inv.getArgument(0));
   }
 
@@ -166,7 +166,7 @@ class ChatServiceTest {
               listener.onToolUse("get_plan");
               listener.onText("the ");
               listener.onText("answer");
-              return new ChatModel.Reply("the answer", 3000, 400, 0, 0, null);
+              return new ChatModel.Reply("the answer", 3000, 400, 0, 0, null, null);
             });
 
     List<String> tools = new java.util.ArrayList<>();
@@ -198,7 +198,7 @@ class ChatServiceTest {
     when(model.configured()).thenReturn(true);
     when(conversations.save(any())).thenAnswer(inv -> inv.getArgument(0));
     when(model.reply(anyString(), any(), anyString(), any()))
-        .thenReturn(new ChatModel.Reply("the answer", 300, 400, 5000, 12000, null));
+        .thenReturn(new ChatModel.Reply("the answer", 300, 400, 5000, 12000, null, null));
 
     service.chat(null, "how am I doing?");
 
@@ -245,7 +245,8 @@ class ChatServiceTest {
     when(model.configured()).thenReturn(true);
     when(conversations.save(any())).thenAnswer(inv -> inv.getArgument(0));
     when(model.reply(anyString(), any(), anyString(), any()))
-        .thenReturn(new ChatModel.Reply("drafted four mornings", 300, 400, 0, 0, "2026-09-14"));
+        .thenReturn(
+            new ChatModel.Reply("drafted four mornings", 300, 400, 0, 0, "2026-09-14", null));
 
     ChatService.ChatReply reply = service.chat(null, "plan next week for me");
 
@@ -262,7 +263,7 @@ class ChatServiceTest {
     when(model.configured()).thenReturn(true);
     when(conversations.save(any())).thenAnswer(inv -> inv.getArgument(0));
     when(model.reply(anyString(), any(), anyString(), any()))
-        .thenReturn(new ChatModel.Reply("you are behind", 300, 400, 0, 0, null));
+        .thenReturn(new ChatModel.Reply("you are behind", 300, 400, 0, 0, null, null));
 
     assertThat(service.chat(null, "how am I doing?").proposedWeekStart()).isNull();
 
@@ -281,7 +282,7 @@ class ChatServiceTest {
     when(model.configured()).thenReturn(true);
     when(conversations.save(any())).thenAnswer(inv -> inv.getArgument(0));
     when(model.reply(anyString(), any(), anyString(), any()))
-        .thenReturn(new ChatModel.Reply("here is your week", 300, 400, 0, 0, "next monday"));
+        .thenReturn(new ChatModel.Reply("here is your week", 300, 400, 0, 0, "next monday", null));
 
     ChatService.ChatReply reply = service.chat(null, "plan next week");
 

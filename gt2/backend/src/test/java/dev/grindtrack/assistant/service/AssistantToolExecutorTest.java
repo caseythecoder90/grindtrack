@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 /**
  * The tool surface, and the one line in it that matters.
@@ -35,6 +36,7 @@ class AssistantToolExecutorTest {
   private PlanService plan;
   private CalendarService calendar;
   private WeekPlanService weekPlan;
+  private DayLogService dayLog;
   private AssistantToolExecutor executor;
 
   @BeforeEach
@@ -42,6 +44,7 @@ class AssistantToolExecutorTest {
     plan = mock(PlanService.class);
     calendar = mock(CalendarService.class);
     weekPlan = mock(WeekPlanService.class);
+    dayLog = mock(DayLogService.class);
     executor =
         new AssistantToolExecutor(
             plan,
@@ -49,6 +52,7 @@ class AssistantToolExecutorTest {
             calendar,
             mock(FocusService.class),
             weekPlan,
+            dayLog,
             new ObjectMapper());
   }
 
@@ -68,7 +72,12 @@ class AssistantToolExecutorTest {
     assertThat(executor.specs())
         .extracting(AssistantToolExecutor.ToolSpec::name)
         .containsExactly(
-            "get_plan", "get_days", "get_calendar", "get_focus_sessions", "propose_week");
+            "get_plan",
+            "get_days",
+            "get_calendar",
+            "get_focus_sessions",
+            "propose_week",
+            "propose_log");
   }
 
   /** The whole point. Drafting is a row and a card; the calendar is not touched by a model. */
@@ -118,5 +127,64 @@ class AssistantToolExecutorTest {
   void anUnknownToolNameSaysSoRatherThanThrowing() {
     assertThat(executor.execute("book_the_whole_year", Map.of())).contains("unknown tool");
     verifyNoInteractions(calendar);
+  }
+
+  // ------------------------------------------------------------ propose_log
+
+  /** Same property as the week: a drafted day is a row and a card, and the day is untouched. */
+  @Test
+  void proposingALogDraftsAndSavesNothing() {
+    when(dayLog.propose(any(), any()))
+        .thenReturn(
+            new DayLogService.Draft(
+                "2026-09-11",
+                "2026-09-11T20:00Z",
+                new DayLogDraft(null, null, null, "read the etcd chapter", null, null, null),
+                new DayLogService.Preview(
+                    new java.math.BigDecimal("1.5"),
+                    List.of("kubernetes"),
+                    "CKA labs",
+                    "read the etcd chapter",
+                    "",
+                    "",
+                    null,
+                    true)));
+
+    String result =
+        executor.execute(
+            "propose_log", Map.of("date", "2026-09-11", "did", "read the etcd chapter"));
+
+    assertThat(result).contains("\"logDate\":\"2026-09-11\"").contains("nothing has been logged");
+    verifyNoInteractions(calendar);
+  }
+
+  /** Blank is "leave it", not "clear it" — the difference between a draft and a wipe. */
+  @Test
+  void blankFieldsAreNotPassedAsChanges() {
+    ArgumentCaptor<DayLogDraft> drafted = ArgumentCaptor.forClass(DayLogDraft.class);
+    when(dayLog.propose(any(), drafted.capture()))
+        .thenReturn(
+            new DayLogService.Draft(
+                "2026-09-11",
+                "2026-09-11T20:00Z",
+                new DayLogDraft(null, null, null, "x", null, null, null),
+                new DayLogService.Preview(
+                    java.math.BigDecimal.ZERO, List.of(), "", "x", "", "", null, false)));
+
+    executor.execute(
+        "propose_log",
+        Map.of(
+            "date", "2026-09-11", "did", "x", "wins", "", "hours", " ", "categories", "k8s, etcd"));
+
+    assertThat(drafted.getValue().wins()).isNull();
+    assertThat(drafted.getValue().hours()).isNull();
+    assertThat(drafted.getValue().categories()).containsExactly("k8s", "etcd");
+  }
+
+  @Test
+  void aNonNumericHoursIsASentenceTheModelCanFix() {
+    assertThat(executor.execute("propose_log", Map.of("date", "2026-09-11", "hours", "two")))
+        .contains("hours must be a number");
+    verify(dayLog, never()).propose(any(), any());
   }
 }

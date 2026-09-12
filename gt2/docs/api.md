@@ -132,14 +132,16 @@ Full design notes: [assistant.md](assistant.md).
 | POST | `/api/assistant/reviews?weekStart=` | **Spends money.** Drafts the weekly review, ~3¢. The Friday 17:00 job posts the same thing |
 | GET | `/api/assistant/week-plan?weekStart=` | The stored proposal, or `null`. No model call |
 | POST | `/api/assistant/week-plan?weekStart=` | **Spends money.** Proposes a week. Writes a draft and nothing else |
-| POST | `/api/assistant/week-plan/accept?weekStart=` | The one write. Books the stored draft — re-read and re-validated server-side, never taken from the request |
+| POST | `/api/assistant/week-plan/accept?weekStart=` | One of two writes. Books the stored draft — re-read and re-validated server-side, never taken from the request |
+| GET | `/api/assistant/day-log?date=` | A day's log as drafted in conversation, merged over the day as it stands now: `{logDate, generatedAt, changes, result}`. `changes` is only what was said (nulls mean unchanged); `result` is the whole day as it will read once saved. Or `null` |
+| POST | `/api/assistant/day-log/accept?date=` | The other write. Merges the stored draft over the day at that moment and saves through the same path the form uses; absent hours stay unchanged |
 | GET | `/api/assistant/chat` | Conversations, most recent first: `{id, title, lastMessageAt, turns, hasDraft}`. `turns` and `hasDraft` exist because a title taken from the first message cannot tell two threads apart when both began with the same question — and a retry begins with exactly the same question |
 | GET | `/api/assistant/chat/{id}` | One conversation's turns |
 | POST | `/api/assistant/chat` | **Spends money.** One turn, answered when it is finished |
 | POST | `/api/assistant/chat/stream` | The same turn as server-sent events: `tool`, `text`, `tick`, `done`, `error`. A failure arrives as an event, not a status — by then the response has been 200 for seconds |
 
 A turn that drafted a week carries `proposedWeekStart` (a Monday) on both the reply and the stored
-turn. It is a pointer, not the blocks: the client fetches those from `/week-plan?weekStart=` and
+turn; one that drafted a day's log carries `proposedLogDate` the same way. It is a pointer, not the blocks: the client fetches those from `/week-plan?weekStart=` and
 books with `/week-plan/accept`, so the card always shows what accepting will write. Nearly every
 turn has it null.
 

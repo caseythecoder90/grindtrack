@@ -137,7 +137,8 @@ public class ChatService {
                   reply.outputTokens(),
                   reply.cacheWriteTokens(),
                   reply.cacheReadTokens(),
-                  monday(reply.proposedWeekStart())));
+                  date(reply.proposedWeekStart()),
+                  date(reply.proposedLogDate())));
           conversation.touch();
           conversations.save(conversation);
 
@@ -146,7 +147,8 @@ public class ChatService {
               reply.text(),
               reply.inputTokens(),
               reply.outputTokens(),
-              reply.proposedWeekStart());
+              reply.proposedWeekStart(),
+              reply.proposedLogDate());
         });
   }
 
@@ -210,7 +212,7 @@ public class ChatService {
    * {@code AnthropicChatModel} already only reports weeks a tool actually drafted — this is the
    * second lock on the same door, because that door is on the far side of everything expensive.
    */
-  private static LocalDate monday(String value) {
+  private static LocalDate date(String value) {
     if (value == null) {
       return null;
     }
@@ -237,7 +239,8 @@ public class ChatService {
       String reply,
       long inputTokens,
       long outputTokens,
-      String proposedWeekStart) {}
+      String proposedWeekStart,
+      String proposedLogDate) {}
 
   /**
    * @param turns messages in the thread, both sides. One means an attempt, not a conversation

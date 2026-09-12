@@ -3,6 +3,7 @@ package dev.grindtrack.assistant.api;
 import dev.grindtrack.assistant.api.AssistantDtos.ToolDescription;
 import dev.grindtrack.assistant.service.AssistantContext;
 import dev.grindtrack.assistant.service.ContextService;
+import dev.grindtrack.assistant.service.DayLogService;
 import dev.grindtrack.assistant.service.WeekPlanService;
 import dev.grindtrack.assistant.service.WeeklyReviewService;
 import dev.grindtrack.web.Requests;
@@ -36,12 +37,17 @@ public class AssistantController {
   private final ContextService context;
   private final WeeklyReviewService reviews;
   private final WeekPlanService weekPlans;
+  private final DayLogService dayLogs;
 
   public AssistantController(
-      ContextService context, WeeklyReviewService reviews, WeekPlanService weekPlans) {
+      ContextService context,
+      WeeklyReviewService reviews,
+      WeekPlanService weekPlans,
+      DayLogService dayLogs) {
     this.context = context;
     this.reviews = reviews;
     this.weekPlans = weekPlans;
+    this.dayLogs = dayLogs;
   }
 
   /**
@@ -90,12 +96,29 @@ public class AssistantController {
   }
 
   /**
-   * Book the drafted blocks. The only endpoint in this package that writes anything, and it writes
-   * what was stored and shown — never what the request body says.
+   * Book the drafted blocks. One of two endpoints in this package that write anything (the other
+   * saves a drafted day's log), and it writes what was stored and shown — never what the request
+   * body says.
    */
   @PostMapping("/week-plan/accept")
   public WeekPlanService.Accepted acceptWeek(@RequestParam(required = false) String weekStart) {
     return weekPlans.accept(nextWeek(weekStart));
+  }
+
+  /** The drafted log for a day, merged over the day as it stands now, or an empty body. */
+  @GetMapping("/day-log")
+  public DayLogService.Draft dayLog(@RequestParam String date) {
+    return dayLogs.find(Requests.requireDate(date, "invalid date")).orElse(null);
+  }
+
+  /**
+   * Save the drafted changes over the day. The other endpoint here that writes, and like the week
+   * one it writes what was stored and shown — merged over the day as it is at this moment, never
+   * what a request body says.
+   */
+  @PostMapping("/day-log/accept")
+  public DayLogService.Accepted acceptDayLog(@RequestParam String date) {
+    return dayLogs.accept(Requests.requireDate(date, "invalid date"));
   }
 
   /**

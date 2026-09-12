@@ -55,6 +55,10 @@ public class AssistantMessage {
   @Column(name = "proposed_week_start")
   private LocalDate proposedWeekStart;
 
+  /** The day this turn drafted a log for, or null. Same shape and same reasons as the week. */
+  @Column(name = "proposed_log_date")
+  private LocalDate proposedLogDate;
+
   @Column(name = "created_at", nullable = false)
   private OffsetDateTime createdAt;
 
@@ -68,7 +72,8 @@ public class AssistantMessage {
       long outputTokens,
       long cacheWriteTokens,
       long cacheReadTokens,
-      LocalDate proposedWeekStart) {
+      LocalDate proposedWeekStart,
+      LocalDate proposedLogDate) {
     this.conversationId = conversationId;
     this.role = role;
     this.content = content;
@@ -77,12 +82,13 @@ public class AssistantMessage {
     this.cacheWriteTokens = cacheWriteTokens;
     this.cacheReadTokens = cacheReadTokens;
     this.proposedWeekStart = proposedWeekStart;
+    this.proposedLogDate = proposedLogDate;
     this.createdAt = OffsetDateTime.now();
   }
 
   /** A user turn costs nothing on its own — it is billed as part of the reply it provoked. */
   public static AssistantMessage userTurn(Long conversationId, String content) {
-    return new AssistantMessage(conversationId, ROLE_USER, content, 0, 0, 0, 0, null);
+    return new AssistantMessage(conversationId, ROLE_USER, content, 0, 0, 0, 0, null, null);
   }
 
   public String getRole() {
@@ -111,6 +117,10 @@ public class AssistantMessage {
 
   public LocalDate getProposedWeekStart() {
     return proposedWeekStart;
+  }
+
+  public LocalDate getProposedLogDate() {
+    return proposedLogDate;
   }
 
   public OffsetDateTime getCreatedAt() {

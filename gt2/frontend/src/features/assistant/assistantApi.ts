@@ -62,6 +62,8 @@ export interface ChatTurn {
   createdAt: string;
   /** The Monday this turn drafted a week for, or null — which is nearly every turn. */
   proposedWeekStart: string | null;
+  /** The day this turn drafted a log entry for, or null. */
+  proposedLogDate: string | null;
 }
 
 export interface ChatReply {
@@ -74,6 +76,8 @@ export interface ChatReply {
    * week-plan endpoint and the calendar is untouched until {@link acceptWeekPlan}.
    */
   proposedWeekStart: string | null;
+  /** Same contract for a drafted day's log: a card, and nothing saved until {@link acceptDayLog}. */
+  proposedLogDate: string | null;
 }
 
 export const listConversations = () => api<ConversationSummary[]>(`${BASE}/chat`);
@@ -205,3 +209,42 @@ export async function streamChat(
   if (!done) throw new StreamCutError("the connection dropped before it finished answering");
   return done;
 }
+
+// --------------------------------------------------------------- day log drafts
+
+/** What the conversation said — only that. Null means the day keeps what it has. */
+export interface DayLogChanges {
+  hours: number | null;
+  categories: string[] | null;
+  focus: string | null;
+  did: string | null;
+  wins: string | null;
+  blockers: string | null;
+  energy: number | null;
+}
+
+export interface DayLogDraft {
+  logDate: string;
+  generatedAt: string;
+  changes: DayLogChanges;
+  /** The whole day as it will read once saved — merged over the day as it stands right now. */
+  result: {
+    hours: number;
+    categories: string[];
+    focus: string;
+    did: string;
+    wins: string;
+    blockers: string;
+    energy: number | null;
+    /** The day already had an entry, so the button says "update", not "create". */
+    existed: boolean;
+  };
+}
+
+/** Null when nothing has been drafted for that day. Re-merged on every read. */
+export const getDayLogDraft = (date: string) =>
+  api<DayLogDraft | null>(`${BASE}/day-log?date=${date}`);
+
+/** The write. Saves what was stored and shown, merged over the day as it is at that moment. */
+export const acceptDayLog = (date: string) =>
+  api<{ logDate: string }>(`${BASE}/day-log/accept?date=${date}`, jsonInit("POST", {}));

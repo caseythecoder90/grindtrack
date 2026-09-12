@@ -11,6 +11,7 @@ import {
   type ConversationSummary,
 } from "./assistantApi";
 import ConversationsSheet from "./ConversationsSheet";
+import ProposedLog from "./ProposedLog";
 import ProposedWeek from "./ProposedWeek";
 
 /**
@@ -196,6 +197,7 @@ export default function AskPage() {
             {t.proposedWeekStart && (
               <ProposedWeek weekStart={t.proposedWeekStart} onBooked={refreshList} />
             )}
+            {t.proposedLogDate && <ProposedLog date={t.proposedLogDate} onSaved={refreshList} />}
           </div>
         ))}
         {pending && (
