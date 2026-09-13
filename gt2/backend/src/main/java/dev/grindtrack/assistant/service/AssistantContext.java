@@ -33,7 +33,8 @@ public record AssistantContext(
     List<EventSummary> upcomingEvents,
     List<UpkeepSummary> upkeepDue,
     List<TodoSummary> openTodos,
-    List<DaySummary> recentDays) {
+    List<DaySummary> recentDays,
+    Recovery recovery) {
 
   /** Where the plan says you are. Derived from today's date, not stored anywhere. */
   public record Quarter(
@@ -85,6 +86,14 @@ public record AssistantContext(
       Long id, String title, String category, String nextDue, long daysOverdue, String state) {}
 
   public record TodoSummary(Long id, String title, String kind, String dueDate) {}
+
+  /**
+   * Where recovery stands today. Absent (null) when no sobriety date is configured — the model is
+   * told nothing rather than something made up.
+   *
+   * @param daysSober counted from the sobriety date to today, the date itself being day one
+   */
+  public record Recovery(String sobrietyDate, long daysSober) {}
 
   /** One logged day, with what was written on it — the part that carries the why. */
   public record DaySummary(

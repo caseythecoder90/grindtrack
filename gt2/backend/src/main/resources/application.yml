@@ -54,9 +54,10 @@ grindtrack:
     # "Friday at five" means the owner's Friday. Spring cron: second minute hour day month weekday.
     zone: America/New_York
     review-cron: "0 0 17 * * FRI"
-    # Before the morning block. Every day: a Saturday brief that says "nothing booked" costs two
-    # cents and is the honest answer, and weekends are when plans get reconsidered.
-    brief-cron: "0 0 6 * * *"
+    # Half past five: when he is waking up, before email and before the feed. Every day: a
+    # Saturday brief that says "nothing booked" costs two cents and is the honest answer, and
+    # weekends are when plans get reconsidered.
+    brief-cron: "0 30 5 * * *"
   # Push notifications. No VAPID pair means off: the status endpoint says so, subscribing answers
   # 503 with a sentence, and the schedulers skip their push line. docs/push-notifications.md has
   # the one-liner that generates the pair.
@@ -72,6 +73,14 @@ grindtrack:
     api-key: ${OPENAI_API_KEY:}
     model: gpt-4o-mini-transcribe
     language: en
+  # Recovery. The sobriety date comes from the environment because this file is public and the
+  # date is personal; absent means the assistant's context has no recovery section.
+  recovery:
+    sobriety-date: ${SOBRIETY_DATE:}
+  # The todo list is a page nobody opens, so what is open comes to the phone: at eight and at six,
+  # for as long as anything stays open. Same zone as the assistant's jobs.
+  todos:
+    reminder-cron: "0 0 8,18 * * *"
   bootstrap-username: ${GRINDTRACK_USERNAME:}
   bootstrap-password: ${GRINDTRACK_PASSWORD:}
 

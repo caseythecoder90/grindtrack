@@ -59,6 +59,10 @@ public class AssistantMessage {
   @Column(name = "proposed_log_date")
   private LocalDate proposedLogDate;
 
+  /** The day this turn drafted todos on, or null. Same contract: a card, nothing added yet. */
+  @Column(name = "proposed_todos_date")
+  private LocalDate proposedTodosDate;
+
   @Column(name = "created_at", nullable = false)
   private OffsetDateTime createdAt;
 
@@ -73,7 +77,8 @@ public class AssistantMessage {
       long cacheWriteTokens,
       long cacheReadTokens,
       LocalDate proposedWeekStart,
-      LocalDate proposedLogDate) {
+      LocalDate proposedLogDate,
+      LocalDate proposedTodosDate) {
     this.conversationId = conversationId;
     this.role = role;
     this.content = content;
@@ -83,12 +88,13 @@ public class AssistantMessage {
     this.cacheReadTokens = cacheReadTokens;
     this.proposedWeekStart = proposedWeekStart;
     this.proposedLogDate = proposedLogDate;
+    this.proposedTodosDate = proposedTodosDate;
     this.createdAt = OffsetDateTime.now();
   }
 
   /** A user turn costs nothing on its own — it is billed as part of the reply it provoked. */
   public static AssistantMessage userTurn(Long conversationId, String content) {
-    return new AssistantMessage(conversationId, ROLE_USER, content, 0, 0, 0, 0, null, null);
+    return new AssistantMessage(conversationId, ROLE_USER, content, 0, 0, 0, 0, null, null, null);
   }
 
   public String getRole() {
@@ -121,6 +127,10 @@ public class AssistantMessage {
 
   public LocalDate getProposedLogDate() {
     return proposedLogDate;
+  }
+
+  public LocalDate getProposedTodosDate() {
+    return proposedTodosDate;
   }
 
   public OffsetDateTime getCreatedAt() {

@@ -13,6 +13,7 @@ import {
 import { useSpeech } from "../../lib/speech";
 import ConversationsSheet from "./ConversationsSheet";
 import ProposedLog from "./ProposedLog";
+import ProposedTodos from "./ProposedTodos";
 import ProposedWeek from "./ProposedWeek";
 
 /**
@@ -41,7 +42,7 @@ const READING: Record<string, string> = {
 const STARTERS = [
   "am I on pace for the CKA?",
   "plan next week for me",
-  "what did I get done this week?",
+  "remind me to…",
 ];
 
 export default function AskPage() {
@@ -228,7 +229,8 @@ export default function AskPage() {
                   type="button"
                   className="starter"
                   onClick={() => {
-                    setDraft(s);
+                    // A starter that ends in an ellipsis is a beginning, not a question.
+                    setDraft(s.endsWith("…") ? s.slice(0, -1) + " " : s);
                     box.current?.focus();
                   }}
                 >
@@ -245,6 +247,9 @@ export default function AskPage() {
               <ProposedWeek weekStart={t.proposedWeekStart} onBooked={refreshList} />
             )}
             {t.proposedLogDate && <ProposedLog date={t.proposedLogDate} onSaved={refreshList} />}
+            {t.proposedTodosDate && (
+              <ProposedTodos date={t.proposedTodosDate} onAdded={refreshList} />
+            )}
           </div>
         ))}
         {pending && (

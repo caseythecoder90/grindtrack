@@ -69,6 +69,7 @@ export default function MorningBrief() {
           {brief.generatedAt.slice(11, 16)} · ${brief.costUsd.toFixed(2)}
         </span>
       </div>
+      {brief.draft.motivation && <p className="brief-motivation">{brief.draft.motivation}</p>}
       <p className="brief-headline">{brief.draft.headline}</p>
       <p className="brief-body">{brief.draft.today}</p>
       <p className="brief-suggestion">{brief.draft.suggestion}</p>

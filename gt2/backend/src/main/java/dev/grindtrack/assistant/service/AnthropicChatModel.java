@@ -94,10 +94,11 @@ public class AnthropicChatModel implements ChatModel {
       when listing genuinely separate items.
       5. You can read everything, and the only things you can produce are drafts. propose_week \
       drafts a week of study blocks; propose_log drafts a day's log entry from what Casey tells \
-      you. Each becomes a card he accepts or ignores. Neither books or saves anything, and you \
-      must never say or imply that something has been scheduled or logged — say it is drafted \
-      and waiting on him. For anything else — editing the plan, a single calendar event, money — \
-      say you cannot and point at the tab that can.
+      you; propose_todos drafts todos from what he asks to remember or get done. Each becomes a \
+      card he accepts or ignores. None books, saves or adds anything, and you must never say or \
+      imply that something has been scheduled, logged or added — say it is drafted and waiting \
+      on him. For anything else — editing the plan, a single calendar event, money — say you \
+      cannot and point at the tab that can.
       """;
 
   /** Only ever reads a tool result this class just produced, so it needs no configuration. */
@@ -146,6 +147,7 @@ public class AnthropicChatModel implements ChatModel {
     // corrects itself after a refused date, the corrected week is the one with a card.
     String proposedWeekStart = null;
     String proposedLogDate = null;
+    String proposedTodosDate = null;
     try {
       for (int round = 0; round < 6; round++) {
         Message response = round(contextJson, messages, listener);
@@ -162,7 +164,8 @@ public class AnthropicChatModel implements ChatModel {
               cacheWriteTokens,
               cacheReadTokens,
               proposedWeekStart,
-              proposedLogDate);
+              proposedLogDate,
+              proposedTodosDate);
         }
         messages.add(response.toParam());
         Round executed = runTools(response);
@@ -171,6 +174,9 @@ public class AnthropicChatModel implements ChatModel {
         }
         if (executed.proposedLogDate() != null) {
           proposedLogDate = executed.proposedLogDate();
+        }
+        if (executed.proposedTodosDate() != null) {
+          proposedTodosDate = executed.proposedTodosDate();
         }
         messages.add(executed.results());
       }
@@ -261,6 +267,7 @@ public class AnthropicChatModel implements ChatModel {
     List<ContentBlockParam> results = new ArrayList<>();
     String proposedWeekStart = null;
     String proposedLogDate = null;
+    String proposedTodosDate = null;
     for (ContentBlock block : response.content()) {
       ToolUseBlock use = block.toolUse().orElse(null);
       if (use == null) {
@@ -279,6 +286,12 @@ public class AnthropicChatModel implements ChatModel {
           proposedLogDate = drafted;
         }
       }
+      if ("propose_todos".equals(use.name())) {
+        String drafted = draftedDate(result, "date");
+        if (drafted != null) {
+          proposedTodosDate = drafted;
+        }
+      }
       results.add(
           ContentBlockParam.ofToolResult(
               ToolResultBlockParam.builder().toolUseId(use.id()).content(result).build()));
@@ -286,7 +299,8 @@ public class AnthropicChatModel implements ChatModel {
     return new Round(
         MessageParam.builder().role(MessageParam.Role.USER).contentOfBlockParams(results).build(),
         proposedWeekStart,
-        proposedLogDate);
+        proposedLogDate,
+        proposedTodosDate);
   }
 
   /**
@@ -305,8 +319,12 @@ public class AnthropicChatModel implements ChatModel {
     }
   }
 
-  /** One round's tool results, and whatever they drafted: a week, a day's log, both, or neither. */
-  private record Round(MessageParam results, String proposedWeekStart, String proposedLogDate) {}
+  /** One round's tool results, and whatever they drafted: a week, a day's log, todos, or none. */
+  private record Round(
+      MessageParam results,
+      String proposedWeekStart,
+      String proposedLogDate,
+      String proposedTodosDate) {}
 
   /** Tool inputs arrive as JSON; parse, never string-match — escaping varies by model. */
   private static Map<String, String> args(ToolUseBlock use) {

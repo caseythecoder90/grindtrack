@@ -1,9 +1,10 @@
 # The assistant
 
-Six features, one API key, and a hard rule: **the model can read everything, and the only thing
-it can produce is a draft.** Nothing a model says reaches the calendar or the log. The writes in
-the whole surface are `WeekPlanService.accept` and `DayLogService.accept`, which a person reaches
-by pressing a button on a draft they have already read, and which re-validate everything first.
+Seven features, one API key, and a hard rule: **the model can read everything, and the only thing
+it can produce is a draft.** Nothing a model says reaches the calendar, the log or the todo list.
+The writes in the whole surface are `WeekPlanService.accept`, `DayLogService.accept` and
+`TodoDraftService.accept`, which a person reaches by pressing a button on a draft they have already
+read, and which re-validate everything first.
 
 With no key the assistant is *off*, not broken: every endpoint answers 503 with a sentence, the
 scheduled jobs stay quiet, and the rest of the app neither knows nor cares. That is what makes it
@@ -30,6 +31,9 @@ one rule.
 | Weekly review | `WeeklyReviewService`, `AnthropicReviewModel`, `ReviewDraft`, `WeeklyReviewScheduler` | `features/assistant/Week*` (week tab) |
 | Week planner | `WeekPlanService`, `AnthropicWeekPlanModel`, `DraftedWeek`, `WeekPlanDraft` | `ProposedWeek.tsx` |
 | Day log from chat | `DayLogService`, `DayLogDraft` | `ProposedLog.tsx` |
+| Todos from chat | `TodoDraftService`, `TodoDraft` | `ProposedTodos.tsx` |
+| Todo reminders | `todo/service/TodoReminderScheduler`, `config/TodoProperties` | — |
+| Recovery day count | `config/RecoveryProperties`, `AssistantContext.Recovery` | — |
 | Morning brief | `MorningBriefService`, `AnthropicBriefModel`, `BriefDraft`, `MorningBriefScheduler` | `MorningBrief.tsx` (today tab) |
 | Chat | `ChatService`, `AnthropicChatModel`, `ChatModel`, `AssistantToolExecutor` | `AskPage.tsx`, `ConversationsSheet.tsx`, `assistantApi.ts` |
 | HTTP | `assistant/api/AssistantController`, `ChatController`, `ChatStream` | `lib/api.ts` (`stream()`) |
@@ -48,7 +52,8 @@ one rule.
 | Week planner | week tab | 1 per proposal | calendar blocks — only on **Book** |
 | Planning in chat | ask tab | +1 on the turn that plans | a stored draft; the card's **Book** is the same accept path |
 | Logging in chat | ask tab | none beyond the turn | a stored draft of *changes*; the card's **Save** merges them over the day |
-| Morning brief | today tab, and a 06:00 job | 1 per day | a stored draft, replaced by a redraft; nothing else |
+| Morning brief | today tab, and a 05:30 job | 1 per day | a stored draft, replaced by a redraft; nothing else |
+| Todos in chat | ask tab | none beyond the turn | a stored batch; the card's **Add** creates them and removes the batch |
 | Speaking a question | ask tab | a transcription session per dictation | nothing — words land in the box |
 
 ## Configuration
@@ -59,7 +64,11 @@ grindtrack.assistant:
   model: claude-opus-5
   zone: America/New_York           # "Friday at five" means the owner's Friday, not the pod's UTC
   review-cron: "0 0 17 * * FRI"    # Spring cron: second minute hour day month weekday
-  brief-cron: "0 0 6 * * *"        # before the morning block; every day, because "nothing booked" is an answer
+  brief-cron: "0 30 5 * * *"       # when he wakes up, before email and the feed; every day
+grindtrack.recovery:
+  sobriety-date: ${SOBRIETY_DATE:}  # personal, so from the environment; the brief counts days from it
+grindtrack.todos:
+  reminder-cron: "0 0 8,18 * * *"  # what is still open, to the phone, while anything is
 ```
 
 `AssistantProperties.configured()` is the single switch. It is deliberately separate from
@@ -135,7 +144,7 @@ A stream that ends without `done` throws `StreamCutError` on the client, which r
 rather than handing the question back: the turn itself has usually finished and been stored, and
 showing it beats asking again and paying twice.
 
-## The tools: four reads and two drafts
+## The tools: four reads and three drafts
 
 `AssistantToolExecutor` is the whole tool surface.
 
@@ -147,6 +156,7 @@ showing it beats asking again and paying twice.
 | `get_focus_sessions` | reads one day's focus sessions |
 | `propose_week` | **drafts** a week of study blocks — a row and a card, never a booking |
 | `propose_log` | **drafts** a day's log entry from what was said — a row and a card, never a save |
+| `propose_todos` | **drafts** one or more todos from what was asked — a row and a card, never an add |
 
 Ranges are capped at 120 days. Bad arguments come back to the model as an error string rather than
 throwing, so it can correct itself instead of failing the turn.
@@ -189,6 +199,16 @@ after the draft was made is still the base. `DayLogService.accept` re-reads the 
 again, and hands the result to `TrackingService.saveDay`, whose own validation runs on it. Hours
 follow the form's rule: absent means unchanged, never zero.
 
+### `propose_todos` accumulates, and accepting removes
+
+"Remind me to call the dentist and renew the domain" is one sentence and one card. The items
+arrive as a JSON array in one argument, are trimmed and validated in `TodoDraftService` (a blank
+title, a bad date and an unknown kind are each a sentence back to the model), and land in one
+`todo_batch` row keyed by the day. A second ask the same day joins the same batch rather than
+replacing it; a duplicate title is dropped rather than doubled. **Add** creates the todos and
+deletes the row, so the button cannot add them twice — the one draft kind that is idempotent by
+construction.
+
 ## Draft, then accept
 
 ![Draft, then accept](diagrams/draft-accept.svg)
@@ -214,7 +234,8 @@ the week tab starting a thirty-second model call on click. One structured call, 
 the Monday, about 3¢.
 
 **The brief** is the one thing the assistant says without being asked, so it has to earn the
-space every day. Three short pieces — what today is shaped like, where the nearest plan item stands
+space every day. Four short pieces — a line to wake up to first, grounded in the plan, his wife
+and family, and his recovery (the context carries the day count when `SOBRIETY_DATE` is set) — then — what today is shaped like, where the nearest plan item stands
 and what last night's notes said, one suggestion for the morning block — read in under a minute,
 above the daily log.
 
@@ -227,7 +248,8 @@ One row per day in `assistant_reports`, so the today tab's **redraft** replaces 
 accumulates. About 2¢. Off is a quiet state: before six, or with no key, the card is one line and
 the log is where it always was.
 
-Both schedulers push to the phone after the row is stored, each in its own `try`, so a push
+The brief pushes twice, in order: the motivation line under *good morning*, then the headline
+under *morning brief*. Both schedulers push to the phone after the row is stored, each in its own `try`, so a push
 failure can never make a succeeded draft look like a failed one. With no VAPID pair the push is a
 no-op. The scheduler's other rule: a failed draft is logged, never rethrown — the button on the
 tab is the retry.
@@ -316,6 +338,8 @@ exists. The same idea holds for push (`PushTransport`) and speech (`Transcriptio
 | `AssistantToolExecutorTest` | each tool's arguments, caps and error strings; a non-Monday is refused before spending |
 | `WeekPlanServiceTest` | validation of every block; accept re-reads the stored draft |
 | `DayLogServiceTest` | the merge: null leaves a field alone, hours absent means unchanged |
+| `TodoDraftServiceTest` | a day's batch accumulates without doubling; accept adds and removes; refusals are sentences |
+| `TodoReminderSchedulerTest` | the lock-screen sentence: overdue first, three names, nothing when nothing is open |
 | `WeeklyReviewServiceTest`, `MorningBriefServiceTest` | one priced row per period; redraft replaces; off is a state |
 | `ChatControllerTest` | the SSE frame format — a contract with a hand-written parser in the browser |
 

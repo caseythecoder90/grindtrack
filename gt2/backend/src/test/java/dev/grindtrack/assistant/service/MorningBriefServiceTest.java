@@ -27,7 +27,8 @@ class MorningBriefServiceTest {
       new BriefDraft(
           "Two study blocks booked, both against CKA.",
           "CKA is 20 days out. Last night you wrote \"etcd restore still shaky\".",
-          "Take the 6am block for the etcd restore lab, because that is the note you left.");
+          "Take the 6am block for the etcd restore lab, because that is the note you left.",
+          "Day 739. The lab, then the people at home.");
 
   private ContextService context;
   private BriefModel model;

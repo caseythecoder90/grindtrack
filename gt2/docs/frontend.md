@@ -32,6 +32,7 @@ src/
 │   │   ├── ConversationsSheet.tsx  the thread list as a bottom sheet, grouped by day, with delete
 │   │   ├── ProposedWeek.tsx     a week the assistant drafted, and the Book button (the one write)
 │   │   ├── ProposedLog.tsx      a day's log it drafted, merged over the day, and the Save button
+│   │   ├── ProposedTodos.tsx    todos it drafted, accumulated over the day, and the Add button
 │   │   ├── WeekPlanCard.tsx     the planner on the week tab: propose, read the blocks, Book
 │   │   ├── MorningBrief.tsx     the 06:00 brief above the daily log; a redraft button when it is stale
 │   │   └── assistantApi.ts      the endpoints, and streamChat over the SSE reader in lib/api.ts
@@ -284,7 +285,7 @@ sequenceDiagram
 | `relationship/OccasionsPanel` | `GET/POST/PUT/DELETE /api/relationship/occasions` | anniversaries and birthdays with per-occasion lead time; a write answers with the whole list because every next date shifts together |
 | `relationship/ReadingPanel` | `GET/POST/DELETE /api/relationship/reading`, `POST /{id}/read`, `POST /{id}/promote` | reading list where the takeaway is the point — and can be promoted straight into a gesture idea |
 | `assistant/AskPage` | `POST /api/assistant/chat/stream`, `GET/DELETE /chat/{id}`, `GET /chat`, `GET /status`; `WS /api/speech/ws` via `lib/speech.ts` | a chat screen: the thread grows and the page scrolls; the composer (a rounded card — the words on top, the month's bill, a round mic and a round send beneath) sticks to the bottom above the bar; three starter questions fill a blank box; a stream cut re-reads the thread instead of handing the question back; the mic renders only when `/api/speech/status` says configured. See [assistant.md](assistant.md), [speech-to-text.md](speech-to-text.md) |
-| `assistant/ProposedWeek` · `ProposedLog` | `GET /api/assistant/week-plan`, `POST /week-plan/accept`; `GET /day-log`, `POST /day-log/accept` | the two cards a chat turn can leave behind. Book and Save are the only writes; each fetches the stored draft rather than trusting the turn |
+| `assistant/ProposedWeek` · `ProposedLog` · `ProposedTodos` | `GET /api/assistant/week-plan`, `POST /week-plan/accept`; `GET /day-log`, `POST /day-log/accept`; `GET /todos`, `POST /todos/accept` | the three cards a chat turn can leave behind. Book and Save are the only writes; each fetches the stored draft rather than trusting the turn |
 | `assistant/MorningBrief` | `GET/POST /api/assistant/brief` | three short pieces above the daily log; off is one line with a button that says what a redraft costs |
 | `tracking/Week` (review) | `GET/POST /api/assistant/reviews` | the Friday draft, and a redraft button |
 | `push/NotificationsPanel` | `GET /api/push/status`, `GET/PUT /subscriptions`, `DELETE /subscriptions/{id}`, `POST /test` | unsupported (not rendered) / needs-install / blocked / off / on; the permission prompt is the first thing the tap does. See [push-notifications.md](push-notifications.md) |

@@ -22,4 +22,11 @@ public record BriefDraft(
     @JsonPropertyDescription(
             "One concrete suggestion for the morning block, named by plan item, and why it is"
                 + " the one. One or two sentences. Plain text.")
-        String suggestion) {}
+        String suggestion,
+    @JsonPropertyDescription(
+            "One or two sentences to start the day on, before anything else. Grounded in the"
+                + " three things that matter: the plan, his wife and family, his recovery — the"
+                + " context carries the day count when it is known; use it. Warm and direct, no"
+                + " platitudes, no exclamation marks, nothing that reads like a poster. Plain"
+                + " text.")
+        String motivation) {}

@@ -278,6 +278,20 @@ public class PushService {
       return new Notification("morning brief", headline, "today", "morning-brief", SIX_HOURS);
     }
 
+    /** The line to wake up to. Null when the brief had none, so the caller sends nothing. */
+    public static Notification morningMotivation(String line) {
+      if (line == null || line.isBlank()) {
+        return null;
+      }
+      return new Notification(
+          "good morning", line.trim(), "today", "morning-motivation", SIX_HOURS);
+    }
+
+    /** What is still open. Replaces the previous reminder on the device rather than stacking. */
+    public static Notification todosWaiting(String title, String names) {
+      return new Notification(title, names, "todos", "todos", SIX_HOURS);
+    }
+
     public static Notification weeklyReview() {
       return new Notification(
           "weekly review is ready",

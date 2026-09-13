@@ -14,13 +14,16 @@ sentence of the brief to anyone but the phone.
 
 | Notification | When | Title | Body | Opens |
 |---|---|---|---|---|
-| Morning brief | after the 06:00 draft lands | `morning brief` | the brief's headline | today tab |
+| Good morning | after the 05:30 draft lands, first | `good morning` | the brief's motivation line | today tab |
+| Morning brief | after the 05:30 draft lands, second | `morning brief` | the brief's headline | today tab |
+| Todos waiting | 08:00 and 18:00, while anything is open | `2 todos are overdue` (or due today, or waiting) | up to three titles, most urgent first | todos tab |
 | Weekly review | after the Friday 17:00 draft lands | `weekly review is ready` | one fixed sentence | week tab |
 | Test | on a click | `notifications are on` | one fixed sentence | today tab |
 
-Two real ones and a test. Both real ones are things the scheduler already produces; the push
-is one more line after the row is written. They fire only when the draft *succeeded* — a push
-saying "your brief is ready" with no brief behind it is worse than silence.
+Four real ones and a test. The morning pair fires only when the draft *succeeded* — a push
+saying "your brief is ready" with no brief behind it is worse than silence. The todo reminder
+is the deliberate nag: `TodoReminderScheduler` sends it at the configured times for as long as
+anything is open, with the same tag each time so the device shows one, not a pile.
 
 ### Where the code lives
 

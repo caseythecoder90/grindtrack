@@ -28,7 +28,7 @@ GHCR; the cluster only pulls. Nothing is ever compiled on a server.
 | TLS | cert-manager `ClusterIssuer/letsencrypt-prod`, HTTP-01, into Secret `track-caseyrquinn-com-tls`. Renewal is automatic — there is no reload hook to maintain any more |
 | Database | `Deployment/postgres` (`postgres:16-alpine`), `strategy: Recreate`, ClusterIP `:5432` |
 | Storage | PVC `postgres-data`, 5Gi, `local-path-provisioner` |
-| Secrets | `Secret/grindtrack-secrets` — `POSTGRES_DB/USER/PASSWORD`, `JWT_SECRET`, `GRINDTRACK_USERNAME/PASSWORD`; optional `ANTHROPIC_API_KEY` (assistant), `OPENAI_API_KEY` (speech to text) and `PUSH_VAPID_PUBLIC_KEY`/`PUSH_VAPID_PRIVATE_KEY`/`PUSH_VAPID_SUBJECT` (push, see [push-notifications.md](push-notifications.md)) |
+| Secrets | `Secret/grindtrack-secrets` — `POSTGRES_DB/USER/PASSWORD`, `JWT_SECRET`, `GRINDTRACK_USERNAME/PASSWORD`; optional `ANTHROPIC_API_KEY` (assistant), `OPENAI_API_KEY` (speech to text), `SOBRIETY_DATE` (the brief's day count) and `PUSH_VAPID_PUBLIC_KEY`/`PUSH_VAPID_PRIVATE_KEY`/`PUSH_VAPID_SUBJECT` (push, see [push-notifications.md](push-notifications.md)) |
 
 The app publishes no host port. It is reachable only through the ingress, and Postgres has no
 ingress at all.
@@ -155,6 +155,7 @@ the env vars are already on the deployment (`base/app-deployment.yaml` in the k8
 | Assistant (review, planner, chat, brief) | `ANTHROPIC_API_KEY` | console.anthropic.com | 503 with a sentence; scheduled jobs quiet; the ask tab explains | [assistant.md](assistant.md) |
 | Push notifications | `PUSH_VAPID_PUBLIC_KEY`, `PUSH_VAPID_PRIVATE_KEY`, `PUSH_VAPID_SUBJECT` | generated once on a laptop (node one-liner in the doc) | panel says "push is off on the server" | [push-notifications.md](push-notifications.md#runbook) |
 | Speech to text | `OPENAI_API_KEY` | platform.openai.com | no mic button on the ask tab | [speech-to-text.md](speech-to-text.md#runbook) |
+| The brief's day count | `SOBRIETY_DATE` (`YYYY-MM-DD`) | you | the morning line has no day number | [assistant.md](assistant.md#the-morning-brief-and-the-friday-review) |
 
 **1. Put the value in the secret.** `patch --type=merge` adds or replaces only the keys named,
 and `stringData` takes the plain value (Kubernetes base64-encodes it):
@@ -163,6 +164,7 @@ and `stringData` takes the plain value (Kubernetes base64-encodes it):
 kubectl -n grindtrack patch secret grindtrack-secrets --type=merge -p '{"stringData":{
   "ANTHROPIC_API_KEY":"sk-ant-…",
   "OPENAI_API_KEY":"sk-…",
+  "SOBRIETY_DATE":"2024-09-05",
   "PUSH_VAPID_PUBLIC_KEY":"…","PUSH_VAPID_PRIVATE_KEY":"…","PUSH_VAPID_SUBJECT":"mailto:you@example.com"
 }}'
 ```

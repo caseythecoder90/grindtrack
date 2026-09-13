@@ -56,13 +56,14 @@ node "Spring Boot — assistant/" as assistant {
   component "WeeklyReviewService" as wrs
   component "WeekPlanService" as wps
   component "DayLogService" as dls
+  component "TodoDraftService" as tds
   component "MorningBriefService" as mbs
   component "ChatService" as cs
   component "AnthropicChatModel\n(tool loop, caching)" as chatModel
-  component "AssistantToolExecutor\n4 reads · 2 drafts" as tools
+  component "AssistantToolExecutor\n4 reads · 3 drafts" as tools
   component "Anthropic*Model\nreview · plan · brief" as models
   component "WeeklyReviewScheduler\nFri 17:00" as sched1
-  component "MorningBriefScheduler\n06:00 daily" as sched2
+  component "MorningBriefScheduler\n05:30 daily" as sched2
 }
 
 node "Spring Boot — push/" as push {
@@ -104,6 +105,9 @@ chatModel --> tools
 chatModel --> anthropic
 tools --> wps : propose_week
 tools --> dls : propose_log
+tools --> tds : propose_todos
+tds --> reports
+tds --> data : accept → todos
 tools --> data : reads
 wrs --> models
 wps --> models

@@ -37,6 +37,7 @@ class AssistantToolExecutorTest {
   private CalendarService calendar;
   private WeekPlanService weekPlan;
   private DayLogService dayLog;
+  private TodoDraftService todoDrafts;
   private AssistantToolExecutor executor;
 
   @BeforeEach
@@ -45,6 +46,7 @@ class AssistantToolExecutorTest {
     calendar = mock(CalendarService.class);
     weekPlan = mock(WeekPlanService.class);
     dayLog = mock(DayLogService.class);
+    todoDrafts = mock(TodoDraftService.class);
     executor =
         new AssistantToolExecutor(
             plan,
@@ -53,6 +55,7 @@ class AssistantToolExecutorTest {
             mock(FocusService.class),
             weekPlan,
             dayLog,
+            todoDrafts,
             new ObjectMapper());
   }
 
@@ -68,7 +71,7 @@ class AssistantToolExecutorTest {
   }
 
   @Test
-  void theToolSurfaceIsFourReadsAndOneDraft() {
+  void theToolSurfaceIsFourReadsAndThreeDrafts() {
     assertThat(executor.specs())
         .extracting(AssistantToolExecutor.ToolSpec::name)
         .containsExactly(
@@ -77,7 +80,8 @@ class AssistantToolExecutorTest {
             "get_calendar",
             "get_focus_sessions",
             "propose_week",
-            "propose_log");
+            "propose_log",
+            "propose_todos");
   }
 
   /** The whole point. Drafting is a row and a card; the calendar is not touched by a model. */
@@ -186,5 +190,34 @@ class AssistantToolExecutorTest {
     assertThat(executor.execute("propose_log", Map.of("date", "2026-09-11", "hours", "two")))
         .contains("hours must be a number");
     verify(dayLog, never()).propose(any(), any());
+  }
+
+  @Test
+  void proposingTodosDraftsAndAddsNothing() {
+    when(todoDrafts.propose(any(), any()))
+        .thenReturn(
+            new TodoDraftService.Draft(
+                "2026-09-13",
+                "2026-09-13T10:00Z",
+                List.of(new TodoDraft.Item("call the dentist", "personal", "2026-09-15"))));
+
+    String result =
+        executor.execute(
+            "propose_todos",
+            Map.of(
+                "items",
+                "[{\"title\":\"call the dentist\",\"kind\":\"personal\",\"dueDate\":\"2026-09-15\"}]"));
+
+    assertThat(result).contains("\"date\":\"2026-09-13\"").contains("nothing has been added");
+    verifyNoInteractions(calendar);
+  }
+
+  /** Items that are not a JSON array are a sentence the model can fix, not a failed turn. */
+  @Test
+  void todoItemsThatAreNotJsonAreASentence() {
+    assertThat(executor.execute("propose_todos", Map.of("items", "call the dentist")))
+        .startsWith("could not draft todos");
+    assertThat(executor.execute("propose_todos", Map.of())).startsWith("could not draft todos");
+    verifyNoInteractions(todoDrafts);
   }
 }

@@ -6,6 +6,7 @@ import dev.grindtrack.assistant.service.AssistantContext.Lunch;
 import dev.grindtrack.assistant.service.AssistantContext.PlanItemSummary;
 import dev.grindtrack.assistant.service.AssistantContext.PlannedVsActual;
 import dev.grindtrack.assistant.service.AssistantContext.Quarter;
+import dev.grindtrack.assistant.service.AssistantContext.Recovery;
 import dev.grindtrack.assistant.service.AssistantContext.TodoSummary;
 import dev.grindtrack.assistant.service.AssistantContext.UpkeepSummary;
 import dev.grindtrack.assistant.service.AssistantContext.Week;
@@ -14,6 +15,7 @@ import dev.grindtrack.calendar.domain.EventKind;
 import dev.grindtrack.calendar.service.CalendarService;
 import dev.grindtrack.calendar.service.UpkeepItem;
 import dev.grindtrack.calendar.service.UpkeepService;
+import dev.grindtrack.config.RecoveryProperties;
 import dev.grindtrack.plan.domain.PlanItem;
 import dev.grindtrack.plan.domain.PlanQuarter;
 import dev.grindtrack.plan.service.PlanService;
@@ -25,6 +27,7 @@ import dev.grindtrack.work.service.WorkService;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -78,6 +81,7 @@ public class ContextService {
   private final CalendarService calendar;
   private final UpkeepService upkeep;
   private final TodoService todos;
+  private final RecoveryProperties recovery;
 
   public ContextService(
       PlanService plan,
@@ -86,7 +90,8 @@ public class ContextService {
       ReadingService reading,
       CalendarService calendar,
       UpkeepService upkeep,
-      TodoService todos) {
+      TodoService todos,
+      RecoveryProperties recovery) {
     this.plan = plan;
     this.tracking = tracking;
     this.work = work;
@@ -94,6 +99,7 @@ public class ContextService {
     this.calendar = calendar;
     this.upkeep = upkeep;
     this.todos = todos;
+    this.recovery = recovery;
   }
 
   public AssistantContext build(LocalDate today) {
@@ -159,7 +165,8 @@ public class ContextService {
                         t.getKind(),
                         t.getDueDate() == null ? null : t.getDueDate().toString()))
             .toList(),
-        recentDays(today));
+        recentDays(today),
+        recovery(today));
   }
 
   /**
@@ -282,5 +289,13 @@ public class ContextService {
 
   private static double round(double value) {
     return Math.round(value * 10.0) / 10.0;
+  }
+
+  /** Day one is the sobriety date itself, which is how the count is said out loud. */
+  private Recovery recovery(LocalDate today) {
+    return recovery
+        .sobrietyDay()
+        .map(day -> new Recovery(day.toString(), ChronoUnit.DAYS.between(day, today) + 1))
+        .orElse(null);
   }
 }

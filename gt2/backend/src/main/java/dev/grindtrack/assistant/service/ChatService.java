@@ -138,7 +138,8 @@ public class ChatService {
                   reply.cacheWriteTokens(),
                   reply.cacheReadTokens(),
                   date(reply.proposedWeekStart()),
-                  date(reply.proposedLogDate())));
+                  date(reply.proposedLogDate()),
+                  date(reply.proposedTodosDate())));
           conversation.touch();
           conversations.save(conversation);
 
@@ -148,7 +149,8 @@ public class ChatService {
               reply.inputTokens(),
               reply.outputTokens(),
               reply.proposedWeekStart(),
-              reply.proposedLogDate());
+              reply.proposedLogDate(),
+              reply.proposedTodosDate());
         });
   }
 
@@ -183,7 +185,9 @@ public class ChatService {
                     m.getRole(),
                     m.getContent(),
                     m.getCreatedAt().toString(),
-                    m.getProposedWeekStart() == null ? null : m.getProposedWeekStart().toString()))
+                    text(m.getProposedWeekStart()),
+                    text(m.getProposedLogDate()),
+                    text(m.getProposedTodosDate())))
         .toList();
   }
 
@@ -240,7 +244,8 @@ public class ChatService {
       long inputTokens,
       long outputTokens,
       String proposedWeekStart,
-      String proposedLogDate) {}
+      String proposedLogDate,
+      String proposedTodosDate) {}
 
   /**
    * @param turns messages in the thread, both sides. One means an attempt, not a conversation
@@ -250,5 +255,15 @@ public class ChatService {
   public record ConversationSummary(
       Long id, String title, String lastMessageAt, long turns, boolean hasDraft) {}
 
-  public record TurnView(String role, String content, String createdAt, String proposedWeekStart) {}
+  public record TurnView(
+      String role,
+      String content,
+      String createdAt,
+      String proposedWeekStart,
+      String proposedLogDate,
+      String proposedTodosDate) {}
+
+  private static String text(LocalDate date) {
+    return date == null ? null : date.toString();
+  }
 }

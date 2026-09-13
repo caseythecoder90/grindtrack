@@ -10,6 +10,7 @@ import dev.grindtrack.calendar.domain.CalendarEvent;
 import dev.grindtrack.calendar.domain.EventKind;
 import dev.grindtrack.calendar.service.CalendarService;
 import dev.grindtrack.calendar.service.UpkeepService;
+import dev.grindtrack.config.RecoveryProperties;
 import dev.grindtrack.plan.domain.PlanQuarter;
 import dev.grindtrack.plan.service.PlanService;
 import dev.grindtrack.todo.service.TodoService;
@@ -47,7 +48,9 @@ class ContextServiceTest {
 
   @BeforeEach
   void setUp() {
-    service = new ContextService(plan, tracking, work, reading, calendar, upkeep, todos);
+    service =
+        new ContextService(
+            plan, tracking, work, reading, calendar, upkeep, todos, new RecoveryProperties(""));
     lenient().when(plan.allItems()).thenReturn(List.of());
     lenient().when(plan.allQuarters()).thenReturn(List.of());
     lenient().when(tracking.daysBetween(any(), any())).thenReturn(List.of());
@@ -158,5 +161,26 @@ class ContextServiceTest {
 
     assertThat(second).isEqualTo(first);
     assertThat(first).doesNotContain("generatedAt");
+  }
+
+  /** Day one is the sobriety date itself; absent means the section is absent, not zero. */
+  @Test
+  void recoveryCountsDaysFromTheSobrietyDateWhenOneIsConfigured() {
+    assertThat(service.build(TODAY).recovery()).isNull();
+
+    ContextService withDate =
+        new ContextService(
+            plan,
+            tracking,
+            work,
+            reading,
+            calendar,
+            upkeep,
+            todos,
+            new RecoveryProperties("2024-09-05"));
+    AssistantContext.Recovery recovery = withDate.build(TODAY).recovery();
+    assertThat(recovery.sobrietyDate()).isEqualTo("2024-09-05");
+    assertThat(recovery.daysSober()).isEqualTo(734);
+    assertThat(withDate.build(LocalDate.of(2024, 9, 5)).recovery().daysSober()).isEqualTo(1);
   }
 }
