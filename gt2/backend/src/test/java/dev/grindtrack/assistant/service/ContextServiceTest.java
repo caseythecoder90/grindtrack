@@ -50,7 +50,14 @@ class ContextServiceTest {
   void setUp() {
     service =
         new ContextService(
-            plan, tracking, work, reading, calendar, upkeep, todos, new RecoveryProperties(""));
+            plan,
+            tracking,
+            work,
+            reading,
+            calendar,
+            upkeep,
+            todos,
+            new RecoveryProperties("", null, null));
     lenient().when(plan.allItems()).thenReturn(List.of());
     lenient().when(plan.allQuarters()).thenReturn(List.of());
     lenient().when(tracking.daysBetween(any(), any())).thenReturn(List.of());
@@ -177,7 +184,7 @@ class ContextServiceTest {
             calendar,
             upkeep,
             todos,
-            new RecoveryProperties("2024-09-05"));
+            new RecoveryProperties("2024-09-05", null, null));
     AssistantContext.Recovery recovery = withDate.build(TODAY).recovery();
     assertThat(recovery.sobrietyDate()).isEqualTo("2024-09-05");
     assertThat(recovery.daysSober()).isEqualTo(734);

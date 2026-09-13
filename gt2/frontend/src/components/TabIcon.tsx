@@ -1,7 +1,7 @@
 import type { Tab } from "../lib/tabs";
 
 /**
- * Bottom-bar icons. Drawn inline rather than pulled from an icon set: there are six
+ * Bottom-bar icons. Drawn inline rather than pulled from an icon set: there are a dozen
  * of them, they never change, and a dependency for six paths is not worth the bytes.
  *
  * All on a 24px grid with a 1.6 stroke so they sit at one weight beside each other.
@@ -64,6 +64,13 @@ const PATHS: Record<Tab | "more", JSX.Element> = {
     </>
   ),
   stats: <path d="M4 20V10M10 20V4M16 20v-7M22 20h-20" />,
+  // A sunrise: the morning's first screen, and one day at a time.
+  recovery: (
+    <>
+      <path d="M4 18h16M6 18a6 6 0 0 1 12 0" />
+      <path d="M12 4v3M5 8l2 2M19 8l-2 2" />
+    </>
+  ),
 };
 
 interface Props {

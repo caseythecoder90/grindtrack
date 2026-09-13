@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import BottomNav from "./components/BottomNav";
+import MoreSheet from "./components/MoreSheet";
+import TabIcon from "./components/TabIcon";
 import Heatmap from "./components/Heatmap";
 import StatBar from "./components/StatBar";
 import { forgetDevices, logout as endSession, logoutEverywhere as endEverySession, me } from "./features/auth/authApi";
@@ -10,6 +12,7 @@ import FinancePage from "./features/finance/FinancePage";
 import FocusPage from "./features/focus/FocusPage";
 import Landing from "./features/landing/Landing";
 import PlanPage from "./features/plan/PlanPage";
+import RecoveryPage from "./features/recovery/RecoveryPage";
 import RelationshipPage from "./features/relationship/RelationshipPage";
 import StatsPage from "./features/tracking/StatsPage";
 import { EXPORT_URL, getStats } from "./features/tracking/trackingApi";
@@ -20,7 +23,7 @@ import WorkPage from "./features/work/WorkPage";
 import { AuthError, errorMessage } from "./lib/api";
 import { useAppResume } from "./lib/resume";
 import NotificationsPanel from "./features/push/NotificationsPanel";
-import { TABS, type Tab } from "./lib/tabs";
+import { SECONDARY_TABS, TABS, type Tab } from "./lib/tabs";
 import { TARGETS } from "./lib/types";
 import type { Scope, Stats } from "./lib/types";
 
@@ -51,6 +54,13 @@ export default function App() {
   const [view, setView] = useState<View>("landing");
   const [tab, setTab] = useState<Tab>(initialTab);
   const [notifOpen, setNotifOpen] = useState(false);
+  /** The phone's sheet of the sections the bar has no room for. */
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreButton = useRef<HTMLButtonElement>(null);
+  const inSheet = SECONDARY_TABS.includes(tab);
+  // A tab can change from anywhere (a notification tap, a link), and an open sheet
+  // describing a section you already left is just in the way.
+  useEffect(() => setMoreOpen(false), [tab]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [scope, setScope] = useState<Scope>(storedScope);
   const [forgetLabel, setForgetLabel] = useState("forget trusted devices");
@@ -166,6 +176,21 @@ export default function App() {
         <div className="spacer" />
         {view === "app" && (
           <>
+            {/* The phone's door to the rest of the sections. Hidden on a fine pointer, where
+                the tab strip below shows everything. When the open section lives in the sheet,
+                say which — otherwise nothing on the screen says where you are. */}
+            <button
+              type="button"
+              ref={moreButton}
+              className={"more" + (inSheet ? " active" : "")}
+              aria-label={inSheet ? `more sections (${tab} is open)` : "more sections"}
+              aria-haspopup="dialog"
+              aria-expanded={moreOpen}
+              onClick={() => setMoreOpen((open) => !open)}
+            >
+              {inSheet && <span>{tab}</span>}
+              <TabIcon name="more" size={18} />
+            </button>
             <button onClick={() => (window.location.href = EXPORT_URL)}>Export JSON</button>
             <button onClick={() => setNotifOpen((o) => !o)} aria-expanded={notifOpen}>
               Notifications
@@ -189,7 +214,9 @@ export default function App() {
               <NotificationsPanel />
             </div>
           )}
-          {stats && (
+          {/* The hours and the heatmap head every section but one: the recovery tab is not
+              about hours, and its first screen should be its own number. */}
+          {stats && tab !== "recovery" && (
             <>
               <StatBar stats={stats} scope={scope} onScopeChange={changeScope} />
               <Heatmap study={stats.study.days} work={stats.work.days} scope={scope} />
@@ -218,16 +245,24 @@ export default function App() {
           {tab === "week" && <Week />}
           {tab === "stats" && stats && <StatsPage stats={stats} scope={scope} />}
           {tab === "ask" && <AskPage />}
-          <BottomNav
-            tab={tab}
-            onTab={setTab}
-            onExport={() => (window.location.href = EXPORT_URL)}
-            onLogout={logout}
-            onForgetDevices={forgetTrustedDevices}
-            forgetLabel={forgetLabel}
-            onLogoutEverywhere={logoutEverywhere}
-            logoutEverywhereLabel={logoutEverywhereLabel}
-          />
+          {tab === "recovery" && <RecoveryPage />}
+          <BottomNav tab={tab} onTab={setTab} />
+          {moreOpen && (
+            <MoreSheet
+              current={tab}
+              onPick={setTab}
+              onClose={() => {
+                setMoreOpen(false);
+                moreButton.current?.focus();
+              }}
+              onExport={() => (window.location.href = EXPORT_URL)}
+              onLogout={logout}
+              onForgetDevices={forgetTrustedDevices}
+              forgetLabel={forgetLabel}
+              onLogoutEverywhere={logoutEverywhere}
+              logoutEverywhereLabel={logoutEverywhereLabel}
+            />
+          )}
         </>
       )}
     </div>

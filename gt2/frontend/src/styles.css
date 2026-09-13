@@ -30,6 +30,11 @@
      against both --study green and --work purple in the dark band. */
   --money: #e8b04b;
 
+  /* The recovery tab's one colour. Seafoam: not a data series and not chrome, used only on that
+     tab — the number, its primary buttons, the meter — so the tab reads as its own quiet place. */
+  --rec: #9ad8c8;
+  --rec-bg: rgba(154, 216, 200, 0.09);
+
   /* Sequential ramps for the heatmap: one hue each, palest -> most saturated. */
   --s1: #1d5c38; --s2: #27804a; --s3: #35a852; --s4: #6fdc8c;
   --w1: #2f2a63; --w2: #4a3aa8; --w3: #7a5cff; --w4: #a894ff;
@@ -70,6 +75,9 @@ header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px; margi
 @media (prefers-reduced-motion: reduce) { .brand .cursor { animation: none; } }
 header .sub { color: var(--muted); font-family: var(--mono); font-size: 12px; }
 header .spacer { flex: 1; }
+/* The phone's door to the sections the bottom bar has no room for. Hidden here; the
+   `pointer: coarse` block reveals it in place of the header's buttons. */
+header .more { display: none; }
 
 button { font-family: var(--mono); font-size: var(--fs-small); color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 7px 12px; cursor: pointer; }
 button:hover { border-color: var(--cyan); }
@@ -953,6 +961,12 @@ h4 { font-size: var(--fs-small); font-weight: 600; color: var(--muted); margin: 
   header .sub { display: none; }
   /* Neither of these is a daily action; the more sheet is where they now live. */
   header > button { display: none; }
+  header > button.more {
+    display: inline-flex; align-items: center; gap: 6px; align-self: center;
+    min-height: 36px; min-width: 36px; padding: 0 9px; border-radius: 999px;
+    font-size: 12px; color: var(--muted); background: none;
+  }
+  header > button.more.active { color: var(--cyan); border-color: var(--cyan); }
   header { gap: 8px; margin-bottom: 2px; }
   .brand { font-size: 17px; }
 
@@ -1311,3 +1325,120 @@ h4 { font-size: var(--fs-small); font-weight: 600; color: var(--muted); margin: 
 .proposal-todos li { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 7px 10px; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; font-size: 13px; }
 .proposal-todo-title { flex: 1; min-width: 0; }
 .proposal-todo-meta { font-family: var(--mono); font-size: 11px; color: var(--muted); white-space: nowrap; }
+
+/* --- recovery ---------------------------------------------------------------
+   Three views on a phone — today, read, journal — and three columns on a desktop, from the
+   same markup: the segmented control and the view switching exist only under `pointer: coarse`.
+   The cards are their own thing rather than .panel because this page is a column of small
+   cards read top to bottom, not one big form. */
+.recpage { display: flex; flex-direction: column; gap: 10px; }
+.rec-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.rec-head .seg { display: none; }
+.seg button.rec[aria-pressed="true"] { color: var(--rec); }
+.rec-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+@media (max-width: 900px) { .rec-cols { grid-template-columns: minmax(0, 1fr); } }
+.rec-col { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.rec-card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 15px; }
+.rec-card.number { border-left: 2px solid var(--rec); display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.rec-card.number .rec-right { text-align: right; font-family: var(--mono); font-size: 11px; white-space: nowrap; }
+.rec-card.number .rec-right > div + div { margin-top: 4px; }
+.rec-days { font-family: var(--mono); font-size: 44px; line-height: 1; color: var(--rec); font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.rec-lbl { font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.rec-cardhead { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.rec-cardhead > span:first-child { min-width: 0; }
+.rec-note { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.rec-note.ok { color: var(--rec); }
+.rec-note.right { margin-left: auto; }
+.rec-hint { margin: 6px 0 0; font-size: 13px; color: var(--muted); line-height: 1.5; }
+.rec-title { margin-top: 8px; font-size: 14.5px; }
+.ellipsis { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rec-prose { margin: 8px 0 0; font-size: 15px; line-height: 1.55; white-space: pre-line; }
+.rec-prose.clipped { max-height: 9.3em; overflow: hidden; -webkit-mask-image: linear-gradient(#000 70%, transparent); mask-image: linear-gradient(#000 70%, transparent); }
+.rec-serif { font-family: Georgia, "Times New Roman", serif; font-size: 16px; line-height: 1.6; }
+.rec-serif p { margin: 8px 0 0; white-space: pre-line; }
+.rec-verse-para.poetry > span { display: block; }
+.rec-vn { font-family: var(--mono); font-size: 9px; color: var(--muted); margin-right: 2px; vertical-align: super; line-height: 0; }
+.rec-pline { max-width: 62ch; }
+.rec-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; }
+.rec-foot.right { justify-content: flex-end; margin-top: 4px; }
+.rec-foot select { width: auto; min-height: 30px; padding: 2px 8px; font-size: 12px; }
+.linkish.inline { padding: 0; font-size: inherit; font-family: inherit; color: var(--cyan); }
+button.rec-primary { background: var(--rec); border-color: var(--rec); color: #06121e; font-weight: 600; white-space: nowrap; }
+button.rec-primary:hover { filter: brightness(1.06); border-color: var(--rec); }
+button.rec-primary:disabled { opacity: 0.5; filter: none; cursor: default; }
+.rec-meter { height: 6px; background: var(--panel2); border-radius: 3px; overflow: hidden; margin-top: 8px; }
+.rec-meter i { display: block; height: 100%; background: var(--rec); border-radius: 3px; }
+.rec-chapters { margin-top: 4px; }
+.rec-chap { display: flex; align-items: center; gap: 10px; min-height: 32px; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.rec-chap .tick { width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--line); flex: none; }
+.rec-chap.done { color: var(--text); }
+.rec-chap.done .tick { background: var(--rec); border-color: var(--rec); }
+.rec-chap.now { color: var(--rec); }
+.rec-chap.now .tick { border-color: var(--rec); box-shadow: inset 0 0 0 3px var(--panel); background: var(--rec); }
+
+/* The timer: the length, the chips, one button. */
+.rec-meditation { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.rec-meditation > div:first-child { min-width: 0; }
+.rec-timer { font-family: var(--mono); font-size: 30px; line-height: 1.1; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.rec-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 8px; }
+.rec-chips button { font-family: var(--mono); font-size: 11px; padding: 3px 9px; min-height: 26px; border-radius: 999px; color: var(--muted); }
+.rec-chips button.on { color: var(--rec); border-color: var(--rec); background: var(--rec-bg); }
+.rec-chips button.any { border-style: dashed; }
+.rec-chips input { width: 64px; min-height: 26px; padding: 2px 8px; font-family: var(--mono); font-size: 12px; }
+
+/* The door to the journal, drawn like the composer at rest. Phone only. */
+.rec-door {
+  display: none; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 6px 6px 6px 14px; background: var(--panel2); border: 1px solid var(--line); border-radius: 20px;
+  font-family: var(--sans); font-size: 16px; color: var(--muted); text-align: left;
+}
+.rec-door-icons { display: flex; gap: 6px; }
+.rec-door .round { width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--line); display: inline-block; }
+.rec-door .round.send { background: var(--rec); border-color: var(--rec); }
+
+/* The journal: a diary reads down, grouped by day. */
+.rec-entries { display: flex; flex-direction: column; }
+.rec-day { display: flex; align-items: center; gap: 10px; margin: 8px 0 2px; }
+.rec-day .rule { flex: 1; height: 1px; background: var(--line2); }
+.rec-day .txt { font-family: var(--mono); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+.rec-entry { display: flex; gap: 12px; padding: 8px 0; align-items: flex-start; }
+.rec-entry .when { font-family: var(--mono); font-size: 11px; color: var(--muted); flex: none; width: 44px; padding-top: 3px; white-space: nowrap; }
+.rec-entry .body { flex: 1; min-width: 0; font-size: 14.5px; line-height: 1.5; white-space: pre-line; overflow-wrap: anywhere; }
+.rec-entry .spoken { font-family: var(--mono); font-size: 10px; color: var(--muted); white-space: nowrap; }
+.rec-entry .ghost { opacity: 0; flex: none; }
+.rec-entry:hover .ghost, .rec-entry .ghost:focus-visible { opacity: 1; }
+.rec-journal .composer { position: static; box-shadow: none; }
+.composer.rec-composer:focus-within { border-color: var(--rec); }
+.composer.rec-composer .send { background: var(--rec); border-color: var(--rec); }
+.composer-hint.error { color: var(--red); }
+
+/* Your books. */
+.rec-library .rec-book { border: 1px solid var(--line); border-radius: 10px; padding: 12px 15px; margin-top: 10px; }
+.rec-library .rec-book.bible { border-color: rgba(154, 216, 200, 0.35); }
+.rec-import { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+.rec-import input[type="file"] { flex: 1 1 200px; min-width: 0; font-size: 12px; }
+.rec-report { margin-top: 10px; padding: 10px 12px; background: var(--panel2); border-radius: 8px; display: flex; flex-direction: column; gap: 6px; }
+.rec-report-chapters { margin: 0; padding-left: 20px; font-size: 13px; }
+.rec-report-chapters li { display: flex; justify-content: space-between; gap: 10px; }
+.rec-warning { font-family: var(--mono); font-size: 11px; color: var(--yellow); }
+.rec-sample { margin: 0; padding-left: 10px; border-left: 2px solid var(--line); font-family: Georgia, "Times New Roman", serif; font-size: 14px; color: var(--muted); }
+
+@media (pointer: coarse) {
+  .rec-head .seg { display: inline-flex; }
+  .recpage:not(.view-today) .rec-today { display: none; }
+  .recpage:not(.view-read) .rec-read { display: none; }
+  .recpage:not(.view-journal) .rec-journal { display: none; }
+  .rec-cols { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .rec-door { display: flex; }
+  .rec-entry .ghost { opacity: 1; }
+  .rec-chips button, .rec-chips input { min-height: 36px; }
+  .rec-chips button { padding: 0 12px; }
+  /* The journal view is a chat screen, like the ask tab: the entries scroll, the composer
+     rests above the bar. */
+  .rec-journal {
+    min-height: calc(100vh - 168px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    min-height: calc(100dvh - 168px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  }
+  .rec-entries { flex: 1; }
+  .rec-journal .composer { position: sticky; bottom: calc(64px + env(safe-area-inset-bottom)); box-shadow: 0 -14px 28px -10px var(--bg), 0 2px 12px rgba(0, 0, 0, 0.25); }
+}

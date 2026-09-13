@@ -366,3 +366,27 @@ the writes answer 503.
 
 The handshake is an ordinary GET through the security filter, so the session cookie gates it.
 Off (no `OPENAI_API_KEY`) is an `error` frame and a close.
+
+## Recovery (authenticated)
+
+The recovery tab: the number, the day's readings, the book's cursor, the timer's log, the journal,
+and the imports. Design and the import formats are in [recovery.md](recovery.md). Computed views
+are returned as the service's records; cards the data cannot fill are `null`, not empty.
+
+| Method | Path | Body | Answer |
+|---|---|---|---|
+| GET | `/api/recovery/today` | – | `{today, number, reflection, meditationEntry, passage, reading, settings, meditation}` — everything the today view needs; `number` is null without `SOBRIETY_DATE`, `reflection`/`meditationEntry` without an imported book, `passage` before the seed, `reading` without the Big Book |
+| POST | `/api/recovery/read/done` | – | marks today read and moves the cursor past the part; a second press changes nothing. Answers the same shape as `today` |
+| POST | `/api/recovery/read/restart` | – | cursor back to the first paragraph; the `today` shape |
+| PUT | `/api/recovery/settings` | `{readMinutes?, meditationMinutes?}` (1–180) | `{readMinutes, meditationMinutes}` |
+| POST | `/api/recovery/sessions` | `{minutes, completed?}` | logs a sitting; only a completed one marks the day. `{streak, doneToday}` |
+| GET | `/api/recovery/journal?before=` | – | `[{id, createdAt, body, spoken}]`, newest first, 50 at a time; `before` is the last id seen |
+| POST | `/api/recovery/journal` | `{body, spoken?}` | the entry; 400 when blank or over 20,000 characters |
+| DELETE | `/api/recovery/journal/{id}` | – | `{deleted: id}`; 404 when it was never there |
+| GET | `/api/recovery/library` | – | `{slots: [{slot, defaultTitle, imported, title, importedAt, paragraphs, words, entries}], bible: {name, abbrev, verses, passages}, biblePlanStart}` |
+| POST | `/api/recovery/import/{slot}?dryRun=true&title=` | multipart `file`: one plain-text file, the whole book, under 5 MB | the import report: `{dryRun, slot, title, paragraphs, words, chapters[], entries, missingCount, missing[], sample, warnings[], cursorReset}`. `dryRun` defaults to true; `false` replaces the slot. `slot` is `big_book`, `reflection` or `meditation`; anything else is a 400 |
+| POST | `/api/recovery/bible/restart` | – | the plan starts again from the first passage today; the `library` shape |
+
+The 07:55 readings push (`RecoveryReadingScheduler`) has no endpoint: it reads the same data
+the today view does and sends one notification naming the reflection, the passage and the
+chapter, tag `readings`, opening the recovery tab.

@@ -29,6 +29,7 @@ Ten tabs over nine backend features:
 | [docs/study-guide.md](docs/study-guide.md) | **Start here to learn the app**: a seven-day reading order with something to trace and something to build each day |
 | [docs/assistant.md](docs/assistant.md) | The AI features with diagrams: the map, a chat turn end to end, draft-then-accept, the scheduled jobs, prompt caching, the tables, what it costs, exercises |
 | [docs/push-notifications.md](docs/push-notifications.md) | Web Push: VAPID and payload encryption without a library, the subscription table, the two producers, the iOS constraints, the runbook, exercises |
+| [docs/recovery.md](docs/recovery.md) | The recovery tab: the number, the readings, the timer, the book and the journal; where each text comes from and how a book is imported from one text file; the 07:55 push |
 | [docs/speech-to-text.md](docs/speech-to-text.md) | Speech to text: the microphone relay to a transcription model, the frame protocol, the stop handshake, cost, the runbook, exercises |
 | [docs/frontend.md](docs/frontend.md) | Structure, view/tab state machine, the single-flight 401→refresh→retry wrapper, each screen |
 | [docs/auth.md](docs/auth.md) | The full auth design with Mermaid sequence diagrams and threat notes |

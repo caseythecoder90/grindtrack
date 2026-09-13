@@ -63,3 +63,5 @@ databaseChangeLog:
       file: db/changelog/031-push-subscriptions.sql
   - include:
       file: db/changelog/032-chat-todo-drafts.sql
+  - include:
+      file: db/changelog/033-recovery.sql
