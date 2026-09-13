@@ -155,7 +155,7 @@ the env vars are already on the deployment (`base/app-deployment.yaml` in the k8
 | Assistant (review, planner, chat, brief) | `ANTHROPIC_API_KEY` | console.anthropic.com | 503 with a sentence; scheduled jobs quiet; the ask tab explains | [assistant.md](assistant.md) |
 | Push notifications | `PUSH_VAPID_PUBLIC_KEY`, `PUSH_VAPID_PRIVATE_KEY`, `PUSH_VAPID_SUBJECT` | generated once on a laptop (node one-liner in the doc) | panel says "push is off on the server" | [push-notifications.md](push-notifications.md#runbook) |
 | Speech to text | `OPENAI_API_KEY` | platform.openai.com | no mic button on the ask tab | [speech-to-text.md](speech-to-text.md#runbook) |
-| The brief's day count | `SOBRIETY_DATE` (`YYYY-MM-DD`) | you | the morning line has no day number | [assistant.md](assistant.md#the-morning-brief-and-the-friday-review) |
+| The day count (the recovery tab's number, the brief's line) | `SOBRIETY_DATE` (`YYYY-MM-DD`) | you | no number on the recovery tab; the morning line has no day count | [recovery.md](recovery.md) |
 
 **1. Put the value in the secret.** `patch --type=merge` adds or replaces only the keys named,
 and `stringData` takes the plain value (Kubernetes base64-encodes it):
@@ -170,6 +170,11 @@ kubectl -n grindtrack patch secret grindtrack-secrets --type=merge -p '{"stringD
 ```
 
 Any subset is fine; each feature reads only its own keys.
+
+The recovery tab's books are not secrets and not environment: they are imported through the app
+itself (recovery → your books), one plain-text file per book, and live in the database. The Bible
+ships with the image and seeds itself on the first start after this release — one log line,
+`Seeded 31098 verses`, about a second.
 
 **2. Restart.** Env vars are resolved once at container start; a patched Secret changes nothing
 until the pod is replaced:

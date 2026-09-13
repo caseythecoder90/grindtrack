@@ -16,8 +16,8 @@ src/
 ├── styles.css          single global stylesheet (dstyle palette; no CSS framework)
 ├── vite-env.d.ts       pulls in vite/client types (import.meta.env)
 ├── components/         shared, presentational
-│   ├── BottomNav.tsx   the phone's navigation: 4 sections + a "more" sheet
-│   ├── MoreSheet.tsx   modal sheet holding the sections the bar cannot fit
+│   ├── BottomNav.tsx   the phone's navigation: 5 sections; the rest are behind the header's "more"
+│   ├── MoreSheet.tsx   modal sheet holding the sections the bar cannot fit (opened from the header)
 │   ├── TabIcon.tsx     the inline SVG icon set, one per section
 │   ├── Heatmap.tsx     26-week contribution grid, per-scope ramp (used by Landing + App)
 │   ├── Meter.tsx       the split study/work bar against a target — the app's one recurring device
@@ -142,7 +142,7 @@ stateDiagram-v2
 - **`view`** picks Landing (public) / Login (form) / App (authenticated shell).
 - Inside App, **`tab`** moves across the ten entries in `TABS`, which lives in `lib/tabs.ts`
   rather than in either navigation. There are two: the desktop `<nav class="tabs">` strip renders
-  all of `TABS`, while the phone's `BottomNav` renders the four `PRIMARY_TABS` plus a "more" sheet
+  all of `TABS`, while the phone's `BottomNav` renders the five `PRIMARY_TABS` and the header's "more" button opens the sheet
   holding `SECONDARY_TABS`. Both always render; `@media (pointer: coarse)` in `styles.css` decides
   which is shown, on pointer type rather than width, because a half-width window on a laptop is
   still a mouse. Promoting a tab is a one-line change to `PRIMARY_TABS` — which it already was
@@ -284,6 +284,7 @@ sequenceDiagram
 | `relationship/IdeasPanel` | `GET/POST/PUT/DELETE /api/relationship/ideas`, `POST /ideas/{id}/done` | least effort first, so there is always something doable tonight; marking one done logs it as a moment |
 | `relationship/OccasionsPanel` | `GET/POST/PUT/DELETE /api/relationship/occasions` | anniversaries and birthdays with per-occasion lead time; a write answers with the whole list because every next date shifts together |
 | `relationship/ReadingPanel` | `GET/POST/DELETE /api/relationship/reading`, `POST /{id}/read`, `POST /{id}/promote` | reading list where the takeaway is the point — and can be promoted straight into a gesture idea |
+| `recovery/RecoveryPage` | `GET /api/recovery/today`, `POST /read/done`, `PUT /settings`, `POST /sessions`, `GET/POST/DELETE /journal`, `GET /library`, `POST /import/{slot}`; `WS /api/speech/ws` via `lib/speech.ts` | the number, the day's reflection, the passage, a timer of any length with a bell, the book's part for today, the journal. Three views on a phone (today · read · journal) and three columns on a desktop from the same markup — `pointer: coarse` decides. "Your books" is where the texts are imported, dry run first. See [recovery.md](recovery.md) |
 | `assistant/AskPage` | `POST /api/assistant/chat/stream`, `GET/DELETE /chat/{id}`, `GET /chat`, `GET /status`; `WS /api/speech/ws` via `lib/speech.ts` | a chat screen: the thread grows and the page scrolls; the composer (a rounded card — the words on top, the month's bill, a round mic and a round send beneath) sticks to the bottom above the bar; three starter questions fill a blank box; a stream cut re-reads the thread instead of handing the question back; the mic renders only when `/api/speech/status` says configured. See [assistant.md](assistant.md), [speech-to-text.md](speech-to-text.md) |
 | `assistant/ProposedWeek` · `ProposedLog` · `ProposedTodos` | `GET /api/assistant/week-plan`, `POST /week-plan/accept`; `GET /day-log`, `POST /day-log/accept`; `GET /todos`, `POST /todos/accept` | the three cards a chat turn can leave behind. Book and Save are the only writes; each fetches the stored draft rather than trusting the turn |
 | `assistant/MorningBrief` | `GET/POST /api/assistant/brief` | three short pieces above the daily log; off is one line with a button that says what a redraft costs |
@@ -347,7 +348,7 @@ Worth understanding because it's the trickiest screen:
 `App.tsx` renders **both** navigations on every screen and `styles.css` shows exactly one:
 
 - **`nav.tabs`** — the horizontal strip, all nine sections. What a mouse gets.
-- **`BottomNav`** — a fixed bar with four sections plus a **more** sheet. What a thumb gets.
+- **`BottomNav`** — a fixed bar with five sections (today, focus, cal, plan, recovery). The rest are behind a **more** button in the header, which opens the sheet; it moved there when recovery took the bar's last slot, because a section opened every morning should not cost a tap through a sheet. What a thumb gets.
 
 The switch is the same `@media (pointer: coarse)` query the touch sizes use, so a phone gets the
 bar at any width and a laptop keeps the strip even in a half-width window. Rendering both and
@@ -365,7 +366,7 @@ Two details worth not undoing:
 - **`viewport-fit=cover`** in `index.html` is what makes `env(safe-area-inset-bottom)` non-zero.
   The bar pads itself by that amount, and `.wrap` pads by the bar's height plus it — a fixed
   element is out of flow, so without that the last panel on every page hides underneath it.
-- **The "more" button relabels itself** to the open section when that section lives in the sheet.
+- **The "more" button names the open section** when that section lives in the sheet ("todos ⋯"), and is the icon alone otherwise.
   Otherwise the bar shows nothing selected while you are looking at `money`, and the app reads as
   though it has lost its place.
 

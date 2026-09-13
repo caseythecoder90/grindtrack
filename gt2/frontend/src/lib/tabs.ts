@@ -2,7 +2,7 @@
  * The app's sections, and which of them a phone gets in the bottom bar.
  *
  * One list, two navigations: the desktop tab strip renders all of `TABS`, the bottom
- * bar renders `PRIMARY_TABS` plus a "more" button holding the rest. Keeping the split
+ * bar renders `PRIMARY_TABS` and the header's "more" button holds the rest. Keeping the split
  * here rather than inside either component is what makes promoting a tab a one-line
  * change — which it already was once, when the calendar took a slot and `todos`
  * moved into the sheet.
@@ -19,7 +19,8 @@ export type Tab =
   | "us"
   | "week"
   | "stats"
-  | "ask";
+  | "ask"
+  | "recovery";
 
 export const TABS: Tab[] = [
   "today",
@@ -33,18 +34,20 @@ export const TABS: Tab[] = [
   "week",
   "stats",
   "ask",
+  "recovery",
 ];
 
 /**
- * Four slots, because the fifth belongs to "more". These are the sections opened
- * daily: two of them are the write paths the app exists for — logging hours and
- * starting a timer — `cal` answers "what is on" before the day starts, and `plan`
- * is what those hours are against.
+ * Five slots. These are the sections opened daily: two of them are the write paths
+ * the app exists for — logging hours and starting a timer — `cal` answers "what is
+ * on" before the day starts, `plan` is what those hours are against, and `recovery`
+ * is the morning's first screen. "More" moved to the header when recovery took its
+ * slot: a section opened every day should not cost a tap through a sheet.
  *
  * `todos` gave up its slot to the calendar when that landed, which is what this
  * array being one line is for.
  */
-export const PRIMARY_TABS: Tab[] = ["today", "focus", "cal", "plan"];
+export const PRIMARY_TABS: Tab[] = ["today", "focus", "cal", "plan", "recovery"];
 
 /** Everything the bottom bar cannot fit. Reviewed weekly rather than opened daily. */
 export const SECONDARY_TABS: Tab[] = TABS.filter((t) => !PRIMARY_TABS.includes(t));

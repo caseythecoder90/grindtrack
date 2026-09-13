@@ -77,6 +77,20 @@ grindtrack:
   # date is personal; absent means the assistant's context has no recovery section.
   recovery:
     sobriety-date: ${SOBRIETY_DATE:}
+    # Five to eight: the day's readings — the reflection's title, the passage, the chapter —
+    # pushed once, for reading together later in the morning. Nothing is sent when nothing is
+    # imported and the Bible is not seeded.
+    readings-cron: "0 55 7 * * *"
+    # The Bible is the one text the app ships, because this translation is in the public domain.
+    # Seeded once from the resource on first start; tools/recovery/usfx_to_verses.py makes the
+    # file from a USFX edition, and the KJV is the same command on a different input.
+    bible:
+      file: recovery/web.jsonl.gz
+      name: World English Bible
+      abbrev: WEB
+      # Reading order for the daily passage: a gospel first, then the psalms and so on. Books not
+      # listed follow in canonical order once these are done.
+      books: [JHN, PSA, MAT, PRO, MRK, ROM, PHP, LUK, JAS, EPH, ACT, 1PE, COL, 1JN, ISA, GEN, GAL, HEB, 1CO, 2CO, 1TH, 2TH, 1TI, 2TI, TIT, PHM, 2PE, 2JN, 3JN, JUD, REV]
   # The todo list is a page nobody opens, so what is open comes to the phone: at eight and at six,
   # for as long as anything stays open. Same zone as the assistant's jobs.
   todos:

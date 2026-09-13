@@ -33,7 +33,7 @@ one rule.
 | Day log from chat | `DayLogService`, `DayLogDraft` | `ProposedLog.tsx` |
 | Todos from chat | `TodoDraftService`, `TodoDraft` | `ProposedTodos.tsx` |
 | Todo reminders | `todo/service/TodoReminderScheduler`, `config/TodoProperties` | — |
-| Recovery day count | `config/RecoveryProperties`, `AssistantContext.Recovery` | — |
+| Recovery day count | `config/RecoveryProperties`, `AssistantContext.Recovery` — the page itself is `recovery/`, see [recovery.md](recovery.md) | `features/recovery/` |
 | Morning brief | `MorningBriefService`, `AnthropicBriefModel`, `BriefDraft`, `MorningBriefScheduler` | `MorningBrief.tsx` (today tab) |
 | Chat | `ChatService`, `AnthropicChatModel`, `ChatModel`, `AssistantToolExecutor` | `AskPage.tsx`, `ConversationsSheet.tsx`, `assistantApi.ts` |
 | HTTP | `assistant/api/AssistantController`, `ChatController`, `ChatStream` | `lib/api.ts` (`stream()`) |
@@ -67,6 +67,7 @@ grindtrack.assistant:
   brief-cron: "0 30 5 * * *"       # when he wakes up, before email and the feed; every day
 grindtrack.recovery:
   sobriety-date: ${SOBRIETY_DATE:}  # personal, so from the environment; the brief counts days from it
+  readings-cron: "0 55 7 * * *"     # the day's readings to the phone — no model involved, see recovery.md
 grindtrack.todos:
   reminder-cron: "0 0 8,18 * * *"  # what is still open, to the phone, while anything is
 ```
@@ -228,6 +229,11 @@ button disables itself after one press, which is the whole defence today.
 ![The two scheduled jobs and how each reaches the phone](diagrams/scheduled-jobs.svg)
 
 <sub>PlantUML source: [`diagrams/scheduled-jobs.puml`](diagrams/scheduled-jobs.puml).</sub>
+
+Two more jobs push without calling a model and are not in the diagram: the todo reminders at
+08:00 and 18:00 (`TodoReminderScheduler`) and the day's readings at 07:55
+(`RecoveryReadingScheduler`, see [recovery.md](recovery.md)). Same shape — a package-private
+static method builds the sentence, `PushService.send` answers zeros when push is off.
 
 **The review** is drafted on Friday at five so it is waiting when the week tab opens, instead of
 the week tab starting a thirty-second model call on click. One structured call, one row keyed by

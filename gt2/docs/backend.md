@@ -491,6 +491,7 @@ Schema **`grindtrack`**; Hibernate is `validate`-only, so Liquibase is the singl
 | 030 | `morning-brief.sql` | `morning_brief` joins the `kind` CHECK — one row per day |
 | 031 | `push-subscriptions.sql` | `push_subscriptions` — one browser on one device; the endpoint is the identity |
 | 032 | `chat-todo-drafts.sql` | `todo_batch` joins the `kind` CHECK; `assistant_messages.proposed_todos_date` |
+| 033 | `recovery.sql` | the recovery tab: `recovery_texts`, `recovery_paragraphs`, `recovery_daily_entries`, `recovery_settings`, `recovery_journal`, `recovery_sessions`, `recovery_days`, `bible_verses`. All created empty; the Bible is seeded by `BibleSeeder` on first start, never by a migration |
 
 - Every changeset has a `--rollback` (018's is a documented no-op — the values it cleared were
   wrong and there is nothing to restore them to). Time columns are `TIMESTAMPTZ DEFAULT now()`.
@@ -517,7 +518,9 @@ Schema **`grindtrack`**; Hibernate is `validate`-only, so Liquibase is the singl
 | `grindtrack.assistant.model` / `zone` / `review-cron` / `brief-cron` | — | `claude-opus-5` / `America/New_York` / Fri 17:00 / 06:00 daily | `AssistantProperties` |
 | `grindtrack.push.vapid-public-key` / `vapid-private-key` / `subject` | `PUSH_VAPID_PUBLIC_KEY` / `PUSH_VAPID_PRIVATE_KEY` / `PUSH_VAPID_SUBJECT` | empty = off | `PushProperties` |
 | `grindtrack.speech.api-key` / `model` / `language` | `OPENAI_API_KEY` / — / — | empty = off / `gpt-4o-mini-transcribe` / `en` | `SpeechProperties` |
-| `grindtrack.recovery.sobriety-date` | `SOBRIETY_DATE` | empty = no recovery section in the context | `RecoveryProperties` |
+| `grindtrack.recovery.sobriety-date` | `SOBRIETY_DATE` | empty = no number on the page and no recovery section in the context | `RecoveryProperties` |
+| `grindtrack.recovery.readings-cron` | — | 07:55 daily | `RecoveryProperties` |
+| `grindtrack.recovery.bible.file` / `name` / `abbrev` / `books` | — | `recovery/web.jsonl.gz` / World English Bible / `WEB` / the reading order | `RecoveryProperties.Bible` |
 | `grindtrack.todos.reminder-cron` | — | 08:00 and 18:00 daily | `TodoProperties` |
 
 Also: `spring.threads.virtual.enabled: true` (Java 21 virtual threads), `ddl-auto: validate`,
