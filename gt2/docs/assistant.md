@@ -68,6 +68,7 @@ grindtrack.assistant:
 grindtrack.recovery:
   sobriety-date: ${SOBRIETY_DATE:}  # personal, so from the environment; the brief counts days from it
   readings-cron: "0 55 7 * * *"     # the day's readings to the phone — no model involved, see recovery.md
+  people-cron: "0 0 18 * * *"       # who is due a call
 grindtrack.todos:
   reminder-cron: "0 0 8,18 * * *"  # what is still open, to the phone, while anything is
 ```
@@ -230,9 +231,10 @@ button disables itself after one press, which is the whole defence today.
 
 <sub>PlantUML source: [`diagrams/scheduled-jobs.puml`](diagrams/scheduled-jobs.puml).</sub>
 
-Two more jobs push without calling a model and are not in the diagram: the todo reminders at
-08:00 and 18:00 (`TodoReminderScheduler`) and the day's readings at 07:55
-(`RecoveryReadingScheduler`, see [recovery.md](recovery.md)). Same shape — a package-private
+Three more jobs push without calling a model and are not in the diagram: the todo reminders at
+08:00 and 18:00 (`TodoReminderScheduler`), the day's readings at 07:55
+(`RecoveryReadingScheduler`) and who is due a call at 18:00 (`PeopleReminderScheduler`, both in
+[recovery.md](recovery.md)). Same shape — a package-private
 static method builds the sentence, `PushService.send` answers zeros when push is off.
 
 **The review** is drafted on Friday at five so it is waiting when the week tab opens, instead of

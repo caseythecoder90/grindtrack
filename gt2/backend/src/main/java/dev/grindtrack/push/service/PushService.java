@@ -287,6 +287,11 @@ public class PushService {
           "good morning", line.trim(), "today", "morning-motivation", SIX_HOURS);
     }
 
+    /** Who to call. Replaces the previous one on the device rather than stacking. */
+    public static Notification peopleToCall(String title, String names) {
+      return new Notification(title, names, "recovery", "people", SIX_HOURS);
+    }
+
     /** The day's readings, for reading together later. Held through the morning, then dropped. */
     public static Notification readings(String pieces) {
       return new Notification("today's readings", pieces, "recovery", "readings", SIX_HOURS);

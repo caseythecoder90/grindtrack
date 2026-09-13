@@ -377,16 +377,29 @@ are returned as the service's records; cards the data cannot fill are `null`, no
 |---|---|---|---|
 | GET | `/api/recovery/today` | – | `{today, number, reflection, meditationEntry, passage, reading, settings, meditation}` — everything the today view needs; `number` is null without `SOBRIETY_DATE`, `reflection`/`meditationEntry` without an imported book, `passage` before the seed, `reading` without the Big Book |
 | POST | `/api/recovery/read/done` | – | marks today read and moves the cursor past the part; a second press changes nothing. Answers the same shape as `today` |
+| POST | `/api/recovery/read/mark?seq=` | – | everything up to that paragraph counts as read, today; the `today` shape. 404 for a paragraph that is not there |
+| POST | `/api/recovery/read/catch-up` | – | forgives the backlog: tomorrow owes the daily count again; the `today` shape |
 | POST | `/api/recovery/read/restart` | – | cursor back to the first paragraph; the `today` shape |
-| PUT | `/api/recovery/settings` | `{readMinutes?, meditationMinutes?}` (1–180) | `{readMinutes, meditationMinutes}` |
+| GET | `/api/recovery/book` | – | the `reading` shape on its own: today's part, `pagesDue`, `pagesCarried`, `pageFrom`/`pageTo`, `pageCount`, `place`, and `chapters[]` with `firstPage`/`lastPage` and `state`; 404 when no book is imported |
+| GET | `/api/recovery/book/chapters/{no}` | – | `{no, title, paragraphs: [{seq, body, pageLabel, pageSeq}], prevNo, nextNo, cursor}` |
+| PUT | `/api/recovery/book/place` | `{seq}` | where the reader is; `{saved: seq}` |
+| PUT | `/api/recovery/settings` | `{pagesPerDay?, meditationMinutes?}` (1–50, 1–180) | `{pagesPerDay, meditationMinutes}` |
 | POST | `/api/recovery/sessions` | `{minutes, completed?}` | logs a sitting; only a completed one marks the day. `{streak, doneToday}` |
 | GET | `/api/recovery/journal?before=` | – | `[{id, createdAt, body, spoken}]`, newest first, 50 at a time; `before` is the last id seen |
 | POST | `/api/recovery/journal` | `{body, spoken?}` | the entry; 400 when blank or over 20,000 characters |
 | DELETE | `/api/recovery/journal/{id}` | – | `{deleted: id}`; 404 when it was never there |
-| GET | `/api/recovery/library` | – | `{slots: [{slot, defaultTitle, imported, title, importedAt, paragraphs, words, entries}], bible: {name, abbrev, verses, passages}, biblePlanStart}` |
-| POST | `/api/recovery/import/{slot}?dryRun=true&title=` | multipart `file`: one plain-text file, the whole book, under 5 MB | the import report: `{dryRun, slot, title, paragraphs, words, chapters[], entries, missingCount, missing[], sample, warnings[], cursorReset}`. `dryRun` defaults to true; `false` replaces the slot. `slot` is `big_book`, `reflection` or `meditation`; anything else is a 400 |
+| GET | `/api/recovery/people` | – | `[{id, name, role, cadenceDays, note, lastContact, lastNote, nextDue, overdueDays, state, contacts}]`, the one still to be asked first, then by who is next due. `state` is `ask`, `overdue`, `due` or `ok` |
+| POST | `/api/recovery/people` | `{name, role?, cadenceDays?, note?}` | `role` is `sponsor`, `prospect` or `friend` (default friend); `cadenceDays` 1–365 (default 7) |
+| PATCH | `/api/recovery/people/{id}` | `{name?, role?, cadenceDays?, note?, clearNote?}` | partial update; 404 when unknown |
+| DELETE | `/api/recovery/people/{id}` | – | archives (the calls stay); `{deleted: id}` |
+| POST | `/api/recovery/people/{id}/contacts` | `{note?}` | logs a call; for a prospect this is the asking and they become a sponsor. The person, as above |
+| GET | `/api/recovery/people/{id}/contacts` | – | `[{id, at, note}]`, newest first, thirty at most |
+| GET | `/api/recovery/library` | – | `{slots: [{slot, defaultTitle, imported, title, importedAt, paragraphs, words, pages, entries, files[]}], bible: {name, abbrev, verses, passages}, biblePlanStart}` |
+| POST | `/api/recovery/import/{slot}?dryRun=true&title=` | multipart `files`: the book's PDFs together (up to 60, each under 5 MB), or one plain-text file | the import report: `{dryRun, slot, title, paragraphs, words, pages, chapters: [{no, title, paragraphs, words, firstPage, lastPage}], entries, missingCount, missing[], sample, warnings[], cursorReset}`. `dryRun` defaults to true; `false` replaces the slot and keeps the files. `slot` is `big_book`, `reflection` or `meditation`; anything else is a 400; PDFs mixed with text is a 400 |
+| POST | `/api/recovery/import/{slot}/reparse` | – | the stored files through the parser again; the report |
 | POST | `/api/recovery/bible/restart` | – | the plan starts again from the first passage today; the `library` shape |
 
-The 07:55 readings push (`RecoveryReadingScheduler`) has no endpoint: it reads the same data
-the today view does and sends one notification naming the reflection, the passage and the
-chapter, tag `readings`, opening the recovery tab.
+The 07:55 readings push (`RecoveryReadingScheduler`) and the 18:00 people reminder
+(`PeopleReminderScheduler`) have no endpoints: they read the same data the views do and send one
+notification each — the reflection, the passage and the pages, tag `readings`; who is due a call,
+tag `people` — opening the recovery tab.

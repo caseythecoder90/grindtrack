@@ -2,30 +2,37 @@ import { useCallback, useEffect, useState } from "react";
 import Segmented from "../../components/Segmented";
 import { errorMessage } from "../../lib/api";
 import { useAppResume } from "../../lib/resume";
+import BookReader from "./BookReader";
 import JournalComposer from "./JournalComposer";
 import LibraryPanel from "./LibraryPanel";
 import MeditationTimer from "./MeditationTimer";
+import PeoplePanel from "./PeoplePanel";
 import {
   addJournal,
+  catchUp,
   deleteJournal,
   finishReading,
   getJournal,
+  getPeople,
   getToday,
   logSession,
+  markReadTo,
   updateSettings,
   type DailyEntry,
   type JournalEntry,
   type Passage,
+  type Person,
   type Reading,
   type RecoveryToday,
 } from "./recoveryApi";
 
-type View = "today" | "read" | "journal" | "books";
+type View = "today" | "read" | "journal" | "people" | "books";
 
 const VIEWS: { value: View; label: string; tone?: string }[] = [
   { value: "today", label: "today", tone: "rec" },
   { value: "read", label: "read", tone: "rec" },
   { value: "journal", label: "journal", tone: "rec" },
+  { value: "people", label: "people", tone: "rec" },
 ];
 
 /** "September 13" from an ISO date. */
@@ -64,22 +71,41 @@ function dayLabel(date: string, today: string, dayNumber: number | null): string
   return then.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
+/** "pp. 58–59", "p. 58", or the chapter when the book has no page numbers. */
+function pageRange(r: Reading): string {
+  if (!r.pageFrom) return r.chapterTitle;
+  return r.pageFrom === r.pageTo ? `p. ${r.pageFrom}` : `pp. ${r.pageFrom}–${r.pageTo}`;
+}
+
+/** The chapter a paragraph is in: the last chapter that starts at or before it. */
+function chapterOf(r: Reading, seq: number): number | null {
+  let found: number | null = null;
+  for (const c of r.chapters) {
+    if (c.firstSeq <= seq) found = c.no;
+  }
+  return found;
+}
+
 /**
- * The recovery tab: the number, the day's readings, the timer, the book, the journal.
+ * The recovery tab: the number, the day's readings, the timer, the book, the journal, the
+ * people.
  *
- * Three views on a phone — today, read, journal — and three columns on a desktop, the same
- * markup either way; styles.css decides which. "Your books" is the fourth screen, where the
+ * Four views on a phone — today, read, journal, people — and three columns on a desktop, the
+ * same markup either way; styles.css decides which. "Your books" is the fifth screen, where the
  * texts are imported.
  */
 export default function RecoveryPage() {
   const [view, setView] = useState<View>("today");
   const [data, setData] = useState<RecoveryToday | null>(null);
+  const [people, setPeople] = useState<Person[]>([]);
   const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [exhausted, setExhausted] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [focusKey, setFocusKey] = useState(0);
-  const [minutesOpen, setMinutesOpen] = useState(false);
+  const [pagesOpen, setPagesOpen] = useState(false);
+  /** A chapter open in the reader, or null for today's part. */
+  const [openChapter, setOpenChapter] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setError("");
@@ -87,6 +113,14 @@ export default function RecoveryPage() {
       setData(await getToday());
     } catch (e) {
       setError(errorMessage(e, "could not load the page"));
+    }
+  }, []);
+
+  const loadPeople = useCallback(async () => {
+    try {
+      setPeople(await getPeople());
+    } catch {
+      /* the list is the people view's; the today view must not wait on it */
     }
   }, []);
 
@@ -102,14 +136,21 @@ export default function RecoveryPage() {
 
   useEffect(() => {
     load();
+    loadPeople();
     loadJournal();
-  }, [load, loadJournal]);
+  }, [load, loadPeople, loadJournal]);
 
   // Marked read on the phone, then opened on the laptop: the laptop should know.
   useAppResume(() => {
     load();
+    loadPeople();
     loadJournal();
   });
+
+  function peopleChanged() {
+    loadPeople();
+    load();
+  }
 
   async function done() {
     setBusy(true);
@@ -123,27 +164,41 @@ export default function RecoveryPage() {
     }
   }
 
-  async function changeMinutes(n: number) {
-    setMinutesOpen(false);
+  async function markTo(seq: number) {
+    setData(await markReadTo(seq));
+  }
+
+  async function forgive() {
+    if (!window.confirm("Forgive the backlog? Tomorrow owes the usual pages again.")) return;
+    setBusy(true);
+    setError("");
     try {
-      await updateSettings({ readMinutes: n });
-      load();
+      setData(await catchUp());
     } catch (e) {
-      setError(errorMessage(e, "could not change the minutes"));
+      setError(errorMessage(e, "could not catch up"));
+    } finally {
+      setBusy(false);
     }
   }
 
-  const sat = useCallback(
-    async (minutes: number, completed: boolean) => {
-      try {
-        const m = await logSession(minutes, completed);
-        setData((d) => (d ? { ...d, meditation: m, settings: { ...d.settings, meditationMinutes: minutes } } : d));
-      } catch (e) {
-        setError(errorMessage(e, "could not log the sitting"));
-      }
-    },
-    [],
-  );
+  async function changePages(n: number) {
+    setPagesOpen(false);
+    try {
+      await updateSettings({ pagesPerDay: n });
+      load();
+    } catch (e) {
+      setError(errorMessage(e, "could not change the pages"));
+    }
+  }
+
+  const sat = useCallback(async (minutes: number, completed: boolean) => {
+    try {
+      const m = await logSession(minutes, completed);
+      setData((d) => (d ? { ...d, meditation: m, settings: { ...d.settings, meditationMinutes: minutes } } : d));
+    } catch (e) {
+      setError(errorMessage(e, "could not log the sitting"));
+    }
+  }, []);
 
   async function save(body: string, spoken: boolean) {
     const entry = await addJournal(body, spoken);
@@ -172,19 +227,25 @@ export default function RecoveryPage() {
     }
   }
 
+  function open(no: number) {
+    setOpenChapter(no);
+    setView("read");
+  }
+
   if (view === "books") {
     return <LibraryPanel onBack={() => setView("today")} onChanged={load} />;
   }
 
   const today = data?.today ?? localDate(new Date().toISOString());
   const dayNumber = data?.number?.days ?? null;
+  const reading = data?.reading ?? null;
 
   return (
     <div className={"recpage view-" + view}>
       <div className="rec-head">
         <Segmented label="Recovery view" value={view} onChange={setView} options={VIEWS} />
         <button type="button" className="linkish" onClick={() => setView("books")}>
-          your books ›
+          books ›
         </button>
       </div>
       {error && <div className="error">{error}</div>}
@@ -209,6 +270,8 @@ export default function RecoveryPage() {
             data && <div className="rec-card"><span className="rec-note">no sobriety date is set — docs/deployment.md has the one line</span></div>
           )}
 
+          <PeoplePanel people={people} onChanged={peopleChanged} compact />
+
           <Daily label="daily reflection" entry={data?.reflection ?? null} date={today}
             missing="your copy of Daily Reflections is not imported yet" onBooks={() => setView("books")} />
 
@@ -227,7 +290,7 @@ export default function RecoveryPage() {
             <Daily label="meditation reading" entry={data.meditationEntry} date={today} missing="" onBooks={() => setView("books")} />
           )}
 
-          <BookCard reading={data?.reading ?? null} loaded={!!data} onRead={() => setView("read")} onBooks={() => setView("books")} />
+          <BookCard reading={reading} loaded={!!data} onRead={() => { setOpenChapter(null); setView("read"); }} onBooks={() => setView("books")} />
 
           {/* The door to the journal: tapping it opens the journal view with the cursor in the
               box. A phone-only thing; a desktop has the composer in view already. */}
@@ -249,21 +312,34 @@ export default function RecoveryPage() {
 
         {/* ---- read ---- */}
         <section className="rec-col rec-read" aria-label="Read">
-          {data?.reading ? (
-            <ReadCard
-              reading={data.reading}
-              busy={busy}
-              minutesOpen={minutesOpen}
-              onMinutes={() => setMinutesOpen(true)}
-              onMinutesPicked={changeMinutes}
-              onDone={done}
-            />
+          {reading ? (
+            <>
+              {openChapter !== null ? (
+                <BookReader
+                  chapterNo={openChapter}
+                  onOpen={setOpenChapter}
+                  onClose={() => setOpenChapter(null)}
+                  onMarkRead={markTo}
+                />
+              ) : (
+                <ReadCard
+                  reading={reading}
+                  busy={busy}
+                  pagesOpen={pagesOpen}
+                  onPages={() => setPagesOpen(true)}
+                  onPagesPicked={changePages}
+                  onDone={done}
+                  onCatchUp={forgive}
+                />
+              )}
+              <Contents reading={reading} openChapter={openChapter} onOpen={open} />
+            </>
           ) : (
             data && (
               <div className="rec-card">
                 <span className="rec-lbl">big book</span>
                 <p className="rec-hint">
-                  Not imported yet. Bring your own copy, as one text file, on{" "}
+                  Not imported yet. Bring your own copy, the PDFs all together, on{" "}
                   <button type="button" className="linkish inline" onClick={() => setView("books")}>your books ›</button>
                 </p>
               </div>
@@ -302,6 +378,11 @@ export default function RecoveryPage() {
             )}
           </div>
           <JournalComposer onSave={save} focusKey={focusKey} />
+        </section>
+
+        {/* ---- people ---- */}
+        <section className="rec-col rec-people" aria-label="People">
+          <PeoplePanel people={people} onChanged={peopleChanged} />
         </section>
       </div>
     </div>
@@ -378,6 +459,7 @@ function PassageCard({ passage }: { passage: Passage | null }) {
   );
 }
 
+/** The today card: what the book owes today, in pages, and whether it is done. */
 function BookCard({ reading, loaded, onRead, onBooks }: {
   reading: Reading | null; loaded: boolean; onRead: () => void; onBooks: () => void;
 }) {
@@ -393,90 +475,133 @@ function BookCard({ reading, loaded, onRead, onBooks }: {
       </div>
     );
   }
+  const owed = reading.doneToday
+    ? "read today ✓"
+    : `${reading.pagesDue} page${reading.pagesDue === 1 ? "" : "s"}` +
+      (reading.pagesCarried > 0 ? ` · ${reading.pagesCarried} carried over` : "");
   return (
     <div className="rec-card">
       <div className="rec-cardhead">
-        <span className="rec-lbl">{reading.bookTitle} · {reading.minutes} min</span>
+        <span className="rec-lbl">{reading.bookTitle}</span>
         <span className="rec-note">day {reading.dayNumber}{reading.readThroughs > 0 ? ` · read ${reading.readThroughs}×` : ""}</span>
       </div>
       <div className="rec-title ellipsis">
-        {reading.chapterNo > 0 && `Ch. ${reading.chapterNo} · `}{reading.chapterTitle}
-        <span className="muted"> · ~{reading.words} words</span>
+        {pageRange(reading)} <span className="muted">· {reading.chapterTitle}</span>
       </div>
       <div className="rec-meter"><i style={{ width: `${reading.percent}%` }} /></div>
       <div className="rec-foot">
-        <span className="rec-note">{reading.percent}% read · {reading.doneToday ? "read today ✓" : "not yet today"}</span>
+        <span className={"rec-note" + (reading.pagesCarried > 0 ? " warn" : "")}>{reading.percent}% read · {owed}</span>
         <button type="button" className={reading.doneToday ? "" : "rec-primary"} onClick={onRead}>
-          {reading.doneToday ? "read it again" : "read now"}
+          {reading.doneToday ? "read on" : "read now"}
         </button>
       </div>
     </div>
   );
 }
 
-function ReadCard({ reading, busy, minutesOpen, onMinutes, onMinutesPicked, onDone }: {
-  reading: Reading; busy: boolean; minutesOpen: boolean; onMinutes: () => void;
-  onMinutesPicked: (n: number) => void; onDone: () => void;
+/** Today's part, set like a page, with the pages owed and the button that clears them. */
+function ReadCard({ reading, busy, pagesOpen, onPages, onPagesPicked, onDone, onCatchUp }: {
+  reading: Reading; busy: boolean; pagesOpen: boolean; onPages: () => void;
+  onPagesPicked: (n: number) => void; onDone: () => void; onCatchUp: () => void;
 }) {
   return (
-    <>
-      <div className="rec-card rec-pages">
-        <div className="rec-cardhead">
-          <span className="rec-lbl">
-            {reading.chapterNo > 0 && `chapter ${reading.chapterNo} · `}{reading.chapterTitle}
+    <div className="rec-card rec-pages">
+      <div className="rec-cardhead">
+        <span className="rec-lbl">
+          {reading.chapterNo > 0 && `chapter ${reading.chapterNo} · `}{reading.chapterTitle}
+        </span>
+        <span className="rec-note">day {reading.dayNumber} · {pageRange(reading)}</span>
+      </div>
+      {reading.pagesCarried > 0 && !reading.doneToday && (
+        <div className="rec-carry">
+          <span>
+            {reading.pagesDue} pages today: {reading.pagesPerDay} for today and {reading.pagesCarried} carried over from the days missed.
           </span>
-          <span className="rec-note">day {reading.dayNumber} · ~{reading.words} words</span>
+          <button type="button" className="linkish" disabled={busy} onClick={onCatchUp}>catch up from here</button>
         </div>
-        <div className="rec-serif">
-          {reading.paragraphs.map((p) => (
-            <p key={p.seq} className="rec-pline">{p.body}</p>
-          ))}
-        </div>
-        <div className="rec-foot">
-          <span className="rec-note">
-            {minutesOpen ? (
-              <select
-                aria-label="Minutes a day"
-                autoFocus
-                defaultValue={reading.minutes}
-                onChange={(e) => onMinutesPicked(Number(e.target.value))}
-                onBlur={(e) => onMinutesPicked(Number(e.target.value))}
-              >
-                {[3, 5, 7, 10, 15, 20, 30].map((n) => (
-                  <option key={n} value={n}>{n} min</option>
-                ))}
-              </select>
-            ) : (
-              <>
-                {reading.minutes} min a day ·{" "}
-                <button type="button" className="linkish inline" onClick={onMinutes}>change</button>
-              </>
+      )}
+      <div className="rec-serif rec-reader-text">
+        {reading.paragraphs.map((p, i) => (
+          <div key={p.seq}>
+            {i > 0 && reading.paragraphs[i - 1].pageSeq !== p.pageSeq && p.pageLabel && (
+              <div className="rec-pagerule" aria-label={`page ${p.pageLabel}`}>
+                <span />
+                <em>{p.pageLabel}</em>
+                <span />
+              </div>
             )}
-          </span>
-          {reading.doneToday ? (
-            <span className="rec-note ok">read today ✓</span>
+            <p className="rec-pline">{p.body}</p>
+          </div>
+        ))}
+      </div>
+      <div className="rec-foot">
+        <span className="rec-note">
+          {pagesOpen ? (
+            <select
+              aria-label="Pages a day"
+              autoFocus
+              defaultValue={reading.pagesPerDay}
+              onChange={(e) => onPagesPicked(Number(e.target.value))}
+              onBlur={(e) => onPagesPicked(Number(e.target.value))}
+            >
+              {[1, 2, 3, 4, 5, 6, 8, 10].map((n) => (
+                <option key={n} value={n}>{n} page{n === 1 ? "" : "s"}</option>
+              ))}
+            </select>
           ) : (
-            <button type="button" className="rec-primary" disabled={busy} onClick={onDone}>
-              done for today
-            </button>
+            <>
+              {reading.pagesPerDay} page{reading.pagesPerDay === 1 ? "" : "s"} a day ·{" "}
+              <button type="button" className="linkish inline" onClick={onPages}>change</button>
+            </>
           )}
-        </div>
+        </span>
+        {reading.doneToday ? (
+          <span className="rec-note ok">read today ✓</span>
+        ) : (
+          <button type="button" className="rec-primary" disabled={busy} onClick={onDone}>
+            done for today
+          </button>
+        )}
       </div>
-      <div className="rec-card">
-        <div className="rec-cardhead">
-          <span className="rec-lbl">the plan</span>
-          <span className="rec-note">{reading.chapters.length} chapters · {reading.minutes} min a day · {reading.percent}% read</span>
-        </div>
-        <div className="rec-chapters">
-          {reading.chapters.map((c) => (
-            <div key={c.no} className={"rec-chap " + c.state}>
-              <span className="tick" aria-hidden="true" />
-              <span className="ellipsis">{c.title}</span>
-              <span className="rec-note right">{c.paragraphs} ¶</span>
-            </div>
-          ))}
-        </div>
+    </div>
+  );
+}
+
+/** The table of contents: every chapter with its pages, and where the cursor is. */
+function Contents({ reading, openChapter, onOpen }: {
+  reading: Reading; openChapter: number | null; onOpen: (no: number) => void;
+}) {
+  const placeChapter = reading.place !== null ? chapterOf(reading, reading.place) : null;
+  return (
+    <div className="rec-card">
+      <div className="rec-cardhead">
+        <span className="rec-lbl">contents</span>
+        <span className="rec-note">{reading.pageCount} pages · {reading.percent}% read</span>
       </div>
-    </>
+      {placeChapter !== null && placeChapter !== openChapter && (
+        <div className="rec-foot" style={{ marginTop: 6 }}>
+          <span className="rec-note">your place</span>
+          <button type="button" className="linkish" onClick={() => onOpen(placeChapter)}>
+            continue from {reading.chapters.find((c) => c.no === placeChapter)?.title} ›
+          </button>
+        </div>
+      )}
+      <div className="rec-chapters">
+        {reading.chapters.map((c) => (
+          <button
+            type="button"
+            key={c.no}
+            className={"rec-chap " + c.state + (c.no === openChapter ? " open" : "")}
+            onClick={() => onOpen(c.no)}
+          >
+            <span className="tick" aria-hidden="true" />
+            <span className="ellipsis">{c.title}</span>
+            <span className="rec-note right">
+              {c.firstPage && (c.firstPage === c.lastPage ? c.firstPage : `${c.firstPage}–${c.lastPage}`)}
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }

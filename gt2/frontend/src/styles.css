@@ -1336,7 +1336,14 @@ h4 { font-size: var(--fs-small); font-weight: 600; color: var(--muted); margin: 
 .rec-head .seg { display: none; }
 .seg button.rec[aria-pressed="true"] { color: var(--rec); }
 .rec-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1fr); gap: 14px; align-items: start; }
-@media (max-width: 900px) { .rec-cols { grid-template-columns: minmax(0, 1fr); } }
+.rec-today { grid-column: 1; grid-row: 1; }
+.rec-people { grid-column: 1; grid-row: 2; }
+.rec-read { grid-column: 2; grid-row: 1 / span 2; }
+.rec-journal { grid-column: 3; grid-row: 1 / span 2; }
+@media (max-width: 900px) {
+  .rec-cols { grid-template-columns: minmax(0, 1fr); }
+  .rec-today, .rec-people, .rec-read, .rec-journal { grid-column: auto; grid-row: auto; }
+}
 .rec-col { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .rec-card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 15px; }
 .rec-card.number { border-left: 2px solid var(--rec); display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
@@ -1345,7 +1352,8 @@ h4 { font-size: var(--fs-small); font-weight: 600; color: var(--muted); margin: 
 .rec-days { font-family: var(--mono); font-size: 44px; line-height: 1; color: var(--rec); font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 .rec-lbl { font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
 .rec-cardhead { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
-.rec-cardhead > span:first-child { min-width: 0; }
+.rec-cardhead > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rec-cardhead > .rec-note { white-space: nowrap; flex: none; }
 .rec-note { font-family: var(--mono); font-size: 11px; color: var(--muted); }
 .rec-note.ok { color: var(--rec); }
 .rec-note.right { margin-left: auto; }
@@ -1368,8 +1376,12 @@ button.rec-primary:hover { filter: brightness(1.06); border-color: var(--rec); }
 button.rec-primary:disabled { opacity: 0.5; filter: none; cursor: default; }
 .rec-meter { height: 6px; background: var(--panel2); border-radius: 3px; overflow: hidden; margin-top: 8px; }
 .rec-meter i { display: block; height: 100%; background: var(--rec); border-radius: 3px; }
-.rec-chapters { margin-top: 4px; }
+.rec-chapters { margin-top: 4px; display: flex; flex-direction: column; }
 .rec-chap { display: flex; align-items: center; gap: 10px; min-height: 32px; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+/* The contents are buttons: a chapter opens when tapped. Quiet ones, in the list's own shape. */
+button.rec-chap { width: 100%; padding: 0 4px; border: none; background: none; border-radius: 6px; text-align: left; }
+button.rec-chap:hover { border-color: transparent; background: var(--panel2); color: var(--text); }
+button.rec-chap.open { background: var(--rec-bg); }
 .rec-chap .tick { width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--line); flex: none; }
 .rec-chap.done { color: var(--text); }
 .rec-chap.done .tick { background: var(--rec); border-color: var(--rec); }
@@ -1441,4 +1453,47 @@ button.rec-primary:disabled { opacity: 0.5; filter: none; cursor: default; }
   }
   .rec-entries { flex: 1; }
   .rec-journal .composer { position: sticky; bottom: calc(64px + env(safe-area-inset-bottom)); box-shadow: 0 -14px 28px -10px var(--bg), 0 2px 12px rgba(0, 0, 0, 0.25); }
+}
+
+/* --- the reader: any chapter, opened from the contents --------------------- */
+.rec-reader-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; }
+.rec-reader-nav > span { display: flex; gap: 6px; }
+.rec-reader-text { margin-top: 4px; }
+.rec-pagerule { display: flex; align-items: center; gap: 10px; margin: 6px 0 10px; }
+.rec-pagerule span { flex: 1; height: 1px; background: var(--line2); }
+.rec-pagerule em { font-family: var(--mono); font-style: normal; font-size: 10px; letter-spacing: 0.1em; color: var(--muted); }
+.rec-reader .rec-pline { cursor: pointer; border-left: 2px solid transparent; margin-left: -10px; padding-left: 8px; border-radius: 2px; }
+.rec-reader .rec-pline.read { color: var(--muted); }
+.rec-reader .rec-pline.cursor { border-left-color: var(--rec); }
+.rec-reader .rec-pline.selected { background: var(--rec-bg); border-left-color: var(--rec); }
+.rec-carry { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; margin: 8px 0 2px; padding: 8px 10px; background: rgba(255, 209, 102, 0.08); border: 1px solid rgba(255, 209, 102, 0.3); border-radius: 8px; font-size: 13px; color: var(--yellow); }
+.rec-note.warn { color: var(--yellow); }
+
+/* --- the people ------------------------------------------------------------ */
+.rec-nextcall { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-left: 2px solid var(--yellow); }
+.rec-nextcall > div { min-width: 0; }
+.rec-nextcall .rec-title { margin-top: 4px; }
+.rec-peoplelist { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; }
+.rec-person { padding: 8px 0; border-top: 1px solid var(--line2); display: flex; flex-direction: column; gap: 4px; }
+.rec-person:first-child { border-top: none; }
+.rec-person-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 0; }
+.rec-person-who { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.rec-person-name { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rec-chip { font-family: var(--mono); font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.rec-chip.sponsor { color: var(--rec); border-color: rgba(154, 216, 200, 0.5); }
+.rec-chip.prospect { color: var(--yellow); border-color: rgba(255, 209, 102, 0.5); }
+.rec-note.overdue, .rec-note.ask { color: var(--yellow); }
+.rec-note.due { color: var(--text); }
+.rec-person-actions { display: flex; align-items: center; gap: 4px; flex: none; }
+.rec-person-actions button:not(.ghost) { min-height: 32px; padding: 4px 12px; }
+.rec-person-log { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px; }
+.rec-person-log input[type="text"], .rec-person-log input:not([type]) { flex: 1 1 180px; min-width: 0; }
+.rec-person-log select, .rec-person-add select { width: auto; }
+.rec-person-add { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line2); }
+.rec-person-add input:not([type="number"]) { flex: 1 1 160px; min-width: 0; }
+.rec-person-add input[type="number"] { width: 64px; }
+@media (pointer: coarse) {
+  .recpage:not(.view-people) .rec-people { display: none; }
+  .rec-person-actions button:not(.ghost) { min-height: 40px; }
+  .rec-nextcall button { min-height: 40px; }
 }

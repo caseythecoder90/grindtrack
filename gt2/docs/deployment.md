@@ -172,9 +172,9 @@ kubectl -n grindtrack patch secret grindtrack-secrets --type=merge -p '{"stringD
 Any subset is fine; each feature reads only its own keys.
 
 The recovery tab's books are not secrets and not environment: they are imported through the app
-itself (recovery → your books), one plain-text file per book, and live in the database. The Bible
-ships with the image and seeds itself on the first start after this release — one log line,
-`Seeded 31098 verses`, about a second.
+itself (recovery → your books), the publisher's PDFs all at once, and live in the database, files
+included (a few megabytes). The Bible ships with the image and seeds itself on the first start
+after this release — one log line, `Seeded 31098 verses`, about a second.
 
 **2. Restart.** Env vars are resolved once at container start; a patched Secret changes nothing
 until the pod is replaced:

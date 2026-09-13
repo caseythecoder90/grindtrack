@@ -22,8 +22,16 @@ public class RecoverySettings {
   @Column(name = "read_cursor", nullable = false)
   private int readCursor;
 
-  @Column(name = "read_minutes", nullable = false)
-  private int readMinutes = 5;
+  @Column(name = "pages_per_day", nullable = false)
+  private int pagesPerDay = 2;
+
+  /** The last day the reading was done; the carry-over is counted from here. Null: never. */
+  @Column(name = "read_last_done")
+  private LocalDate readLastDone;
+
+  /** Where the reader was last opened, a paragraph seq, so either device picks up there. */
+  @Column(name = "reading_place")
+  private Integer readingPlace;
 
   @Column(name = "read_throughs", nullable = false)
   private int readThroughs;
@@ -44,8 +52,32 @@ public class RecoverySettings {
     return readCursor;
   }
 
-  public int getReadMinutes() {
-    return readMinutes;
+  public int getPagesPerDay() {
+    return pagesPerDay;
+  }
+
+  public LocalDate getReadLastDone() {
+    return readLastDone;
+  }
+
+  public Integer getReadingPlace() {
+    return readingPlace;
+  }
+
+  public void setReadingPlace(Integer seq) {
+    this.readingPlace = seq;
+  }
+
+  /** How many pages are owed today: the daily count for every day since the last one done. */
+  public int pagesDue(LocalDate today, LocalDate fallbackStart) {
+    LocalDate since = readLastDone == null ? fallbackStart : readLastDone;
+    long days = java.time.temporal.ChronoUnit.DAYS.between(since, today);
+    return (int) Math.max(0, Math.min(days, 365)) * pagesPerDay;
+  }
+
+  /** Forgives the backlog: tomorrow owes the daily count again. */
+  public void catchUp(LocalDate today) {
+    this.readLastDone = today.minusDays(1);
   }
 
   public int getReadThroughs() {
@@ -61,21 +93,24 @@ public class RecoverySettings {
   }
 
   /** The cursor moves past today's part; past the end it wraps and counts a read-through. */
-  public void advanceReading(int nextSeq, int paragraphCount) {
+  public void advanceReading(int nextSeq, int paragraphCount, LocalDate today) {
     if (nextSeq >= paragraphCount) {
       readCursor = 0;
       readThroughs++;
     } else {
       readCursor = nextSeq;
     }
+    readLastDone = today;
   }
 
   public void restartReading() {
     readCursor = 0;
+    readLastDone = null;
+    readingPlace = null;
   }
 
-  public void setReadMinutes(int minutes) {
-    this.readMinutes = minutes;
+  public void setPagesPerDay(int pages) {
+    this.pagesPerDay = pages;
   }
 
   public void setMeditationMinutes(int minutes) {

@@ -6,7 +6,9 @@ import java.util.List;
  * What an import found, before or after writing. The same shape either way, with {@code dryRun}
  * saying which, so the screen can show the preview and the result in one place.
  *
- * @param chapters for a book read in order; empty for a dated book
+ * @param pages for a book read in order, how many pages it has (the printed ones, or one per three
+ *     hundred words for plain text)
+ * @param chapters for a book read in order, with the printed page range; empty for a dated book
  * @param entries for a dated book; zero for a book read in order
  * @param missing dates with no entry, as "Feb 29"; the first few only, {@code missingCount} has the
  *     total
@@ -20,6 +22,7 @@ public record ImportReport(
     String title,
     int paragraphs,
     int words,
+    int pages,
     List<Chapter> chapters,
     int entries,
     int missingCount,
@@ -28,5 +31,6 @@ public record ImportReport(
     List<String> warnings,
     boolean cursorReset) {
 
-  public record Chapter(int no, String title, int paragraphs, int words) {}
+  public record Chapter(
+      int no, String title, int paragraphs, int words, String firstPage, String lastPage) {}
 }
