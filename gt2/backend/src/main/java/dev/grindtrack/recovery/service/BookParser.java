@@ -189,8 +189,11 @@ public final class BookParser {
     return key;
   }
 
+  /** "PART II" keeps its numeral. */
+  private static final Pattern ROMAN = Pattern.compile("^[IVXLC]{1,7}$");
+
   private static final Set<String> SMALL_WORDS =
-      Set.of("a", "an", "the", "and", "or", "of", "to", "in", "on", "for", "with", "about", "at");
+      Set.of("a", "an", "the", "and", "or", "of", "to", "in", "on", "for", "with", "at");
 
   /** "BILL'S STORY" as "Bill's Story"; a heading already in mixed case is left alone. */
   static String title(String line) {
@@ -210,6 +213,10 @@ public final class BookParser {
       String lower = word.toLowerCase(Locale.ROOT);
       if (out.length() > 0 && SMALL_WORDS.contains(lower)) {
         out.append(lower);
+        continue;
+      }
+      if (ROMAN.matcher(word).matches()) {
+        out.append(word);
         continue;
       }
       boolean startOfWord = true;

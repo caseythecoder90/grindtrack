@@ -92,6 +92,12 @@
       <groupId>commons-codec</groupId>
       <artifactId>commons-codec</artifactId>
     </dependency>
+    <!-- Reads the text out of a PDF for the recovery tab's book imports. -->
+    <dependency>
+      <groupId>org.apache.pdfbox</groupId>
+      <artifactId>pdfbox</artifactId>
+      <version>3.0.3</version>
+    </dependency>
 
     <dependency>
       <groupId>org.springframework.boot</groupId>

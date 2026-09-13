@@ -60,6 +60,13 @@ public class RecoveryDay {
     this.readTo = to;
   }
 
+  /** The book was replaced under today's mark: the mark no longer points at anything. */
+  public void clearRead() {
+    this.readDone = false;
+    this.readFrom = null;
+    this.readTo = null;
+  }
+
   public void markMeditated() {
     this.meditated = true;
   }

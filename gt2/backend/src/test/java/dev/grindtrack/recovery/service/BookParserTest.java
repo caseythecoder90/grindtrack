@@ -125,6 +125,7 @@ class BookParserTest {
     assertThat(BookParser.title("TO WIVES")).isEqualTo("To Wives");
     assertThat(BookParser.title("A VISION FOR YOU")).isEqualTo("A Vision for You");
     assertThat(BookParser.title("THE DOCTOR'S OPINION")).isEqualTo("The Doctor's Opinion");
+    assertThat(BookParser.title("PART II")).isEqualTo("Part II");
     assertThat(BookParser.title("Chapter 3: More About Alcoholism"))
         .isEqualTo("More About Alcoholism");
   }

@@ -492,6 +492,7 @@ Schema **`grindtrack`**; Hibernate is `validate`-only, so Liquibase is the singl
 | 031 | `push-subscriptions.sql` | `push_subscriptions` — one browser on one device; the endpoint is the identity |
 | 032 | `chat-todo-drafts.sql` | `todo_batch` joins the `kind` CHECK; `assistant_messages.proposed_todos_date` |
 | 033 | `recovery.sql` | the recovery tab: `recovery_texts`, `recovery_paragraphs`, `recovery_daily_entries`, `recovery_settings`, `recovery_journal`, `recovery_sessions`, `recovery_days`, `bible_verses`. All created empty; the Bible is seeded by `BibleSeeder` on first start, never by a migration |
+| 034 | `recovery-pages.sql` | pages on `recovery_paragraphs` (`page_label`, `page_seq`); `recovery_files` (the uploads, kept); `recovery_settings` reads by the page (`pages_per_day`, `read_last_done`, `reading_place`; `read_minutes` dropped); `recovery_people` and `recovery_contacts` |
 
 - Every changeset has a `--rollback` (018's is a documented no-op — the values it cleared were
   wrong and there is nothing to restore them to). Time columns are `TIMESTAMPTZ DEFAULT now()`.
@@ -519,7 +520,7 @@ Schema **`grindtrack`**; Hibernate is `validate`-only, so Liquibase is the singl
 | `grindtrack.push.vapid-public-key` / `vapid-private-key` / `subject` | `PUSH_VAPID_PUBLIC_KEY` / `PUSH_VAPID_PRIVATE_KEY` / `PUSH_VAPID_SUBJECT` | empty = off | `PushProperties` |
 | `grindtrack.speech.api-key` / `model` / `language` | `OPENAI_API_KEY` / — / — | empty = off / `gpt-4o-mini-transcribe` / `en` | `SpeechProperties` |
 | `grindtrack.recovery.sobriety-date` | `SOBRIETY_DATE` | empty = no number on the page and no recovery section in the context | `RecoveryProperties` |
-| `grindtrack.recovery.readings-cron` | — | 07:55 daily | `RecoveryProperties` |
+| `grindtrack.recovery.readings-cron` / `people-cron` | — | 07:55 daily / 18:00 daily | `RecoveryProperties` |
 | `grindtrack.recovery.bible.file` / `name` / `abbrev` / `books` | — | `recovery/web.jsonl.gz` / World English Bible / `WEB` / the reading order | `RecoveryProperties.Bible` |
 | `grindtrack.todos.reminder-cron` | — | 08:00 and 18:00 daily | `TodoProperties` |
 

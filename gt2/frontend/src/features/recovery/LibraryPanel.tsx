@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { errorMessage } from "../../lib/api";
 import {
   getLibrary,
-  importText,
+  importFiles,
+  reparse,
   restartBible,
   restartReading,
   type ImportReport,
@@ -19,9 +20,9 @@ interface Props {
 
 const HINTS: Record<Slot, string> = {
   big_book:
-    "One plain-text file, the whole book. Chapters are found by their headings; each day's part is whole paragraphs, as many as fit your minutes.",
+    "The publisher's PDFs, all of them at once — chapters, forewords, stories, appendices. They land in the book's order by their names, with the printed page numbers. A single plain-text file works too.",
   reflection:
-    "One plain-text file, the whole book. Days are found by their headings (JANUARY 1 … DECEMBER 31); the today card shows the matching day.",
+    "The book's PDF, or one plain-text file. Days are found by their headings (JANUARY 1 … DECEMBER 31); the today card shows the matching day.",
   meditation:
     "Twenty-Four Hours a Day or any book with one entry per date, the same shape. It shows under the timer.",
 };
@@ -30,8 +31,9 @@ const HINTS: Record<Slot, string> = {
  * Your books: where the texts come from.
  *
  * The AA books are copyrighted, so the app ships none of their text; you bring your own copy
- * once, as one text file per book, and it lives only in your database. The Bible is built in
- * because its translation is in the public domain. A dry run first, like the finance import.
+ * once — the PDFs, all together — and it lives only in your database, files and all, so a better
+ * parser later re-reads them without another upload. The Bible is built in because its
+ * translation is in the public domain. A dry run first, like the finance import.
  */
 export default function LibraryPanel({ onBack, onChanged }: Props) {
   const [library, setLibrary] = useState<Library | null>(null);
@@ -53,16 +55,16 @@ export default function LibraryPanel({ onBack, onChanged }: Props) {
   }, [load]);
 
   async function send(slot: Slot, dryRun: boolean) {
-    const file = files.current[slot]?.files?.[0];
-    if (!file) {
-      setError("choose the text file first");
+    const chosen = Array.from(files.current[slot]?.files ?? []);
+    if (chosen.length === 0) {
+      setError("choose the files first");
       return;
     }
     setBusy(slot);
     setError("");
     setReport(null);
     try {
-      const res = await importText(slot, file, dryRun);
+      const res = await importFiles(slot, chosen, dryRun);
       setReport(res);
       if (!dryRun) {
         const input = files.current[slot];
@@ -71,14 +73,29 @@ export default function LibraryPanel({ onBack, onChanged }: Props) {
         onChanged();
       }
     } catch (e) {
-      setError(errorMessage(e, "could not read that file"));
+      setError(errorMessage(e, "could not read those files"));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function readAgain(slot: Slot) {
+    setBusy(slot);
+    setError("");
+    setReport(null);
+    try {
+      setReport(await reparse(slot));
+      load();
+      onChanged();
+    } catch (e) {
+      setError(errorMessage(e, "could not read the stored files"));
     } finally {
       setBusy(null);
     }
   }
 
   async function startOver() {
-    if (!window.confirm("Back to the first paragraph of the book?")) return;
+    if (!window.confirm("Back to the first page of the book?")) return;
     setError("");
     try {
       await restartReading();
@@ -104,7 +121,7 @@ export default function LibraryPanel({ onBack, onChanged }: Props) {
 
   function state(s: LibrarySlot): string {
     if (!s.imported) return s.slot === "meditation" ? "optional" : "not imported";
-    if (s.slot === "big_book") return `${s.paragraphs.toLocaleString()} paragraphs · ${s.words.toLocaleString()} words`;
+    if (s.slot === "big_book") return `${s.pages} pages · ${s.words.toLocaleString()} words`;
     return `${s.entries} days`;
   }
 
@@ -117,8 +134,8 @@ export default function LibraryPanel({ onBack, onChanged }: Props) {
         </button>
       </div>
       <p className="rec-hint">
-        The AA books are yours to bring: one plain-text file per book, the whole book, once. They live
-        only in your database. The Bible is built in.
+        The AA books are yours to bring: the PDFs, all together, once. They live only in your
+        database. The Bible is built in.
       </p>
       {error && <div className="error">{error}</div>}
 
@@ -129,11 +146,18 @@ export default function LibraryPanel({ onBack, onChanged }: Props) {
             <span className={"rec-note" + (s.imported ? " ok" : "")}>{state(s)}</span>
           </div>
           <p className="rec-hint">{HINTS[s.slot]}</p>
+          {s.files.length > 0 && (
+            <div className="rec-note">
+              {s.files.length} file{s.files.length === 1 ? "" : "s"} stored
+              {s.importedAt && ` · imported ${s.importedAt.slice(0, 10)}`}
+            </div>
+          )}
           <div className="rec-import">
             <input
               type="file"
-              accept=".txt,text/plain"
-              aria-label={`Text file for ${s.defaultTitle}`}
+              multiple
+              accept=".pdf,.txt,application/pdf,text/plain"
+              aria-label={`Files for ${s.defaultTitle}`}
               ref={(el) => {
                 files.current[s.slot] = el;
               }}
@@ -141,15 +165,29 @@ export default function LibraryPanel({ onBack, onChanged }: Props) {
             <button type="button" disabled={busy !== null} onClick={() => send(s.slot, true)}>
               dry run
             </button>
-            <button type="button" className="rec-primary" disabled={busy !== null} onClick={() => send(s.slot, false)}>
-              {s.imported ? "replace" : "import"}
+            <button
+              type="button"
+              className="rec-primary"
+              disabled={busy !== null}
+              onClick={() => send(s.slot, false)}
+            >
+              {busy === s.slot ? "reading…" : s.imported ? "replace" : "import"}
             </button>
-            {s.slot === "big_book" && s.imported && (
-              <button type="button" className="linkish" onClick={startOver}>
-                start the book over
-              </button>
-            )}
           </div>
+          {s.imported && (
+            <div className="rec-import">
+              {s.files.length > 0 && (
+                <button type="button" className="linkish" disabled={busy !== null} onClick={() => readAgain(s.slot)}>
+                  read the stored files again
+                </button>
+              )}
+              {s.slot === "big_book" && (
+                <button type="button" className="linkish" onClick={startOver}>
+                  start the book over
+                </button>
+              )}
+            </div>
+          )}
           {report?.slot === s.slot && <Report report={report} />}
         </section>
       ))}
@@ -186,25 +224,37 @@ function Report({ report }: { report: ImportReport }) {
     <div className="rec-report">
       <div className="rec-note">
         {report.dryRun ? "dry run — nothing written" : "imported"} · {report.title}
-        {report.chapters.length > 0 && ` · ${report.chapters.length} chapters · ${report.paragraphs.toLocaleString()} paragraphs · ${report.words.toLocaleString()} words`}
-        {report.entries > 0 && ` · ${report.entries} days` + (report.missingCount > 0 ? `, ${report.missingCount} missing` : ", none missing")}
+        {report.chapters.length > 0 &&
+          ` · ${report.chapters.length} chapters · ${report.pages} pages · ${report.paragraphs.toLocaleString()} paragraphs · ${report.words.toLocaleString()} words`}
+        {report.entries > 0 &&
+          ` · ${report.entries} days` +
+            (report.missingCount > 0 ? `, ${report.missingCount} missing` : ", none missing")}
         {report.cursorReset && " · the reading starts over"}
       </div>
       {report.chapters.length > 0 && (
         <ol className="rec-report-chapters">
           {report.chapters.map((c) => (
             <li key={c.no}>
-              <span>{c.title}</span>
-              <span className="rec-note">{c.paragraphs} ¶ · {c.words.toLocaleString()} w</span>
+              <span className="ellipsis">{c.title}</span>
+              <span className="rec-note">
+                {c.firstPage && (c.firstPage === c.lastPage ? `p. ${c.firstPage}` : `pp. ${c.firstPage}–${c.lastPage}`)}
+                {c.firstPage && " · "}
+                {c.words.toLocaleString()} w
+              </span>
             </li>
           ))}
         </ol>
       )}
       {report.missing.length > 0 && (
-        <div className="rec-note">missing: {report.missing.join(", ")}{report.missingCount > report.missing.length ? ", …" : ""}</div>
+        <div className="rec-note">
+          missing: {report.missing.join(", ")}
+          {report.missingCount > report.missing.length ? ", …" : ""}
+        </div>
       )}
       {report.warnings.map((w) => (
-        <div key={w} className="rec-warning">{w}</div>
+        <div key={w} className="rec-warning">
+          {w}
+        </div>
       ))}
       <blockquote className="rec-sample">{report.sample}</blockquote>
     </div>

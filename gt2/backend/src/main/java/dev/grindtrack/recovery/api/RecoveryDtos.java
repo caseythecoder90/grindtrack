@@ -8,7 +8,7 @@ public final class RecoveryDtos {
   private RecoveryDtos() {}
 
   /** Either field may be null to leave it alone. */
-  public record SettingsRequest(Integer readMinutes, Integer meditationMinutes) {}
+  public record SettingsRequest(Integer pagesPerDay, Integer meditationMinutes) {}
 
   /** {@code completed} false is a sitting cut short: logged, but the day is not marked. */
   public record SessionRequest(Integer minutes, Boolean completed) {}
@@ -22,4 +22,16 @@ public final class RecoveryDtos {
           entry.getId(), entry.getCreatedAt().toString(), entry.getBody(), entry.isSpoken());
     }
   }
+
+  /** A person to keep in touch with. {@code role} is sponsor, prospect or friend. */
+  public record PersonRequest(String name, String role, Integer cadenceDays, String note) {}
+
+  /** Partial update: a null field is left alone; {@code clearNote} removes the note. */
+  public record PersonUpdateRequest(
+      String name, String role, Integer cadenceDays, String note, Boolean clearNote) {}
+
+  public record ContactRequest(String note) {}
+
+  /** Where the reader is: a paragraph seq. */
+  public record PlaceRequest(Integer seq) {}
 }

@@ -16,11 +16,13 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @param sobrietyDate ISO date from {@code SOBRIETY_DATE}, or blank
  * @param readingsCron when the day's readings are pushed to the phone, for reading together later.
  *     Spring cron, in the assistant's zone.
+ * @param peopleCron when the phone is reminded who is due a call. Sent only while someone is.
  * @param bible the built-in Bible: which resource file, what to call it, and the order the books
  *     are read in
  */
 @ConfigurationProperties(prefix = "grindtrack.recovery")
-public record RecoveryProperties(String sobrietyDate, String readingsCron, Bible bible) {
+public record RecoveryProperties(
+    String sobrietyDate, String readingsCron, String peopleCron, Bible bible) {
 
   /**
    * @param file classpath resource, gzipped JSON lines as written by {@code

@@ -81,6 +81,9 @@ grindtrack:
     # pushed once, for reading together later in the morning. Nothing is sent when nothing is
     # imported and the Bible is not seeded.
     readings-cron: "0 55 7 * * *"
+    # Six in the evening: who is due a call — a sponsor past the week, a friend past the cadence,
+    # a sponsor still to be asked. Sent only while someone is.
+    people-cron: "0 0 18 * * *"
     # The Bible is the one text the app ships, because this translation is in the public domain.
     # Seeded once from the resource on first start; tools/recovery/usfx_to_verses.py makes the
     # file from a USFX edition, and the KJV is the same command on a different input.
