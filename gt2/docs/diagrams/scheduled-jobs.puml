@@ -19,7 +19,7 @@ skinparam note {
 }
 
 participant "Spring @Scheduled\n(zone America/New_York)" as cron
-participant "MorningBriefScheduler\n06:00 every day" as mbs
+participant "MorningBriefScheduler\n05:30 every day" as mbs
 participant "WeeklyReviewScheduler\nFriday 17:00" as wrs
 participant "MorningBriefService /\nWeeklyReviewService" as svc
 participant "model" as model
@@ -27,15 +27,16 @@ database "assistant_reports" as reports
 participant "PushService" as push
 participant "phone" as phone
 
-== 06:00 — the brief ==
+== 05:30 — the brief ==
 cron -> mbs : brief-cron fires
 mbs -> mbs : model.configured()? else return quietly
 mbs -> svc : generate(today)
 svc -> model : one structured call (~2¢)
-model --> svc : BriefDraft {headline, today, suggestion}
+model --> svc : BriefDraft {motivation, headline, today, suggestion}
 svc -> reports : upsert (morning_brief, today)
 svc --> mbs : Brief
-mbs -> push : send(morningBrief(headline))\nin its OWN try — a push failure\ncannot make a drafted brief look failed
+mbs -> push : send(morningMotivation(line)), then\nsend(morningBrief(headline)) — each in its OWN\ntry: a push failure cannot make a drafted brief look failed
+push --> phone : "good morning" · the line · TTL 6 h
 push --> phone : "morning brief" · headline · TTL 6 h
 phone -> phone : tap → today tab, the card is waiting
 

@@ -54,6 +54,8 @@ public interface ChatModel {
    *     booking: it is a row and a card, and the calendar is untouched until someone clicks
    * @param proposedLogDate the day this turn drafted a log for, or null — the same contract: a row
    *     and a card, and the day's log untouched until someone clicks
+   * @param proposedTodosDate the day this turn drafted todos on, or null — a card, and the list
+   *     untouched until someone clicks
    */
   record Reply(
       String text,
@@ -62,5 +64,6 @@ public interface ChatModel {
       long cacheWriteTokens,
       long cacheReadTokens,
       String proposedWeekStart,
-      String proposedLogDate) {}
+      String proposedLogDate,
+      String proposedTodosDate) {}
 }

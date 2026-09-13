@@ -61,3 +61,5 @@ databaseChangeLog:
       file: db/changelog/030-morning-brief.sql
   - include:
       file: db/changelog/031-push-subscriptions.sql
+  - include:
+      file: db/changelog/032-chat-todo-drafts.sql

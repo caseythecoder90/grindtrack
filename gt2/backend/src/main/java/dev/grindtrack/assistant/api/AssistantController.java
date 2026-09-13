@@ -5,6 +5,7 @@ import dev.grindtrack.assistant.service.AssistantContext;
 import dev.grindtrack.assistant.service.ContextService;
 import dev.grindtrack.assistant.service.DayLogService;
 import dev.grindtrack.assistant.service.MorningBriefService;
+import dev.grindtrack.assistant.service.TodoDraftService;
 import dev.grindtrack.assistant.service.WeekPlanService;
 import dev.grindtrack.assistant.service.WeeklyReviewService;
 import dev.grindtrack.web.Requests;
@@ -40,18 +41,21 @@ public class AssistantController {
   private final WeekPlanService weekPlans;
   private final DayLogService dayLogs;
   private final MorningBriefService briefs;
+  private final TodoDraftService todoDrafts;
 
   public AssistantController(
       ContextService context,
       WeeklyReviewService reviews,
       WeekPlanService weekPlans,
       DayLogService dayLogs,
-      MorningBriefService briefs) {
+      MorningBriefService briefs,
+      TodoDraftService todoDrafts) {
     this.context = context;
     this.reviews = reviews;
     this.weekPlans = weekPlans;
     this.dayLogs = dayLogs;
     this.briefs = briefs;
+    this.todoDrafts = todoDrafts;
   }
 
   /**
@@ -123,6 +127,18 @@ public class AssistantController {
   @PostMapping("/day-log/accept")
   public DayLogService.Accepted acceptDayLog(@RequestParam String date) {
     return dayLogs.accept(Requests.requireDate(date, "invalid date"));
+  }
+
+  /** The todos drafted on a day, or an empty body when none, or once they have been added. */
+  @GetMapping("/todos")
+  public TodoDraftService.Draft todoDraft(@RequestParam String date) {
+    return todoDrafts.find(Requests.requireDate(date, "invalid date")).orElse(null);
+  }
+
+  /** Add the drafted todos. The third write here, and it removes the draft so it cannot repeat. */
+  @PostMapping("/todos/accept")
+  public TodoDraftService.Accepted acceptTodos(@RequestParam String date) {
+    return todoDrafts.accept(Requests.requireDate(date, "invalid date"));
   }
 
   /** Today's brief, or an empty body before the scheduler has run. Today unless a date is given. */

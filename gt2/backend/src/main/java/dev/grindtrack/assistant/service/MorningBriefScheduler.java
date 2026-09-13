@@ -43,6 +43,8 @@ public class MorningBriefScheduler {
     try {
       MorningBriefService.Brief brief = briefs.generate(today);
       log.info("Drafted the morning brief for {} (~${})", today, brief.costUsd());
+      // Two, in this order: the line to wake up to, then the brief behind it.
+      tell(PushService.Notification.morningMotivation(brief.draft().motivation()));
       tell(PushService.Notification.morningBrief(brief.draft().headline()));
     } catch (Exception e) {
       log.error("The scheduled morning brief failed", e);
@@ -54,6 +56,9 @@ public class MorningBriefScheduler {
    * own: a brief that drafted and did not buzz the phone is still a brief on the today tab.
    */
   private void tell(PushService.Notification notification) {
+    if (notification == null) {
+      return;
+    }
     try {
       PushService.Outcome outcome = push.send(notification);
       if (outcome.sent() + outcome.failed() + outcome.gone() > 0) {

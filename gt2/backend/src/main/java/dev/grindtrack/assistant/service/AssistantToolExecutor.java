@@ -52,6 +52,7 @@ public class AssistantToolExecutor {
   private final FocusService focus;
   private final WeekPlanService weekPlan;
   private final DayLogService dayLog;
+  private final TodoDraftService todoDrafts;
   private final ObjectMapper mapper;
 
   public AssistantToolExecutor(
@@ -61,6 +62,7 @@ public class AssistantToolExecutor {
       FocusService focus,
       WeekPlanService weekPlan,
       DayLogService dayLog,
+      TodoDraftService todoDrafts,
       ObjectMapper mapper) {
     this.plan = plan;
     this.tracking = tracking;
@@ -68,6 +70,7 @@ public class AssistantToolExecutor {
     this.focus = focus;
     this.weekPlan = weekPlan;
     this.dayLog = dayLog;
+    this.todoDrafts = todoDrafts;
     this.mapper = mapper;
   }
 
@@ -147,7 +150,51 @@ public class AssistantToolExecutor {
                 "blockers",
                 Map.of("type", "string", "description", "Blockers or notes."),
                 "energy",
-                Map.of("type", "string", "description", "1-5, only if he said how he felt."))));
+                Map.of("type", "string", "description", "1-5, only if he said how he felt."))),
+        new ToolSpec(
+            "propose_todos",
+            "Draft one or more todos for Casey to approve. Adds NOTHING: it produces a card he can"
+                + " accept or ignore, and the todo list is untouched unless he presses the"
+                + " button. Use it when he asks you to remind him of something, add a todo, or"
+                + " remember to do a thing. Several in one sentence are one call with several"
+                + " items. Returns what was drafted; tell him it is waiting on him. Never say it"
+                + " has been added.",
+            Map.of(
+                "items",
+                Map.of(
+                    "type",
+                    "string",
+                    "description",
+                    "A JSON array of objects, each {\"title\": string, \"kind\": \"work\" or"
+                        + " \"personal\", \"dueDate\": \"YYYY-MM-DD\" or omitted}. Short,"
+                        + " imperative titles. A due date only if he gave one; work it out from"
+                        + " today's date in the context."))));
+  }
+
+  private String proposeTodos(Map<String, String> args) {
+    List<TodoDraft.Item> items;
+    try {
+      String raw = args.get("items");
+      if (raw == null || raw.isBlank()) {
+        return "could not draft todos: items is missing";
+      }
+      items =
+          mapper.readValue(
+              raw,
+              mapper.getTypeFactory().constructCollectionType(List.class, TodoDraft.Item.class));
+    } catch (JsonProcessingException e) {
+      return "could not draft todos: items must be a JSON array of {title, kind, dueDate}";
+    }
+    try {
+      TodoDraftService.Draft stored = todoDrafts.propose(LocalDate.now(), items);
+      Map<String, Object> result = new LinkedHashMap<>();
+      result.put("date", stored.date());
+      result.put("items", stored.items());
+      result.put("status", "drafted and waiting for Casey to add them — nothing has been added");
+      return json(result);
+    } catch (BadRequestException e) {
+      return "could not draft todos: " + e.getMessage();
+    }
   }
 
   /** Dispatch one call. The result is what the model reads next, so errors are sentences. */
@@ -160,6 +207,7 @@ public class AssistantToolExecutor {
         case "get_focus_sessions" -> json(sessionRows(date(args.get("date"))));
         case "propose_week" -> proposeWeek(args.get("weekStart"));
         case "propose_log" -> proposeLog(args);
+        case "propose_todos" -> proposeTodos(args);
         default -> "unknown tool: " + name;
       };
     } catch (ToolArgumentException e) {

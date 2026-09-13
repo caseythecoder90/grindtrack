@@ -39,8 +39,11 @@ public class AnthropicBriefModel implements BriefModel {
       3. If yesterday's notes say something, use it — a blocker written last night is the most \
       useful sentence you have. Quote a short phrase rather than paraphrasing.
       4. If nothing is booked and nothing is due, say so in one line; do not manufacture urgency.
-      5. Short. Three pieces, a few sentences in all, read in under a minute. Plain text only — \
+      5. Short. Four pieces, a few sentences in all, read in under a minute. Plain text only — \
       no markdown, no bold, no headings, no bullets; your words render exactly as written.
+      6. The motivation line comes first on the phone, at half past five, before email and before \
+      the feed. It is for a man in recovery building a career and a family: name what today is \
+      for in those terms, from the context, and stop. Never a slogan.
       """;
 
   private final AssistantProperties props;

@@ -136,6 +136,8 @@ Full design notes: [assistant.md](assistant.md).
 | GET | `/api/assistant/day-log?date=` | A day's log as drafted in conversation, merged over the day as it stands now: `{logDate, generatedAt, changes, result}`. `changes` is only what was said (nulls mean unchanged); `result` is the whole day as it will read once saved. Or `null` |
 | GET | `/api/assistant/brief[?date=]` | The morning brief for a day (today by default): `{date, generatedAt, model, costUsd, draft:{headline, today, suggestion}}`, or `null` before the 06:00 job has run |
 | POST | `/api/assistant/brief[?date=]` | **Spends money** (~2¢). Redrafts the day's brief, replacing the row |
+| GET | `/api/assistant/todos?date=` | The todos drafted in conversation on a day: `{date, generatedAt, items:[{title, kind, dueDate}]}`, or `null` — before any were drafted, or once they were added |
+| POST | `/api/assistant/todos/accept?date=` | The third write. Creates the stored items as todos and removes the draft, so a second call is a 400 rather than a duplicate |
 | POST | `/api/assistant/day-log/accept?date=` | The other write. Merges the stored draft over the day at that moment and saves through the same path the form uses; absent hours stay unchanged |
 | GET | `/api/assistant/chat` | Conversations, most recent first: `{id, title, lastMessageAt, turns, hasDraft}`. `turns` and `hasDraft` exist because a title taken from the first message cannot tell two threads apart when both began with the same question — and a retry begins with exactly the same question |
 | GET | `/api/assistant/chat/{id}` | One conversation's turns |

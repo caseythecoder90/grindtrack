@@ -336,6 +336,9 @@ messages, reports) and otherwise reads the other features. Design notes in
 | DELETE | `/subscriptions/{id}` | `{deleted}` |
 | POST | `/test` | the test notification, to one endpoint or all |
 
+A third producer, `todo/service/TodoReminderScheduler`, pushes what is still open at the configured
+times; `config/TodoProperties` holds the cron.
+
 The sending side is `push/service/`: `Vapid` (RFC 8292, the signed sender header), `PayloadCipher`
 (RFC 8291, the body encrypted to the device — tested against the RFC's own worked example),
 `PushService` (one row per endpoint; 404/410 deletes it; anything else is logged and kept) and
@@ -487,6 +490,7 @@ Schema **`grindtrack`**; Hibernate is `validate`-only, so Liquibase is the singl
 | 029 | `chat-log-drafts.sql` | `day_log` joins the `kind` CHECK; `assistant_messages.proposed_log_date` |
 | 030 | `morning-brief.sql` | `morning_brief` joins the `kind` CHECK — one row per day |
 | 031 | `push-subscriptions.sql` | `push_subscriptions` — one browser on one device; the endpoint is the identity |
+| 032 | `chat-todo-drafts.sql` | `todo_batch` joins the `kind` CHECK; `assistant_messages.proposed_todos_date` |
 
 - Every changeset has a `--rollback` (018's is a documented no-op — the values it cleared were
   wrong and there is nothing to restore them to). Time columns are `TIMESTAMPTZ DEFAULT now()`.
@@ -513,6 +517,8 @@ Schema **`grindtrack`**; Hibernate is `validate`-only, so Liquibase is the singl
 | `grindtrack.assistant.model` / `zone` / `review-cron` / `brief-cron` | — | `claude-opus-5` / `America/New_York` / Fri 17:00 / 06:00 daily | `AssistantProperties` |
 | `grindtrack.push.vapid-public-key` / `vapid-private-key` / `subject` | `PUSH_VAPID_PUBLIC_KEY` / `PUSH_VAPID_PRIVATE_KEY` / `PUSH_VAPID_SUBJECT` | empty = off | `PushProperties` |
 | `grindtrack.speech.api-key` / `model` / `language` | `OPENAI_API_KEY` / — / — | empty = off / `gpt-4o-mini-transcribe` / `en` | `SpeechProperties` |
+| `grindtrack.recovery.sobriety-date` | `SOBRIETY_DATE` | empty = no recovery section in the context | `RecoveryProperties` |
+| `grindtrack.todos.reminder-cron` | — | 08:00 and 18:00 daily | `TodoProperties` |
 
 Also: `spring.threads.virtual.enabled: true` (Java 21 virtual threads), `ddl-auto: validate`,
 `hibernate.default_schema: grindtrack`, `server.port: 8080`. **No Spring profiles** — environment

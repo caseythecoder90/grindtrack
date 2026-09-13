@@ -64,6 +64,8 @@ export interface ChatTurn {
   proposedWeekStart: string | null;
   /** The day this turn drafted a log entry for, or null. */
   proposedLogDate: string | null;
+  /** The day this turn drafted todos on, or null. */
+  proposedTodosDate: string | null;
 }
 
 export interface ChatReply {
@@ -78,6 +80,8 @@ export interface ChatReply {
   proposedWeekStart: string | null;
   /** Same contract for a drafted day's log: a card, and nothing saved until {@link acceptDayLog}. */
   proposedLogDate: string | null;
+  /** And for drafted todos: a card, nothing added until {@link acceptTodos}. */
+  proposedTodosDate: string | null;
 }
 
 export const listConversations = () => api<ConversationSummary[]>(`${BASE}/chat`);
@@ -256,8 +260,29 @@ export interface MorningBrief {
   generatedAt: string;
   model: string;
   costUsd: number;
-  draft: { headline: string; today: string; suggestion: string };
+  /** motivation is absent on briefs drafted before it existed. */
+  draft: { headline: string; today: string; suggestion: string; motivation?: string | null };
 }
+
+export interface TodoDraftItem {
+  title: string;
+  kind: "work" | "personal";
+  dueDate: string | null;
+}
+
+export interface TodoDraft {
+  date: string;
+  generatedAt: string | null;
+  items: TodoDraftItem[];
+}
+
+/** Null when nothing is drafted for that day — or once the batch has been added. */
+export const getTodoDraft = (date: string) =>
+  api<TodoDraft | null>(`${BASE}/todos?date=${date}`);
+
+/** The write. Adds what was stored and shown, then removes the draft so it cannot repeat. */
+export const acceptTodos = (date: string) =>
+  api<{ date: string; added: number }>(`${BASE}/todos/accept?date=${date}`, jsonInit("POST", {}));
 
 /** Null when nothing has been drafted for that day yet — before six, or with the assistant off. */
 export const getMorningBrief = (date: string) =>
