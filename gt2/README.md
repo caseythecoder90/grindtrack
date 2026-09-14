@@ -6,7 +6,7 @@ BCrypt password + TOTP second factor + short-lived JWT access tokens + rotating 
 refresh tokens, all in httpOnly SameSite=Strict cookies. Public landing page shows the
 heatmap and streak; everything else requires login.
 
-Ten tabs over nine backend features:
+Thirteen tabs over thirteen backend features:
 
 | Tab | What it tracks |
 |---|---|
@@ -18,6 +18,8 @@ Ten tabs over nine backend features:
 | **Work** | Day-job hours against 40/week, a journal, and a deliberate competency checklist |
 | **Money** | Accounts and net worth, statement import for six bank formats + OFX/QFX, automatic categorization by rule, a review inbox, spending rollups, recurring-charge detection, and budgets |
 | **Us** | Moments, ideas, occasions and a reading list. Built to reassure, not to score — there is deliberately no streak, target or rating anywhere in it |
+| **Ask** | A chat with an assistant that has read every other tab. It answers questions and drafts things — a week, a day's log, a batch of todos — and nothing it drafts is real until a button is pressed. Also the 05:30 morning brief and the Friday review |
+| **Recovery** | The number, the day's readings, a meditation timer, the Big Book two pages a day with search, a journal, and the people to call. Texts are imported from the publisher's PDFs; the Bible is seeded on first boot |
 
 ## Docs
 
