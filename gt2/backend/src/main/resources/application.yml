@@ -22,7 +22,6 @@ spring:
       # A whole book of PDFs in one request: the Big Book's thirty-one files are about 3 MB.
       # The ingress allows the same (proxy-body-size in the cluster repo).
       max-request-size: 16MB
-      max-request-size: 6MB
   liquibase:
     change-log: classpath:db/changelog/db.changelog-master.yaml
     default-schema: grindtrack
