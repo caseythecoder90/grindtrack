@@ -93,7 +93,7 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   if (unavailable(res.status)) throw new OfflineError(OFFLINE_MESSAGE);
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.error ?? res.statusText);
+    throw new Error(body.error ?? describe(res.status, res.statusText));
   }
   // "No entry yet" endpoints (e.g. GET /api/days/<unlogged date>) return 200
   // with an empty body; surface that as null rather than a JSON parse error.
@@ -124,7 +124,7 @@ export async function stream(path: string, init?: RequestInit): Promise<Response
   if (unavailable(res.status)) throw new OfflineError(OFFLINE_MESSAGE);
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.error ?? res.statusText);
+    throw new Error(body.error ?? describe(res.status, res.statusText));
   }
   if (!res.body) throw new OfflineError(OFFLINE_MESSAGE);
   return res;
@@ -145,6 +145,16 @@ export function jsonInit(method: string, body: unknown): RequestInit {
  * fallback string. The fallback is the argument because it is the only part that legitimately
  * differs -- "could not load your budget" is more use than "something went wrong".
  */
+/**
+ * A sentence for a failure that came back without one of the app's own `{error}` bodies — the
+ * ingress answering for the app, usually. Over HTTP/2 the status text is empty, so the number
+ * has to carry the meaning on its own.
+ */
+function describe(status: number, statusText: string): string {
+  if (status === 413) return "that upload is larger than the server accepts";
+  return statusText || `the request failed (${status})`;
+}
+
 export function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;
 }
