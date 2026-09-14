@@ -19,6 +19,9 @@ spring:
       # Must not be below the limit StatementImportController enforces, or files between the two
       # sizes fail with a raw container error instead of the message written for them.
       max-file-size: 5MB
+      # A whole book of PDFs in one request: the Big Book's thirty-one files are about 3 MB.
+      # The ingress allows the same (proxy-body-size in the cluster repo).
+      max-request-size: 16MB
       max-request-size: 6MB
   liquibase:
     change-log: classpath:db/changelog/db.changelog-master.yaml
