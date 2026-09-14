@@ -121,6 +121,16 @@ and the count of read-throughs goes up by one. Replacing the book keeps
 the cursor when the paragraph count is close (within 5%), otherwise it
 resets, clears today's mark, and says so.
 
+**Searching, and going to a page.** The read view opens with a search
+box and a page box. Search is Postgres full-text over the paragraphs
+(migration 035 adds the GIN index): English stemming, so "surrender"
+finds "surrendered", every word of the query has to be there, best
+matches first, forty at most. Each hit shows the page, the chapter and
+a snippet around the words; tapping it opens the chapter in the reader
+with that paragraph lit. "Page 417" opens the chapter at the first
+paragraph of that page — for the meeting where someone names a page and
+the physical book is at home.
+
 **Reading anywhere.** The read view carries the table of contents: every
 chapter with its printed page range and whether the cursor has passed it.
 Tapping one opens the chapter in the reader — serif, the book's own
@@ -159,7 +169,7 @@ screen.
 
 ## Data model
 
-Migrations `033-recovery.sql` and `034-recovery-pages.sql`, package
+Migrations `033-recovery.sql`, `034-recovery-pages.sql` and `035-recovery-search.sql`, package
 `dev.grindtrack.recovery` (`domain`, `service`, `api`):
 
 | Table | Row is | Notes |
@@ -192,6 +202,8 @@ All under `/api/recovery`, same auth as everything else.
 | `POST /read/restart` | Cursor back to the first paragraph |
 | `GET /book` | The table of contents and where the cursor is |
 | `GET /book/chapters/{no}` | A chapter's paragraphs, with the page labels and its neighbours |
+| `GET /book/search?q=` | Full-text search; forty hits with page, chapter and snippet |
+| `GET /book/page/{label}` | Where a printed page begins |
 | `PUT /book/place` | Where the reader is |
 | `PUT /settings` | `pagesPerDay`, `meditationMinutes` |
 | `POST /sessions` | Logs a meditation `{minutes, completed}`; only a completed one marks the day |
@@ -245,7 +257,7 @@ reference, not the text.
 | The number | `Milestones.java` | Day one is the date; the next milestone |
 | Everything else | `RecoveryService.java` | The today view, the cursor and the carry-over, the reader, the imports and the stored files, the people, the push lines |
 | The pushes | `RecoveryReadingScheduler.java`, `PeopleReminderScheduler.java` + `PushService.Notification.readings` / `peopleToCall` | Same shape as the todo reminder |
-| The page | `frontend/src/features/recovery/` | `RecoveryPage` (views and columns), `BookReader` (any chapter, mark read to here), `PeoplePanel`, `MeditationTimer` (+ `bell.ts`), `JournalComposer` (the ask tab's composer with `useSpeech`), `LibraryPanel` |
+| The page | `frontend/src/features/recovery/` | `RecoveryPage` (views and columns), `BookSearch` (search and go to page), `BookReader` (any chapter, a hit lit, mark read to here), `PeoplePanel`, `MeditationTimer` (+ `bell.ts`), `JournalComposer` (the ask tab's composer with `useSpeech`), `LibraryPanel` |
 
 ## Decisions taken
 

@@ -382,6 +382,8 @@ are returned as the service's records; cards the data cannot fill are `null`, no
 | POST | `/api/recovery/read/restart` | – | cursor back to the first paragraph; the `today` shape |
 | GET | `/api/recovery/book` | – | the `reading` shape on its own: today's part, `pagesDue`, `pagesCarried`, `pageFrom`/`pageTo`, `pageCount`, `place`, and `chapters[]` with `firstPage`/`lastPage` and `state`; 404 when no book is imported |
 | GET | `/api/recovery/book/chapters/{no}` | – | `{no, title, paragraphs: [{seq, body, pageLabel, pageSeq}], prevNo, nextNo, cursor}` |
+| GET | `/api/recovery/book/search?q=` | – | `[{seq, chapterNo, chapterTitle, pageLabel, snippet}]`, best matches first, forty at most; full-text with English stemming, every word required. 400 under two characters |
+| GET | `/api/recovery/book/page/{label}` | – | `{chapterNo, chapterTitle, seq, pageLabel}` — the first paragraph on that printed page; 404 when there is no such page |
 | PUT | `/api/recovery/book/place` | `{seq}` | where the reader is; `{saved: seq}` |
 | PUT | `/api/recovery/settings` | `{pagesPerDay?, meditationMinutes?}` (1–50, 1–180) | `{pagesPerDay, meditationMinutes}` |
 | POST | `/api/recovery/sessions` | `{minutes, completed?}` | logs a sitting; only a completed one marks the day. `{streak, doneToday}` |

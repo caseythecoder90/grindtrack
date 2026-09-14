@@ -493,6 +493,7 @@ Schema **`grindtrack`**; Hibernate is `validate`-only, so Liquibase is the singl
 | 032 | `chat-todo-drafts.sql` | `todo_batch` joins the `kind` CHECK; `assistant_messages.proposed_todos_date` |
 | 033 | `recovery.sql` | the recovery tab: `recovery_texts`, `recovery_paragraphs`, `recovery_daily_entries`, `recovery_settings`, `recovery_journal`, `recovery_sessions`, `recovery_days`, `bible_verses`. All created empty; the Bible is seeded by `BibleSeeder` on first start, never by a migration |
 | 034 | `recovery-pages.sql` | pages on `recovery_paragraphs` (`page_label`, `page_seq`); `recovery_files` (the uploads, kept); `recovery_settings` reads by the page (`pages_per_day`, `read_last_done`, `reading_place`; `read_minutes` dropped); `recovery_people` and `recovery_contacts` |
+| 035 | `recovery-search.sql` | a GIN full-text index over `recovery_paragraphs.body`, English dictionary, for searching the book |
 
 - Every changeset has a `--rollback` (018's is a documented no-op — the values it cleared were
   wrong and there is nothing to restore them to). Time columns are `TIMESTAMPTZ DEFAULT now()`.

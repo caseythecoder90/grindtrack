@@ -196,6 +196,27 @@ export const getBook = () => api<Reading>(`${BASE}/book`);
 
 export const getChapter = (no: number) => api<ChapterText>(`${BASE}/book/chapters/${no}`);
 
+export interface Hit {
+  seq: number;
+  chapterNo: number;
+  chapterTitle: string;
+  pageLabel: string | null;
+  snippet: string;
+}
+
+export interface PagePlace {
+  chapterNo: number;
+  chapterTitle: string;
+  seq: number;
+  pageLabel: string;
+}
+
+export const searchBook = (q: string) =>
+  api<Hit[]>(`${BASE}/book/search?q=${encodeURIComponent(q)}`);
+
+export const findPage = (label: string) =>
+  api<PagePlace>(`${BASE}/book/page/${encodeURIComponent(label)}`);
+
 export const savePlace = (seq: number) =>
   api(`${BASE}/book/place`, jsonInit("PUT", { seq }));
 
