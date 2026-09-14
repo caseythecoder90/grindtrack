@@ -358,4 +358,20 @@ class RecoveryServiceTest {
     RecoveryService.PersonView asked = service.logContact(2L, "said yes").orElseThrow();
     assertThat(asked.role()).isEqualTo("sponsor");
   }
+
+  @Test
+  void aSnippetIsTheWordsInTheirSurroundingsOnWordBoundaries() {
+    String body =
+        "Half measures availed us nothing. We stood at the turning point. We asked His"
+            + " protection and care with complete abandon, and it was a long paragraph after that,"
+            + " going on for a while so the end is cut, and cut on a word rather than in one.";
+
+    String hit = RecoveryService.snippet(body, List.of("turning", "point"));
+
+    assertThat(hit).startsWith("Half measures availed").contains("turning point").endsWith("…");
+    assertThat(RecoveryService.snippet(body, List.of("abandon"))).startsWith("…");
+    // A word the paragraph carries only in a stemmed form still lands somewhere near it.
+    assertThat(RecoveryService.snippet(body, List.of("protections"))).contains("protection");
+    assertThat(RecoveryService.snippet("short", List.of("zzz"))).isEqualTo("short");
+  }
 }

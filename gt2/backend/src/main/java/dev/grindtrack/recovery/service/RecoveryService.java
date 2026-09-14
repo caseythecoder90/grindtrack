@@ -456,6 +456,83 @@ public class RecoveryService {
         settings().getReadCursor());
   }
 
+  /** A hit in the book: where it is, and a piece of the paragraph around the words. */
+  public record Hit(
+      int seq, int chapterNo, String chapterTitle, String pageLabel, String snippet) {}
+
+  /** Where a page begins. */
+  public record PagePlace(int chapterNo, String chapterTitle, int seq, String pageLabel) {}
+
+  public List<Hit> search(String q) {
+    RecoveryText book = texts.findBySlot(TextSlot.BIG_BOOK).orElse(null);
+    if (book == null) {
+      return List.of();
+    }
+    List<String> words = List.of(q.toLowerCase(java.util.Locale.ROOT).trim().split("\\s+"));
+    return paragraphs.search(book.getId(), q).stream()
+        .map(
+            p ->
+                new Hit(
+                    p.getSeq(),
+                    p.getChapterNo(),
+                    p.getChapterTitle(),
+                    p.getPageLabel(),
+                    snippet(p.getBody(), words)))
+        .toList();
+  }
+
+  /**
+   * About a hundred and sixty characters around the first of the words, on word boundaries, with an
+   * ellipsis at whichever ends were cut. The whole paragraph is one tap away.
+   */
+  static String snippet(String body, List<String> words) {
+    String lower = body.toLowerCase(java.util.Locale.ROOT);
+    int at = -1;
+    for (String w : words) {
+      if (w.isEmpty()) {
+        continue;
+      }
+      int i = lower.indexOf(w);
+      if (i >= 0 && (at < 0 || i < at)) {
+        at = i;
+      }
+      // A stemmed match ("surrendered" for "surrender") is usually the word's first letters.
+      if (i < 0 && w.length() > 4) {
+        int j = lower.indexOf(w.substring(0, w.length() - 2));
+        if (j >= 0 && (at < 0 || j < at)) {
+          at = j;
+        }
+      }
+    }
+    if (at < 0) {
+      at = 0;
+    }
+    int start = Math.max(0, at - 60);
+    int end = Math.min(body.length(), at + 100);
+    if (start > 0) {
+      int space = body.lastIndexOf(' ', start);
+      start = space > 0 ? space + 1 : start;
+    }
+    if (end < body.length()) {
+      int space = body.indexOf(' ', end);
+      end = space > 0 ? space : end;
+    }
+    return (start > 0 ? "…" : "") + body.substring(start, end) + (end < body.length() ? "…" : "");
+  }
+
+  public Optional<PagePlace> page(String label) {
+    RecoveryText book = texts.findBySlot(TextSlot.BIG_BOOK).orElse(null);
+    if (book == null) {
+      return Optional.empty();
+    }
+    return paragraphs
+        .findFirstByTextIdAndPageLabelOrderBySeqAsc(
+            book.getId(), label.trim().toLowerCase(java.util.Locale.ROOT))
+        .map(
+            p ->
+                new PagePlace(p.getChapterNo(), p.getChapterTitle(), p.getSeq(), p.getPageLabel()));
+  }
+
   @Transactional
   public Settings updateSettings(Integer pagesPerDay, Integer meditationMinutes) {
     RecoverySettings settings = settings();

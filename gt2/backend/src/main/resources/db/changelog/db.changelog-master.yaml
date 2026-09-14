@@ -67,3 +67,5 @@ databaseChangeLog:
       file: db/changelog/033-recovery.sql
   - include:
       file: db/changelog/034-recovery-pages.sql
+  - include:
+      file: db/changelog/035-recovery-search.sql

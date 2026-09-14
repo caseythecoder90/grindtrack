@@ -3,6 +3,7 @@ import Segmented from "../../components/Segmented";
 import { errorMessage } from "../../lib/api";
 import { useAppResume } from "../../lib/resume";
 import BookReader from "./BookReader";
+import BookSearch from "./BookSearch";
 import JournalComposer from "./JournalComposer";
 import LibraryPanel from "./LibraryPanel";
 import MeditationTimer from "./MeditationTimer";
@@ -106,6 +107,8 @@ export default function RecoveryPage() {
   const [pagesOpen, setPagesOpen] = useState(false);
   /** A chapter open in the reader, or null for today's part. */
   const [openChapter, setOpenChapter] = useState<number | null>(null);
+  /** A paragraph to land on in the reader: a search hit, or the top of a page. */
+  const [focusSeq, setFocusSeq] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setError("");
@@ -227,8 +230,9 @@ export default function RecoveryPage() {
     }
   }
 
-  function open(no: number) {
+  function open(no: number, seq: number | null = null) {
     setOpenChapter(no);
+    setFocusSeq(seq);
     setView("read");
   }
 
@@ -314,10 +318,12 @@ export default function RecoveryPage() {
         <section className="rec-col rec-read" aria-label="Read">
           {reading ? (
             <>
+              <BookSearch onOpen={(no, seq) => open(no, seq)} />
               {openChapter !== null ? (
                 <BookReader
                   chapterNo={openChapter}
-                  onOpen={setOpenChapter}
+                  focusSeq={focusSeq}
+                  onOpen={(no) => open(no)}
                   onClose={() => setOpenChapter(null)}
                   onMarkRead={markTo}
                 />
@@ -332,7 +338,7 @@ export default function RecoveryPage() {
                   onCatchUp={forgive}
                 />
               )}
-              <Contents reading={reading} openChapter={openChapter} onOpen={open} />
+              <Contents reading={reading} openChapter={openChapter} onOpen={(no) => open(no)} />
             </>
           ) : (
             data && (

@@ -1497,3 +1497,20 @@ button.rec-chap.open { background: var(--rec-bg); }
   .rec-person-actions button:not(.ghost) { min-height: 40px; }
   .rec-nextcall button { min-height: 40px; }
 }
+
+/* --- searching the book ---------------------------------------------------- */
+.rec-search { padding: 10px 12px; }
+.rec-search-row { display: grid; grid-template-columns: minmax(0, 1fr) auto 64px auto; gap: 6px; align-items: center; }
+.rec-search-row input { min-width: 0; font-size: 16px; }
+.rec-hits { display: flex; flex-direction: column; margin-top: 8px; }
+.rec-hits .rec-cardhead { margin-bottom: 4px; }
+.rec-hit { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; padding: 8px 6px; border: none; border-top: 1px solid var(--line2); background: none; border-radius: 0; text-align: left; font-family: var(--sans); color: var(--text); }
+.rec-hit:hover { background: var(--panel2); border-color: var(--line2); }
+.rec-hit-text { font-family: Georgia, "Times New Roman", serif; font-size: 14.5px; line-height: 1.45; }
+.rec-hit mark, .rec-reader mark { background: rgba(154, 216, 200, 0.28); color: inherit; border-radius: 2px; padding: 0 1px; }
+.rec-reader .rec-pline.hit { background: rgba(154, 216, 200, 0.12); border-left-color: var(--rec); }
+@media (pointer: coarse) {
+  .rec-search-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .rec-search-row input[type="text"] { grid-column: 1; }
+  .rec-search-row button { min-height: 44px; }
+}

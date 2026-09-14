@@ -42,6 +42,27 @@ public interface RecoveryParagraphRepository extends JpaRepository<RecoveryParag
 
   List<RecoveryParagraph> findByTextIdAndChapterNoOrderBySeqAsc(Long textId, int chapterNo);
 
+  /** The first paragraph on a printed page: where "go to page 58" lands. */
+  Optional<RecoveryParagraph> findFirstByTextIdAndPageLabelOrderBySeqAsc(Long textId, String label);
+
+  /**
+   * Full-text search over the book, best matches first, then in reading order. Postgres's English
+   * dictionary stems the words, so "surrender" finds "surrendered"; every word in the query has to
+   * be there. Forty hits is a screen; a longer list means a shorter query.
+   */
+  @Query(
+      value =
+          """
+          select p.* from {h-schema}recovery_paragraphs p
+          where p.text_id = :textId
+            and to_tsvector('english', p.body) @@ plainto_tsquery('english', :q)
+          order by ts_rank(to_tsvector('english', p.body), plainto_tsquery('english', :q)) desc,
+                   p.seq
+          limit 40
+          """,
+      nativeQuery = true)
+  List<RecoveryParagraph> search(Long textId, String q);
+
   /** The page label a page number prints as, from any paragraph on it. */
   Optional<RecoveryParagraph> findFirstByTextIdAndPageSeqOrderBySeqAsc(Long textId, int pageSeq);
 

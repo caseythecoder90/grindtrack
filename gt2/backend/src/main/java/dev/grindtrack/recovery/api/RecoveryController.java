@@ -46,6 +46,7 @@ public class RecoveryController {
   private static final int MAX_MINUTES = 180;
   private static final int MAX_PAGES = 50;
   private static final int MAX_CADENCE_DAYS = 365;
+  private static final int MAX_QUERY_CHARS = 120;
 
   private final RecoveryService recovery;
 
@@ -95,6 +96,22 @@ public class RecoveryController {
   @GetMapping("/book/chapters/{no}")
   public RecoveryService.ChapterText chapter(@PathVariable int no) {
     return recovery.chapter(no);
+  }
+
+  /** The book searched: forty hits at most, best first. Two characters is a word. */
+  @GetMapping("/book/search")
+  public List<RecoveryService.Hit> search(@RequestParam String q) {
+    String query = Requests.requireText(q, "search needs a word", MAX_QUERY_CHARS);
+    if (query.length() < 2) {
+      throw new BadRequestException("search needs a word");
+    }
+    return recovery.search(query);
+  }
+
+  /** Where a printed page begins, for "go to page 58". */
+  @GetMapping("/book/page/{label}")
+  public RecoveryService.PagePlace page(@PathVariable String label) {
+    return recovery.page(label).orElseThrow(() -> new NoSuchElementException("page " + label));
   }
 
   @PutMapping("/book/place")

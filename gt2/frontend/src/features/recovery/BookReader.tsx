@@ -4,6 +4,8 @@ import { getChapter, savePlace, type ChapterText, type Para } from "./recoveryAp
 
 interface Props {
   chapterNo: number;
+  /** A paragraph to land on and light up: a search hit, or the top of a page. */
+  focusSeq?: number | null;
   onOpen: (no: number) => void;
   onClose: () => void;
   /** "Mark read to here": everything up to this paragraph counts as read, today. */
@@ -21,7 +23,7 @@ function pageTurns(prev: Para | undefined, p: Para): boolean {
  * appears marks everything up to it as read — for reading ahead, or catching up in one sitting.
  * Opening a chapter saves it as your place, so the other device picks up here.
  */
-export default function BookReader({ chapterNo, onOpen, onClose, onMarkRead }: Props) {
+export default function BookReader({ chapterNo, focusSeq = null, onOpen, onClose, onMarkRead }: Props) {
   const [chapter, setChapter] = useState<ChapterText | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
@@ -50,8 +52,11 @@ export default function BookReader({ chapterNo, onOpen, onClose, onMarkRead }: P
   // Once the chapter is on screen, bring its top into view: the contents that opened it may
   // have been scrolled far down the page.
   useEffect(() => {
-    if (chapter) top.current?.scrollIntoView({ block: "start" });
-  }, [chapter]);
+    if (!chapter) return;
+    const hit = focusSeq !== null ? document.getElementById("para-" + focusSeq) : null;
+    if (hit) hit.scrollIntoView({ block: "center" });
+    else top.current?.scrollIntoView({ block: "start" });
+  }, [chapter, focusSeq]);
 
   async function mark(seq: number) {
     setBusy(true);
@@ -118,8 +123,10 @@ export default function BookReader({ chapterNo, onOpen, onClose, onMarkRead }: P
               </div>
             )}
             <p
+              id={"para-" + p.seq}
               className={
                 "rec-pline" +
+                (p.seq === focusSeq ? " hit" : "") +
                 (p.seq < chapter.cursor ? " read" : "") +
                 (p.seq === chapter.cursor ? " cursor" : "") +
                 (selected === p.seq ? " selected" : "")

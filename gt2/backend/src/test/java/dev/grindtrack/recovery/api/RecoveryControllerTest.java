@@ -8,6 +8,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -167,6 +168,23 @@ class RecoveryControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.name").value("Mike"))
         .andExpect(jsonPath("$.state").value("ok"));
+  }
+
+  @Test
+  void searchNeedsAWordAndAPageThatIsNotThereIs404() throws Exception {
+    mvc.perform(get("/api/recovery/book/search?q=a"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error").value("search needs a word"));
+
+    when(recovery.search("half measures"))
+        .thenReturn(
+            List.of(new RecoveryService.Hit(400, 11, "How It Works", "59", "…half measures…")));
+    mvc.perform(get("/api/recovery/book/search").param("q", "half measures"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[0].pageLabel").value("59"));
+
+    when(recovery.page("999")).thenReturn(java.util.Optional.empty());
+    mvc.perform(get("/api/recovery/book/page/999")).andExpect(status().isNotFound());
   }
 
   @Test
