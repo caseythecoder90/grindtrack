@@ -18,9 +18,11 @@ sentence of the brief to anyone but the phone.
 | Morning brief | after the 05:30 draft lands, second | `morning brief` | the brief's headline | today tab |
 | Todos waiting | 08:00 and 18:00, while anything is open | `2 todos are overdue` (or due today, or waiting) | up to three titles, most urgent first | todos tab |
 | Weekly review | after the Friday 17:00 draft lands | `weekly review is ready` | one fixed sentence | week tab |
+| Today's readings | 07:55, when a reading exists | `today's readings` | the reflection's title, the passage, the Big Book pages | recovery tab |
+| People to call | 18:00, while someone is due | `a call to make` / `3 calls to make` (or `someone to ask`) | up to three names, days over | recovery tab |
 | Test | on a click | `notifications are on` | one fixed sentence | today tab |
 
-Four real ones and a test. The morning pair fires only when the draft *succeeded* — a push
+Six real ones and a test. The morning pair fires only when the draft *succeeded* — a push
 saying "your brief is ready" with no brief behind it is worse than silence. The todo reminder
 is the deliberate nag: `TodoReminderScheduler` sends it at the configured times for as long as
 anything is open, with the same tag each time so the device shows one, not a pile.
@@ -36,7 +38,7 @@ anything is open, with the same tag each time so the device shows one, not a pil
 | HTTP | `push/api/PushController` | — |
 | The device's side | — | `lib/push.ts` (states, subscribe, unsubscribe), `features/push/NotificationsPanel.tsx` |
 | Showing it, and the tap | — | `public/sw.js` (`push`, `notificationclick`), `App.tsx` (`?tab=`, worker messages) |
-| The producers | `assistant/service/MorningBriefScheduler`, `WeeklyReviewScheduler` | — |
+| The producers | `assistant/service/MorningBriefScheduler`, `WeeklyReviewScheduler`; `todo/service/TodoReminderScheduler`; `recovery/service/RecoveryReadingScheduler`, `PeopleReminderScheduler` | — |
 | Configuration | `config/PushProperties` | — |
 
 **Not in this round**, and deliberately: reminders for calendar blocks. That needs a scheduler
@@ -246,11 +248,14 @@ the system one, it appears once, and a denial can only be undone in Settings →
   keeps it; off is a state, not an error; the test message goes to one endpoint when asked.
 - `PushControllerTest`: the shape of the five endpoints, and that a subscribe with a bad key
   is a 400 with a sentence.
-- Frontend: Playwright with a scripted `PushManager` and `Notification`, checking each of the
-  five states renders the right thing and that subscribe PUTs what the browser produced.
+- Frontend: nothing yet. `lib/push.ts` derives its five states from `PushManager`,
+  `Notification.permission` and the user agent, and none of that is under a test. When one is
+  written it belongs in `tools/audit/` beside the other Playwright checks, with a scripted
+  `PushManager` and `Notification`, asserting each state renders the right thing and that
+  subscribe PUTs what the browser produced.
 
-The one thing no test covers is the real push service accepting a real message. That is the
-**send a test** button, and the runbook says to press it.
+Two things no test covers: the panel's five states, above, and the real push service accepting a
+real message. The second is the **send a test** button, and the runbook says to press it.
 
 ## Runbook
 
