@@ -321,8 +321,15 @@ The three env vars are already on the deployment (k8s repo, `base/app-deployment
 **Reading the logs:**
 
 ```bash
-kubectl -n grindtrack logs deploy/grindtrack | grep -iE "push"
+kubectl -n grindtrack logs deploy/grindtrack --since=10m | grep -iE "push"
 ```
+
+Every send writes one line, accepted or not: `Pushed "notifications are on" to 1 device(s): 1
+sent, 0 gone, 0 failed`. A test pressed with no device subscribed writes `Nothing to push for
+"notifications are on": no device is subscribed` — the phone's subscription never reached the
+server, so turn notifications on again from the installed app. No line at all after a press
+means the request never reached this pod: the logs are the current pod's only, and a rollout
+restart replaces it.
 
 Endpoints appear truncated (`https://web.push.apple.com/…fXkqLm2P`) on purpose: they are
 capabilities.
