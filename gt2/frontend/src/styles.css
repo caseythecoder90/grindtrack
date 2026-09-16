@@ -1509,6 +1509,21 @@ button.rec-chap.open { background: var(--rec-bg); }
 .rec-hit-text { font-family: Georgia, "Times New Roman", serif; font-size: 14.5px; line-height: 1.45; }
 .rec-hit mark, .rec-reader mark { background: rgba(154, 216, 200, 0.28); color: inherit; border-radius: 2px; padding: 0 1px; }
 .rec-reader .rec-pline.hit { background: rgba(154, 216, 200, 0.12); border-left-color: var(--rec); }
+/* --- the Bible ------------------------------------------------------------- */
+.rec-shelf .seg { margin-bottom: 2px; }
+.rec-search-row.bible { grid-template-columns: minmax(0, 1fr) auto; }
+.rec-books { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.rec-books button { font-size: 13px; padding: 5px 9px; border-radius: 14px; }
+.rec-chapgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); gap: 6px; margin-top: 8px; }
+.rec-chapgrid button { min-height: 36px; padding: 0; font-variant-numeric: tabular-nums; }
+.rec-verse.hit { background: rgba(154, 216, 200, 0.28); border-radius: 2px; }
+.rec-reader-nav.bottom { margin-top: 10px; }
+.rec-explain { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line2); }
+.rec-explain .rec-prose { white-space: pre-line; }
+.rec-passage-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+@media (pointer: coarse) {
+  .rec-books button, .rec-chapgrid button, .rec-passage-actions button { min-height: 40px; }
+}
 @media (pointer: coarse) {
   .rec-search-row { grid-template-columns: minmax(0, 1fr) auto; }
   .rec-search-row input[type="text"] { grid-column: 1; }

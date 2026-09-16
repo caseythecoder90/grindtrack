@@ -375,7 +375,7 @@ are returned as the service's records; cards the data cannot fill are `null`, no
 
 | Method | Path | Body | Answer |
 |---|---|---|---|
-| GET | `/api/recovery/today` | – | `{today, number, reflection, meditationEntry, passage, reading, settings, meditation}` — everything the today view needs; `number` is null without `SOBRIETY_DATE`, `reflection`/`meditationEntry` without an imported book, `passage` before the seed, `reading` without the Big Book |
+| GET | `/api/recovery/today` | – | `{today, number, reflection, meditationEntry, passage, reading, settings, meditation, nextCall}` — everything the today view needs; `passage` is `{reference, book, chapter, translation, position, planSize, verses[], explanation}` (`explanation` null until written); `number` is null without `SOBRIETY_DATE`, `reflection`/`meditationEntry` without an imported book, `passage` before the seed, `reading` without the Big Book |
 | POST | `/api/recovery/read/done` | – | marks today read and moves the cursor past the part; a second press changes nothing. Answers the same shape as `today` |
 | POST | `/api/recovery/read/mark?seq=` | – | everything up to that paragraph counts as read, today; the `today` shape. 404 for a paragraph that is not there |
 | POST | `/api/recovery/read/catch-up` | – | forgives the backlog: tomorrow owes the daily count again; the `today` shape |
@@ -400,6 +400,11 @@ are returned as the service's records; cards the data cannot fill are `null`, no
 | POST | `/api/recovery/import/{slot}?dryRun=true&title=` | multipart `files`: the book's PDFs together (up to 60, each under 5 MB), or one plain-text file | the import report: `{dryRun, slot, title, paragraphs, words, pages, chapters: [{no, title, paragraphs, words, firstPage, lastPage}], entries, missingCount, missing[], sample, warnings[], cursorReset}`. `dryRun` defaults to true; `false` replaces the slot and keeps the files. `slot` is `big_book`, `reflection` or `meditation`; anything else is a 400; PDFs mixed with text is a 400 |
 | POST | `/api/recovery/import/{slot}/reparse` | – | the stored files through the parser again; the report |
 | POST | `/api/recovery/bible/restart` | – | the plan starts again from the first passage today; the `library` shape |
+| POST | `/api/recovery/bible/next` | – | another passage: the next one becomes today's, and tomorrow's follows it; the `today` shape |
+| POST | `/api/recovery/bible/explain` | – | `{reference, body}` — what today's passage means, written by the model on the first ask and kept; 503 with a sentence when the assistant has no key, 502 when the call fails |
+| GET | `/api/recovery/bible/books` | – | `[{code, name, chapters, testament}]`, the sixty-six in canonical order; `testament` is `old` or `new` |
+| GET | `/api/recovery/bible/search?q=` | – | `{place, hits}`: a reference ("John 3:16", "psalm 23", "1 john 4:7") gives `place: {book, name, chapter, verse}` and no hits; anything else gives `hits: [{book, name, chapter, verse, reference, text}]`, best first, forty at most. 400 under two characters |
+| GET | `/api/recovery/bible/{book}/{chapter}` | – | `{book, name, chapter, chapters, verses: [{verse, para, text}], prev, next}` — `prev`/`next` are places, across books, null at the ends; 404 for a chapter the book does not have |
 
 The 07:55 readings push (`RecoveryReadingScheduler`) and the 18:00 people reminder
 (`PeopleReminderScheduler`) have no endpoints: they read the same data the views do and send one

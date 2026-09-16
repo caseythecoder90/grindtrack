@@ -18,6 +18,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import dev.grindtrack.recovery.domain.JournalEntry;
 import dev.grindtrack.recovery.domain.PersonRole;
 import dev.grindtrack.recovery.domain.TextSlot;
+import dev.grindtrack.recovery.service.BibleService;
 import dev.grindtrack.recovery.service.ImportReport;
 import dev.grindtrack.recovery.service.RecoveryService;
 import dev.grindtrack.web.ApiExceptionHandler;
@@ -34,13 +35,15 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 class RecoveryControllerTest {
 
   private RecoveryService recovery;
+  private BibleService bible;
   private MockMvc mvc;
 
   @BeforeEach
   void setUp() {
     recovery = mock(RecoveryService.class);
+    bible = mock(BibleService.class);
     mvc =
-        MockMvcBuilders.standaloneSetup(new RecoveryController(recovery))
+        MockMvcBuilders.standaloneSetup(new RecoveryController(recovery, bible))
             .setControllerAdvice(new ApiExceptionHandler())
             .build();
   }
@@ -185,6 +188,38 @@ class RecoveryControllerTest {
 
     when(recovery.page("999")).thenReturn(java.util.Optional.empty());
     mvc.perform(get("/api/recovery/book/page/999")).andExpect(status().isNotFound());
+  }
+
+  @Test
+  void theBibleIsSearchedOpenedAtAChapterAndMovedOn() throws Exception {
+    when(bible.search("john 3"))
+        .thenReturn(
+            new BibleService.Search(new BibleService.Place("JHN", "John", 3, null), List.of()));
+    mvc.perform(get("/api/recovery/bible/search").param("q", "john 3"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.place.book").value("JHN"))
+        .andExpect(jsonPath("$.hits").isEmpty());
+    mvc.perform(get("/api/recovery/bible/search").param("q", "j"))
+        .andExpect(status().isBadRequest());
+
+    when(bible.chapter("JHN", 3))
+        .thenReturn(
+            java.util.Optional.of(
+                new BibleService.Chapter("JHN", "John", 3, 21, List.of(), null, null)));
+    mvc.perform(get("/api/recovery/bible/jhn/3"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.name").value("John"))
+        .andExpect(jsonPath("$.chapters").value(21));
+    mvc.perform(get("/api/recovery/bible/JHN/22")).andExpect(status().isNotFound());
+
+    mvc.perform(post("/api/recovery/bible/next")).andExpect(status().isOk());
+    verify(recovery).nextPassage();
+
+    when(recovery.explainPassage())
+        .thenReturn(new BibleService.Explanation("John 3:16–21", "Jesus is talking to Nicodemus…"));
+    mvc.perform(post("/api/recovery/bible/explain"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.reference").value("John 3:16–21"));
   }
 
   @Test

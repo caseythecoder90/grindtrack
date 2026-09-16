@@ -290,7 +290,9 @@ class RecoveryServiceTest {
     when(texts.findBySlot(TextSlot.BIG_BOOK)).thenReturn(Optional.of(book(100)));
     when(entries.findByTextIdAndMonthAndDay(eq(3L), anyInt(), anyInt()))
         .thenReturn(Optional.of(new RecoveryDailyEntry(3L, 1, 1, "I Am a Miracle", "…")));
-    when(bible.referenceFor(any(), any())).thenReturn("Psalm 23");
+    when(bible.available()).thenReturn(true);
+    when(bible.planSize()).thenReturn(100);
+    when(bible.referenceAt(anyInt())).thenReturn("Psalm 23");
     when(paragraphs.findByTextIdAndSeq(eq(7L), anyInt()))
         .thenAnswer(inv -> Optional.of(para(inv.getArgument(1), 3, 100)));
     when(paragraphs.findByTextIdAndSeqGreaterThanEqualAndPageSeqLessThanOrderBySeqAsc(

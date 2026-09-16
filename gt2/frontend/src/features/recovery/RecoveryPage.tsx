@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import Segmented from "../../components/Segmented";
 import { errorMessage } from "../../lib/api";
 import { useAppResume } from "../../lib/resume";
+import BibleBrowser, { type Place as BiblePlace } from "./BibleBrowser";
 import BookReader from "./BookReader";
 import BookSearch from "./BookSearch";
 import JournalComposer from "./JournalComposer";
@@ -12,12 +13,14 @@ import {
   addJournal,
   catchUp,
   deleteJournal,
+  explainPassage,
   finishReading,
   getJournal,
   getPeople,
   getToday,
   logSession,
   markReadTo,
+  nextPassage,
   updateSettings,
   type DailyEntry,
   type JournalEntry,
@@ -26,8 +29,12 @@ import {
   type Reading,
   type RecoveryToday,
 } from "./recoveryApi";
+import Verses from "./Verses";
 
 type View = "today" | "read" | "journal" | "people" | "books";
+
+/** What the read view shows: the book on the plan, or the Bible. */
+type Shelf = "book" | "bible";
 
 const VIEWS: { value: View; label: string; tone?: string }[] = [
   { value: "today", label: "today", tone: "rec" },
@@ -109,6 +116,9 @@ export default function RecoveryPage() {
   const [openChapter, setOpenChapter] = useState<number | null>(null);
   /** A paragraph to land on in the reader: a search hit, or the top of a page. */
   const [focusSeq, setFocusSeq] = useState<number | null>(null);
+  const [shelf, setShelf] = useState<Shelf>("book");
+  /** Where the Bible is open, or null for the books. */
+  const [biblePlace, setBiblePlace] = useState<BiblePlace | null>(null);
 
   const load = useCallback(async () => {
     setError("");
@@ -233,7 +243,26 @@ export default function RecoveryPage() {
   function open(no: number, seq: number | null = null) {
     setOpenChapter(no);
     setFocusSeq(seq);
+    setShelf("book");
     setView("read");
+  }
+
+  function openBible(book: string, chapter: number) {
+    setBiblePlace({ book, chapter, verse: null });
+    setShelf("bible");
+    setView("read");
+  }
+
+  async function another() {
+    setBusy(true);
+    setError("");
+    try {
+      setData(await nextPassage());
+    } catch (e) {
+      setError(errorMessage(e, "could not move on"));
+    } finally {
+      setBusy(false);
+    }
   }
 
   if (view === "books") {
@@ -279,7 +308,7 @@ export default function RecoveryPage() {
           <Daily label="daily reflection" entry={data?.reflection ?? null} date={today}
             missing="your copy of Daily Reflections is not imported yet" onBooks={() => setView("books")} />
 
-          <PassageCard passage={data?.passage ?? null} />
+          <PassageCard passage={data?.passage ?? null} busy={busy} onAnother={another} onOpen={openBible} />
 
           {data && (
             <MeditationTimer
@@ -316,7 +345,20 @@ export default function RecoveryPage() {
 
         {/* ---- read ---- */}
         <section className="rec-col rec-read" aria-label="Read">
-          {reading ? (
+          <div className="rec-shelf">
+            <Segmented
+              label="Text"
+              value={shelf}
+              onChange={setShelf}
+              options={[
+                { value: "book", label: reading?.bookTitle ?? "big book", tone: "rec" },
+                { value: "bible", label: "bible", tone: "rec" },
+              ]}
+            />
+          </div>
+          {shelf === "bible" ? (
+            <BibleBrowser place={biblePlace} onPlace={setBiblePlace} />
+          ) : reading ? (
             <>
               <BookSearch onOpen={(no, seq) => open(no, seq)} />
               {openChapter !== null ? (
@@ -434,33 +476,57 @@ function Daily({ label, entry, date, missing, onBooks }: {
   );
 }
 
-function PassageCard({ passage }: { passage: Passage | null }) {
+function PassageCard({ passage, busy, onAnother, onOpen }: {
+  passage: Passage | null; busy: boolean; onAnother: () => void; onOpen: (book: string, chapter: number) => void;
+}) {
+  const [note, setNote] = useState<{ reference: string; body: string } | null>(null);
+  const [asking, setAsking] = useState(false);
+  const [error, setError] = useState("");
   if (!passage) return null;
-  // Verses grouped by paragraph; a group with a line of poetry in it sets each verse on its own line.
-  const groups: Passage["verses"][] = [];
-  for (const v of passage.verses) {
-    if (v.para || groups.length === 0) groups.push([v]);
-    else groups[groups.length - 1].push(v);
+  // The note kept for this passage, or the one just written for it; a different passage starts over.
+  const explanation = note?.reference === passage.reference ? note.body : passage.explanation;
+
+  async function explain() {
+    setAsking(true);
+    setError("");
+    try {
+      setNote(await explainPassage());
+    } catch (e) {
+      setError(errorMessage(e, "could not explain it"));
+    } finally {
+      setAsking(false);
+    }
   }
+
   return (
     <div className="rec-card">
       <div className="rec-cardhead">
         <span className="rec-lbl">today's passage</span>
         <span className="rec-note">{passage.reference} · {passage.translation}</span>
       </div>
-      <div className="rec-serif">
-        {groups.map((g) => (
-          <p key={g[0].verse} className={"rec-verse-para" + (g.some((v) => v.text.includes("\n")) ? " poetry" : "")}>
-            {g.map((v) => (
-              <span key={v.verse}>
-                <sup className="rec-vn">{v.verse}</sup>
-                {v.text}{" "}
-              </span>
-            ))}
-          </p>
-        ))}
+      <Verses verses={passage.verses} />
+      {explanation ? (
+        <div className="rec-explain">
+          <div className="rec-note">what it means</div>
+          <p className="rec-prose">{explanation}</p>
+        </div>
+      ) : (
+        error && <div className="error">{error}</div>
+      )}
+      <div className="rec-foot">
+        <span className="rec-note">
+          passage {passage.position} of {passage.planSize.toLocaleString()} ·{" "}
+          <button type="button" className="linkish inline" onClick={() => onOpen(passage.book, passage.chapter)}>read on ›</button>
+        </span>
+        <span className="rec-passage-actions">
+          {!explanation && (
+            <button type="button" disabled={asking} onClick={explain}>
+              {asking ? "thinking…" : "what does it mean?"}
+            </button>
+          )}
+          <button type="button" disabled={busy} onClick={onAnother}>another passage ›</button>
+        </span>
       </div>
-      <div className="rec-note" style={{ marginTop: 8 }}>passage {passage.dayInPlan} of {passage.planSize.toLocaleString()}</div>
     </div>
   );
 }

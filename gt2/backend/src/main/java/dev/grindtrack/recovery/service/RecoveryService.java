@@ -46,6 +46,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class RecoveryService {
 
+  private static final org.slf4j.Logger log =
+      org.slf4j.LoggerFactory.getLogger(RecoveryService.class);
+
   /** A replacement within this much of the old paragraph count keeps the cursor. */
   private static final double CURSOR_TOLERANCE = 0.05;
 
@@ -214,7 +217,7 @@ public class RecoveryService {
         number(today),
         daily(TextSlot.REFLECTION, today),
         daily(TextSlot.MEDITATION, today),
-        bible.passageFor(settings.getBiblePlanStart(), today),
+        passageToday(settings, today),
         reading(settings, day, today),
         new Settings(settings.getPagesPerDay(), settings.getMeditationMinutes()),
         new Meditation(streak(today), day != null && day.isMeditated()),
@@ -955,9 +958,60 @@ public class RecoveryService {
     return text.length() <= SAMPLE_CHARS ? text : text.substring(0, SAMPLE_CHARS).trim() + "…";
   }
 
+  // ---- the Bible ------------------------------------------------------------------------------
+
+  /** Today's passage, moving the cursor on if the day has changed. Null when there is no Bible. */
+  private BibleService.Passage passageToday(RecoverySettings settings, LocalDate today) {
+    if (!bible.available()) {
+      return null;
+    }
+    return bible.passageAt(passageIndex(settings, today));
+  }
+
+  private int passageIndex(RecoverySettings settings, LocalDate today) {
+    return settings.biblePassage(
+        today, bible.dateIndex(settings.getBiblePlanStart(), today), bible.planSize());
+  }
+
+  /** Another passage today: the next one becomes today's, and tomorrow's follows it. */
+  @Transactional
+  public Today nextPassage() {
+    LocalDate today = now();
+    RecoverySettings settings = settings();
+    if (bible.available()) {
+      settings.nextBiblePassage(
+          today, bible.dateIndex(settings.getBiblePlanStart(), today), bible.planSize());
+    }
+    return today();
+  }
+
+  /** What today's passage means, written now if it has not been. */
+  @Transactional
+  public BibleService.Explanation explainPassage() {
+    LocalDate today = now();
+    return bible.explain(passageIndex(settings(), today));
+  }
+
+  /**
+   * Writes today's explanation ahead of time, so it is waiting when the passage is read. Quiet: no
+   * model, or a failed call, is a note that is not there yet, and the card's button is the retry.
+   */
+  @Transactional
+  public void prepareExplanation() {
+    if (!bible.available() || !bible.canExplain()) {
+      return;
+    }
+    try {
+      bible.explain(passageIndex(settings(), now()));
+    } catch (Exception e) {
+      log.warn("Could not write today's passage note ahead of time: {}", e.getMessage());
+    }
+  }
+
   // ---- the push line -------------------------------------------------------------------------
 
   /** The pieces of the day's readings, for the phone; empty when there is nothing to read. */
+  @Transactional
   public List<String> readingsToday() {
     LocalDate today = now();
     List<String> pieces = new ArrayList<>();
@@ -965,9 +1019,8 @@ public class RecoveryService {
     if (reflection != null) {
       pieces.add(reflection.title().isEmpty() ? reflection.bookTitle() : reflection.title());
     }
-    String reference = bible.referenceFor(settings().getBiblePlanStart(), today);
-    if (reference != null) {
-      pieces.add(reference);
+    if (bible.available()) {
+      pieces.add(bible.referenceAt(passageIndex(settings(), today)));
     }
     Reading reading = reading(settings(), days.findById(today).orElse(null), today);
     if (reading != null && !reading.doneToday()) {
