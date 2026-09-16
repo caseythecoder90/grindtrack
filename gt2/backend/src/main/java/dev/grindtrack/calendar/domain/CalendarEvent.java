@@ -50,6 +50,10 @@ public class CalendarEvent {
   @Column(name = "updated_at", nullable = false)
   private OffsetDateTime updatedAt = OffsetDateTime.now();
 
+  /** When the phone was told this block was about to start. Null: not yet, or never timed. */
+  @Column(name = "reminded_at")
+  private OffsetDateTime remindedAt;
+
   protected CalendarEvent() {}
 
   public CalendarEvent(
@@ -74,6 +78,8 @@ public class CalendarEvent {
     }
     this.startTime = start;
     this.endTime = end;
+    // A block moved to another time is reminded again at the new one.
+    this.remindedAt = null;
     touch();
   }
 
@@ -102,6 +108,7 @@ public class CalendarEvent {
 
   public void setEventDate(LocalDate date) {
     this.eventDate = date;
+    this.remindedAt = null;
     touch();
   }
 
@@ -109,6 +116,14 @@ public class CalendarEvent {
   public void setKind(EventKind kind) {
     this.kind = kind;
     setPlanItem(this.planItemId);
+  }
+
+  public void markReminded() {
+    this.remindedAt = OffsetDateTime.now();
+  }
+
+  public OffsetDateTime getRemindedAt() {
+    return remindedAt;
   }
 
   /** True when there is no time of day — the row sorts to the top of its day. */

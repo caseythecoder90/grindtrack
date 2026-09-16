@@ -297,6 +297,25 @@ public class PushService {
       return new Notification("today's readings", pieces, "recovery", "readings", SIX_HOURS);
     }
 
+    /**
+     * A block about to start. Tagged by the event so two blocks close together both show, and held
+     * only until the block starts: a reminder delivered after it is noise.
+     */
+    public static Notification blockStarting(
+        Long eventId, String title, String body, long minutes) {
+      return new Notification(title, body, "cal", "block-" + eventId, Math.max(60, minutes * 60));
+    }
+
+    /** What upkeep is due. Replaces the previous one on the device rather than stacking. */
+    public static Notification upkeepDue(String title, String names) {
+      return new Notification(title, names, "cal", "upkeep", SIX_HOURS);
+    }
+
+    /** Where the plan stands, at the end of the day. Dropped by morning if it did not land. */
+    public static Notification planEvening(String title, String body) {
+      return new Notification(title, body, "plan", "plan-evening", SIX_HOURS);
+    }
+
     /** What is still open. Replaces the previous reminder on the device rather than stacking. */
     public static Notification todosWaiting(String title, String names) {
       return new Notification(title, names, "todos", "todos", SIX_HOURS);
