@@ -97,7 +97,7 @@ export default function NotificationsPanel() {
           ? "sent — it should arrive in a few seconds"
           : outcome.gone > 0
             ? "this device's subscription had lapsed; turn notifications on again"
-            : "the push service did not accept it — try again in a minute",
+            : outcome.reason ?? "the push service did not accept it — try again in a minute",
       );
       if (outcome.gone > 0) await refresh();
     } catch (e) {

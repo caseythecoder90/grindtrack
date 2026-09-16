@@ -149,8 +149,10 @@ public class PushService {
     int sent = 0;
     int gone = 0;
     int failed = 0;
+    String reason = null;
     for (PushSubscription target : targets) {
-      switch (deliverOne(target, payload, notification.ttlSeconds())) {
+      Delivery delivery = deliverOne(target, payload, notification.ttlSeconds());
+      switch (delivery.result()) {
         case SENT -> {
           target.markSent();
           subscriptions.save(target);
@@ -160,16 +162,29 @@ public class PushService {
           subscriptions.delete(target);
           gone++;
         }
-        case FAILED -> failed++;
+        case FAILED -> {
+          failed++;
+          reason = delivery.reason();
+        }
       }
     }
-    return new Outcome(sent, gone, failed);
+    return new Outcome(sent, gone, failed, reason);
   }
 
-  private enum Delivery {
+  private enum Result {
     SENT,
     GONE,
     FAILED
+  }
+
+  /** How one send went, and for a failure, what the push service said — for the test button. */
+  private record Delivery(Result result, String reason) {
+    static final Delivery SENT = new Delivery(Result.SENT, null);
+    static final Delivery GONE = new Delivery(Result.GONE, null);
+
+    static Delivery failed(String reason) {
+      return new Delivery(Result.FAILED, reason);
+    }
   }
 
   private Delivery deliverOne(PushSubscription target, byte[] payload, long ttlSeconds) {
@@ -184,19 +199,26 @@ public class PushService {
       headers.put("Content-Encoding", "aes128gcm");
       headers.put("TTL", Long.toString(ttlSeconds));
       headers.put("Urgency", "normal");
-      int status = transport.send(endpoint, headers, body);
+      PushTransport.Reply reply = transport.send(endpoint, headers, body);
+      int status = reply.status();
       if (status == 201 || status == 200) {
         return Delivery.SENT;
       }
       if (status == 404 || status == 410) {
-        log.info("Push subscription {} is gone ({}); removing it", abbreviate(endpoint), status);
+        log.info(
+            "Push subscription {} is gone ({} {}); removing it",
+            abbreviate(endpoint),
+            status,
+            reply.body());
         return Delivery.GONE;
       }
-      log.warn("Push to {} answered {}; keeping the subscription", abbreviate(endpoint), status);
-      return Delivery.FAILED;
+      String said =
+          status + " from " + host(endpoint) + (reply.body().isEmpty() ? "" : ": " + reply.body());
+      log.warn("Push to {} answered {}; keeping the subscription", abbreviate(endpoint), said);
+      return Delivery.failed("the push service answered " + said);
     } catch (IOException e) {
       log.warn("Push to {} did not get through: {}", abbreviate(endpoint), e.getMessage());
-      return Delivery.FAILED;
+      return Delivery.failed("could not reach " + host(endpoint) + ": " + e.getMessage());
     } catch (IllegalArgumentException e) {
       // Stored keys that no longer decode: the row is useless, and will be replaced when the
       // browser subscribes again. Removing it stops the log filling every morning.
@@ -238,10 +260,15 @@ public class PushService {
     return key;
   }
 
+  /** The push service's host alone: "https://web.push.apple.com". */
+  static String host(String endpoint) {
+    int slash = endpoint.indexOf('/', "https://".length());
+    return slash < 0 ? endpoint : endpoint.substring(0, slash);
+  }
+
   /** Endpoints are capabilities: enough of one to recognise it in a log, never the whole thing. */
   static String abbreviate(String endpoint) {
-    int slash = endpoint.indexOf('/', "https://".length());
-    String host = slash < 0 ? endpoint : endpoint.substring(0, slash);
+    String host = host(endpoint);
     String tail = endpoint.length() > 8 ? endpoint.substring(endpoint.length() - 8) : endpoint;
     return host + "/…" + tail;
   }
@@ -351,7 +378,15 @@ public class PushService {
   public record Device(
       long id, String label, String createdAt, String lastSentAt, String endpoint) {}
 
-  public record Outcome(int sent, int gone, int failed) {
-    static final Outcome NOTHING = new Outcome(0, 0, 0);
+  /**
+   * @param reason for the last failure, what the push service said or why it could not be reached —
+   *     the sentence the test button shows; null when nothing failed
+   */
+  public record Outcome(int sent, int gone, int failed, String reason) {
+    static final Outcome NOTHING = new Outcome(0, 0, 0, null);
+
+    public Outcome(int sent, int gone, int failed) {
+      this(sent, gone, failed, null);
+    }
   }
 }

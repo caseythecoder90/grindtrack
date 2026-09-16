@@ -39,20 +39,22 @@ class PushServiceTest {
   /** A transport that answers what it is told and remembers what it was handed. */
   private static final class FakeTransport implements PushTransport {
     int status = 201;
+    String answer = "";
     IOException failure;
     final List<String> endpoints = new ArrayList<>();
     final List<Map<String, String>> headers = new ArrayList<>();
     final List<byte[]> bodies = new ArrayList<>();
 
     @Override
-    public int send(String endpoint, Map<String, String> headers, byte[] body) throws IOException {
+    public Reply send(String endpoint, Map<String, String> headers, byte[] body)
+        throws IOException {
       endpoints.add(endpoint);
       this.headers.add(headers);
       bodies.add(body);
       if (failure != null) {
         throw failure;
       }
-      return status;
+      return new Reply(status, answer);
     }
   }
 
@@ -177,15 +179,22 @@ class PushServiceTest {
 
     PushSubscription kept = subscribed();
     when(repo.findAllByOrderByCreatedAtAsc()).thenReturn(List.of(kept));
-    transport.status = 500;
-    assertThat(service.send(PushService.Notification.weeklyReview()))
-        .isEqualTo(new PushService.Outcome(0, 0, 1));
+    transport.status = 403;
+    transport.answer = "{\"reason\":\"VapidPkHashMismatch\"}";
+    PushService.Outcome refused = service.send(PushService.Notification.weeklyReview());
+    assertThat(refused.failed()).isEqualTo(1);
+    assertThat(refused.reason())
+        .isEqualTo(
+            "the push service answered 403 from https://web.push.apple.com:"
+                + " {\"reason\":\"VapidPkHashMismatch\"}");
     verify(repo, never()).delete(kept);
     assertThat(kept.getLastSentAt()).isNull();
 
     transport.failure = new IOException("connection reset");
-    assertThat(service.send(PushService.Notification.weeklyReview()))
-        .isEqualTo(new PushService.Outcome(0, 0, 1));
+    PushService.Outcome unreachable = service.send(PushService.Notification.weeklyReview());
+    assertThat(unreachable.failed()).isEqualTo(1);
+    assertThat(unreachable.reason())
+        .isEqualTo("could not reach https://web.push.apple.com: connection reset");
     verify(repo, never()).delete(kept);
   }
 

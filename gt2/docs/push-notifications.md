@@ -109,6 +109,7 @@ wire a fake and check what was handed to it.
 | 201 | queued | records `last_sent_at` |
 | 404, 410 | this subscription is gone — the user revoked it or reinstalled | deletes the row |
 | 429, 5xx, timeout | not now | logs, keeps the row, does not retry |
+| 400, 401, 403 | the send was refused — the body says why (`VapidPkHashMismatch`: the phone subscribed under a different public key; `BadJwtToken`: the private key or subject is wrong) | logs the status and body, keeps the row, and the test button shows the same sentence |
 
 No retries. A missed 06:00 push is a missed nudge; the brief is still on the today tab, and a
 retry loop is more code than the message is worth. The one place that matters — the test
@@ -311,7 +312,10 @@ The three env vars are already on the deployment (k8s repo, `base/app-deployment
 | needs the installed app | Safari in the browser proper has no push | share → add to home screen, open from there |
 | blocked | permission was denied once | Settings → Notifications → grindtrack → allow, reopen |
 | push is off on the server | no VAPID pair reached the pod | steps 2–3 |
-| sent — it should arrive… but nothing does | the push service accepted it; the device did not show it | check Focus / Do Not Disturb; `kubectl logs` for `Push`; on iOS, delete and re-add the app once |
+| the push service answered 403 from https://web.push.apple.com: {"reason":"VapidPkHashMismatch"} | the phone subscribed under a public key other than the one now signing sends — the pair was generated twice, or the secret holds one half from each | turn notifications off and on again on the phone (it re-subscribes under the current key); if it recurs, check both halves in the secret came from the same run of the one-liner |
+| the push service answered 403 … BadJwtToken (or 401) | the private key does not match the public one, or the subject is not a `mailto:` or `https:` URL | regenerate the pair together, patch both, restart, re-subscribe |
+| could not reach https://web.push.apple.com: … | the pod has no outbound route to the push service | check the cluster's egress policy for the pod; the assistant's calls to api.anthropic.com are the same path |
+| sent — it should arrive… but nothing does | the push service accepted it; the device did not show it | check Focus / Do Not Disturb and Settings → Notifications → grindtrack; the app must be the one installed to the home screen, opened once since the update so the worker with the `push` listener is the one running; on iOS, delete and re-add the app once |
 | this device's subscription had lapsed | the push service answered 404/410 | turn on again — the phone re-subscribes |
 
 **Reading the logs:**
