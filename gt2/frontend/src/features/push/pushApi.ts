@@ -22,6 +22,8 @@ export interface PushOutcome {
   sent: number;
   gone: number;
   failed: number;
+  /** For a failure, what the push service said, or why it could not be reached. */
+  reason: string | null;
 }
 
 export const getPushStatus = () => api<PushServerStatus>(`${BASE}/status`);

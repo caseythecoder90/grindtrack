@@ -21,15 +21,24 @@ public class HttpPushTransport implements PushTransport {
           .followRedirects(HttpClient.Redirect.NEVER)
           .build();
 
+  /** Enough of an answer to read in a log; Apple's reasons are one short JSON line. */
+  private static final int BODY_CHARS = 300;
+
   @Override
-  public int send(String endpoint, Map<String, String> headers, byte[] body) throws IOException {
+  public Reply send(String endpoint, Map<String, String> headers, byte[] body) throws IOException {
     HttpRequest.Builder request =
         HttpRequest.newBuilder(URI.create(endpoint))
             .timeout(TIMEOUT)
             .POST(HttpRequest.BodyPublishers.ofByteArray(body));
     headers.forEach(request::header);
     try {
-      return client.send(request.build(), HttpResponse.BodyHandlers.discarding()).statusCode();
+      HttpResponse<String> response =
+          client.send(request.build(), HttpResponse.BodyHandlers.ofString());
+      String answer = response.body() == null ? "" : response.body().strip();
+      if (answer.length() > BODY_CHARS) {
+        answer = answer.substring(0, BODY_CHARS) + "…";
+      }
+      return new Reply(response.statusCode(), answer);
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new IOException("interrupted while sending a push", e);
