@@ -145,6 +145,11 @@ public class PushService {
   }
 
   private Outcome deliver(List<PushSubscription> targets, Notification notification) {
+    if (targets.isEmpty()) {
+      // Said out loud: a test pressed with no device subscribed otherwise leaves no trace at all.
+      log.info("Nothing to push for \"{}\": no device is subscribed", notification.title());
+      return Outcome.NOTHING;
+    }
     byte[] payload = toJson(notification).getBytes(StandardCharsets.UTF_8);
     int sent = 0;
     int gone = 0;
@@ -168,6 +173,15 @@ public class PushService {
         }
       }
     }
+    // Every send, including the accepted ones: the pod's log is the one place that says a test
+    // reached the push service when the phone shows nothing.
+    log.info(
+        "Pushed \"{}\" to {} device(s): {} sent, {} gone, {} failed",
+        notification.title(),
+        targets.size(),
+        sent,
+        gone,
+        failed);
     return new Outcome(sent, gone, failed, reason);
   }
 
