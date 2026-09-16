@@ -18,12 +18,33 @@ sentence of the brief to anyone but the phone.
 | Morning brief | after the 05:30 draft lands, second | `morning brief` | the brief's headline | today tab |
 | Todos waiting | 08:00 and 18:00, while anything is open | `2 todos are overdue` (or due today, or waiting) | up to three titles, most urgent first | todos tab |
 | Weekly review | after the Friday 17:00 draft lands | `weekly review is ready` | one fixed sentence | week tab |
+| Today's readings | 07:55 | `today's readings` | the reflection, the passage, the pages | recovery tab |
+| A call to make | 18:00, while someone is due | `a call to make` / `someone to ask` | the names | recovery tab |
+| Block starting | 10 minutes before a timed block, once | the block's title | `in 10 minutes · 05:30–07:00 · study block` | cal tab |
+| Upkeep due | 08:05, while anything is overdue or due today | `2 upkeep items are overdue` (or due today) | up to three titles, most overdue first | cal tab |
+| The plan, evening | 21:00, once a plan is imported | `week 12 of the plan` | `7.5 of 15 h this week · CKA exam · Oct 9 · in 23 days · tomorrow 05:30 · etcd lab` | plan tab |
 | Test | on a click | `notifications are on` | one fixed sentence | today tab |
 
-Four real ones and a test. The morning pair fires only when the draft *succeeded* — a push
+Nine real ones and a test. The morning pair fires only when the draft *succeeded* — a push
 saying "your brief is ready" with no brief behind it is worse than silence. The todo reminder
 is the deliberate nag: `TodoReminderScheduler` sends it at the configured times for as long as
-anything is open, with the same tag each time so the device shows one, not a pile.
+anything is open, with the same tag each time so the device shows one, not a pile; the upkeep
+reminder is the same shape at 08:05, so the two do not land in the same second.
+
+The block reminder is the one producer that has to remember. `CalendarReminderScheduler` runs
+every minute, takes the day's timed events that start in the next ten minutes and have no
+`reminded_at`, marks each and sends it. The mark is a column rather than a set in memory so a
+restart does not repeat a reminder; a block whose start passed while the app was down is
+skipped, not announced late; moving a block clears the mark, so it is reminded again at its new
+time. Work blocks are not reminded (`EventKind.remindsBeforeStart`): the day job is on the
+calendar so the week reads honestly, not because it might be missed. Each block has its own
+tag, so two blocks close together both show, and the TTL is the minutes left, so a reminder the
+push service could not deliver before the block started is dropped rather than shown after it.
+
+The evening line is the motivation that is not written by a model: three facts from the same
+`ContextService` the morning brief is given, so the two never disagree — the week's study hours
+against the target, the dated plan item due soonest and the days to it, tomorrow's first block.
+The morning's motivation line is the one in words; this is the one in numbers.
 
 ### Where the code lives
 
@@ -36,13 +57,13 @@ anything is open, with the same tag each time so the device shows one, not a pil
 | HTTP | `push/api/PushController` | — |
 | The device's side | — | `lib/push.ts` (states, subscribe, unsubscribe), `features/push/NotificationsPanel.tsx` |
 | Showing it, and the tap | — | `public/sw.js` (`push`, `notificationclick`), `App.tsx` (`?tab=`, worker messages) |
-| The producers | `assistant/service/MorningBriefScheduler`, `WeeklyReviewScheduler` | — |
-| Configuration | `config/PushProperties` | — |
+| The producers | `assistant/service/MorningBriefScheduler`, `WeeklyReviewScheduler`, `PlanEveningScheduler`; `todo/service/TodoReminderScheduler`; `calendar/service/CalendarReminderScheduler`, `UpkeepReminderScheduler`; `recovery/service/RecoveryReadingScheduler`, `PeopleReminderScheduler` | — |
+| Configuration | `config/PushProperties`; the crons in `TodoProperties`, `CalendarProperties`, `PlanProperties`, `RecoveryProperties` | — |
 
-**Not in this round**, and deliberately: reminders for calendar blocks. That needs a scheduler
-that scans the calendar every few minutes and remembers what it already sent, which is a
-different piece of work from "tell me when the scheduled job finishes". The plumbing below is
-built so it is one more producer when the time comes.
+Every producer is the same shape: a `@Scheduled` method that builds a `Notification` with a
+package-private static method (that is what the test checks — no push service, no clock), calls
+`PushService.send`, logs the outcome, and catches its own failure so a scheduler thread is never
+lost to one. The calendar's block reminder is the one with state, above.
 
 ## How Web Push works, in the part that matters here
 

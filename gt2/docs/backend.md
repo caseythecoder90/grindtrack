@@ -494,6 +494,7 @@ Schema **`grindtrack`**; Hibernate is `validate`-only, so Liquibase is the singl
 | 033 | `recovery.sql` | the recovery tab: `recovery_texts`, `recovery_paragraphs`, `recovery_daily_entries`, `recovery_settings`, `recovery_journal`, `recovery_sessions`, `recovery_days`, `bible_verses`. All created empty; the Bible is seeded by `BibleSeeder` on first start, never by a migration |
 | 034 | `recovery-pages.sql` | pages on `recovery_paragraphs` (`page_label`, `page_seq`); `recovery_files` (the uploads, kept); `recovery_settings` reads by the page (`pages_per_day`, `read_last_done`, `reading_place`; `read_minutes` dropped); `recovery_people` and `recovery_contacts` |
 | 035 | `recovery-search.sql` | a GIN full-text index over `recovery_paragraphs.body`, English dictionary, for searching the book |
+| 036 | `calendar-reminders.sql` | `calendar_events.reminded_at`, so the block-starting push is sent once and survives a restart |
 
 - Every changeset has a `--rollback` (018's is a documented no-op — the values it cleared were
   wrong and there is nothing to restore them to). Time columns are `TIMESTAMPTZ DEFAULT now()`.
@@ -524,6 +525,8 @@ Schema **`grindtrack`**; Hibernate is `validate`-only, so Liquibase is the singl
 | `grindtrack.recovery.readings-cron` / `people-cron` | — | 07:55 daily / 18:00 daily | `RecoveryProperties` |
 | `grindtrack.recovery.bible.file` / `name` / `abbrev` / `books` | — | `recovery/web.jsonl.gz` / World English Bible / `WEB` / the reading order | `RecoveryProperties.Bible` |
 | `grindtrack.todos.reminder-cron` | — | 08:00 and 18:00 daily | `TodoProperties` |
+| `grindtrack.calendar.reminder-cron` / `reminder-minutes` / `upkeep-cron` | — | every minute / 10 / 08:05 daily | `CalendarProperties` |
+| `grindtrack.plan.evening-cron` | — | 21:00 daily | `PlanProperties` |
 
 Also: `spring.threads.virtual.enabled: true` (Java 21 virtual threads), `ddl-auto: validate`,
 `hibernate.default_schema: grindtrack`, `server.port: 8080`. **No Spring profiles** — environment

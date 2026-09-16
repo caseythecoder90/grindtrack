@@ -72,7 +72,7 @@ public class ContextService {
   private static final int RECENT_DAYS = 14;
 
   /** Q1 is Jul-Sep 2026 — the same constant the import script uses. */
-  private static final LocalDate PLAN_START = LocalDate.of(2026, 7, 1);
+  static final LocalDate PLAN_START = LocalDate.of(2026, 7, 1);
 
   private final PlanService plan;
   private final TrackingService tracking;

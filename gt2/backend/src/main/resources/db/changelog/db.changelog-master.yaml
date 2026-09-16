@@ -69,3 +69,5 @@ databaseChangeLog:
       file: db/changelog/034-recovery-pages.sql
   - include:
       file: db/changelog/035-recovery-search.sql
+  - include:
+      file: db/changelog/036-calendar-reminders.sql

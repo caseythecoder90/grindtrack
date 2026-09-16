@@ -26,6 +26,14 @@ public enum EventKind {
     return this == STUDY_BLOCK;
   }
 
+  /**
+   * Whether a timed block of this kind is worth a push ten minutes before it starts. The day job is
+   * not: it is blocked out so the week reads honestly, not because it might be missed.
+   */
+  public boolean remindsBeforeStart() {
+    return this != WORK_BLOCK;
+  }
+
   /** The over-the-wire and in-database spelling. */
   public String wireValue() {
     return name().toLowerCase(Locale.ROOT);
