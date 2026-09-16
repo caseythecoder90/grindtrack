@@ -546,6 +546,7 @@ Schema **`grindtrack`**; Hibernate is `validate`-only, so Liquibase is the singl
 | 034 | `recovery-pages.sql` | pages on `recovery_paragraphs` (`page_label`, `page_seq`); `recovery_files` (the uploads, kept); `recovery_settings` reads by the page (`pages_per_day`, `read_last_done`, `reading_place`; `read_minutes` dropped); `recovery_people` and `recovery_contacts` |
 | 035 | `recovery-search.sql` | a GIN full-text index over `recovery_paragraphs.body`, English dictionary, for searching the book |
 | 036 | `calendar-reminders.sql` | `calendar_events.reminded_at`, so the block-starting push is sent once and survives a restart |
+| 037 | `bible-browse.sql` | `recovery_settings.bible_cursor` / `bible_shown_on` (the passage is a cursor, not a date), a GIN full-text index over `bible_verses.text`, and `bible_notes` (a passage explained, kept by passage) |
 
 - Every changeset has a `--rollback` (018's is a documented no-op — the values it cleared were
   wrong and there is nothing to restore them to). Time columns are `TIMESTAMPTZ DEFAULT now()`.

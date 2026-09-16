@@ -42,6 +42,14 @@ public class RecoverySettings {
   @Column(name = "bible_plan_start", nullable = false)
   private LocalDate biblePlanStart = LocalDate.now();
 
+  /** Which passage of the plan is today's. Null: not yet set, so it is computed from the start. */
+  @Column(name = "bible_cursor")
+  private Integer bibleCursor;
+
+  /** The day the cursor was last set, so a new day moves it on once. */
+  @Column(name = "bible_shown_on")
+  private LocalDate bibleShownOn;
+
   public RecoverySettings() {}
 
   public Short getId() {
@@ -117,7 +125,36 @@ public class RecoverySettings {
     this.meditationMinutes = minutes;
   }
 
+  /**
+   * Today's passage: the cursor, moved on once when the day has changed since it was set. The first
+   * time, before there is a cursor, it is {@code initial} — the passage the old date-counted plan
+   * would have shown — so nobody's place jumps.
+   */
+  public int biblePassage(LocalDate today, int initial, int planSize) {
+    if (planSize <= 0) {
+      return 0;
+    }
+    if (bibleCursor == null) {
+      bibleCursor = Math.floorMod(initial, planSize);
+      bibleShownOn = today;
+    } else if (bibleShownOn == null || bibleShownOn.isBefore(today)) {
+      bibleCursor = (bibleCursor + 1) % planSize;
+      bibleShownOn = today;
+    }
+    return bibleCursor % planSize;
+  }
+
+  /** Another passage today: the cursor moves on now, and tomorrow moves on from there. */
+  public int nextBiblePassage(LocalDate today, int initial, int planSize) {
+    int current = biblePassage(today, initial, planSize);
+    bibleCursor = (current + 1) % planSize;
+    bibleShownOn = today;
+    return bibleCursor;
+  }
+
   public void restartBiblePlan(LocalDate today) {
     this.biblePlanStart = today;
+    this.bibleCursor = 0;
+    this.bibleShownOn = today;
   }
 }

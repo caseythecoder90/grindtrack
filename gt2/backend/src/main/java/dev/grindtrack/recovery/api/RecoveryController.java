@@ -10,6 +10,7 @@ import dev.grindtrack.recovery.api.RecoveryDtos.SessionRequest;
 import dev.grindtrack.recovery.api.RecoveryDtos.SettingsRequest;
 import dev.grindtrack.recovery.domain.PersonRole;
 import dev.grindtrack.recovery.domain.TextSlot;
+import dev.grindtrack.recovery.service.BibleService;
 import dev.grindtrack.recovery.service.ImportReport;
 import dev.grindtrack.recovery.service.RecoveryService;
 import dev.grindtrack.web.BadRequestException;
@@ -49,9 +50,11 @@ public class RecoveryController {
   private static final int MAX_QUERY_CHARS = 120;
 
   private final RecoveryService recovery;
+  private final BibleService bible;
 
-  public RecoveryController(RecoveryService recovery) {
+  public RecoveryController(RecoveryService recovery, BibleService bible) {
     this.recovery = recovery;
+    this.bible = bible;
   }
 
   @GetMapping("/today")
@@ -273,6 +276,44 @@ public class RecoveryController {
   public RecoveryService.Library restartBible() {
     recovery.restartBiblePlan();
     return recovery.library();
+  }
+
+  // ---- the Bible ----
+
+  /** Another passage today. */
+  @PostMapping("/bible/next")
+  public RecoveryService.Today nextPassage() {
+    return recovery.nextPassage();
+  }
+
+  /** What today's passage means; written on the first ask and kept. 503 when the model is off. */
+  @PostMapping("/bible/explain")
+  public BibleService.Explanation explainPassage() {
+    return recovery.explainPassage();
+  }
+
+  @GetMapping("/bible/books")
+  public List<BibleService.Book> bibleBooks() {
+    return bible.books();
+  }
+
+  /**
+   * A reference ("John 3:16") is a place to open; anything else is searched, forty hits at most.
+   */
+  @GetMapping("/bible/search")
+  public BibleService.Search searchBible(@RequestParam String q) {
+    String query = Requests.requireText(q, "search needs a word", MAX_QUERY_CHARS);
+    if (query.length() < 2) {
+      throw new BadRequestException("search needs a word");
+    }
+    return bible.search(query);
+  }
+
+  @GetMapping("/bible/{book}/{chapter}")
+  public BibleService.Chapter bibleChapter(@PathVariable String book, @PathVariable int chapter) {
+    return bible
+        .chapter(book.toUpperCase(java.util.Locale.ROOT), chapter)
+        .orElseThrow(() -> new NoSuchElementException(book + " " + chapter));
   }
 
   private static TextSlot slot(String value) {

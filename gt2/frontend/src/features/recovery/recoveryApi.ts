@@ -32,10 +32,58 @@ export interface Verse {
 
 export interface Passage {
   reference: string;
+  book: string;
+  chapter: number;
   translation: string;
-  dayInPlan: number;
+  position: number;
   planSize: number;
   verses: Verse[];
+  /** What it means, once written; null until asked for. */
+  explanation: string | null;
+}
+
+export interface BibleBook {
+  code: string;
+  name: string;
+  chapters: number;
+  testament: "old" | "new";
+}
+
+export interface BiblePlace {
+  book: string;
+  name: string;
+  chapter: number;
+  verse: number | null;
+}
+
+export interface BibleChapter {
+  book: string;
+  name: string;
+  chapter: number;
+  chapters: number;
+  verses: Verse[];
+  prev: BiblePlace | null;
+  next: BiblePlace | null;
+}
+
+export interface BibleHit {
+  book: string;
+  name: string;
+  chapter: number;
+  verse: number;
+  reference: string;
+  text: string;
+}
+
+/** A reference typed is a place; anything else is verses found. */
+export interface BibleSearch {
+  place: BiblePlace | null;
+  hits: BibleHit[];
+}
+
+export interface Explanation {
+  reference: string;
+  body: string;
 }
 
 export interface Para {
@@ -280,3 +328,18 @@ export const reparse = (slot: Slot) =>
   api<ImportReport>(`${BASE}/import/${slot}/reparse`, { method: "POST" });
 
 export const restartBible = () => api<Library>(`${BASE}/bible/restart`, { method: "POST" });
+
+// ---- the Bible ----
+
+export const nextPassage = () => api<RecoveryToday>(`${BASE}/bible/next`, { method: "POST" });
+
+export const explainPassage = () =>
+  api<Explanation>(`${BASE}/bible/explain`, { method: "POST" });
+
+export const getBibleBooks = () => api<BibleBook[]>(`${BASE}/bible/books`);
+
+export const getBibleChapter = (book: string, chapter: number) =>
+  api<BibleChapter>(`${BASE}/bible/${encodeURIComponent(book)}/${chapter}`);
+
+export const searchBible = (q: string) =>
+  api<BibleSearch>(`${BASE}/bible/search?q=${encodeURIComponent(q)}`);

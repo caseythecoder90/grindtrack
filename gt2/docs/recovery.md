@@ -13,7 +13,7 @@ comes from, how a book is imported, and what runs when.
 |---|---|---|
 | **The number** | `SOBRIETY_DATE` from the environment (set once in the cluster's secret, never in the repo). Day one is the date itself. | The calendar |
 | **Daily reflection** | Your imported copy of *Daily Reflections* (one entry per calendar day) | The calendar (month + day) |
-| **Today's passage** | The built-in Bible (see below): one short passage a day, in order | The calendar (days since the plan started) |
+| **Today's passage** | The built-in Bible (see below): one short passage a day, in order; "what does it mean?" writes a note under it | A new day, once; "another passage" whenever there is time for one more |
 | **Meditation** | A timer of any length; a bell at the end; sessions are logged | You |
 | **Big Book** | Your imported copy, two pages a day from a page cursor; a missed day carries over | "Done for today", or "mark read to here" from anywhere in the book |
 | **Journal** | Typed or spoken (the same speech relay as the ask tab) | You |
@@ -163,9 +163,36 @@ John, Psalms, Matthew, Proverbs, Mark, Romans, Philippians, Luke, James,
 Ephesians, Acts, 1 Peter, Colossians, 1 John, Isaiah, Genesis, then the rest
 of the New Testament; whatever is not listed follows in canonical order, so
 the plan covers the whole Bible: 5,058 passages of roughly 140 words, a
-minute read aloud). Day *n* of the plan is passage *n*; the plan starts on
-the day the feature is deployed and can be restarted from the your-books
-screen.
+minute read aloud). The place in the plan is a cursor (`bible_cursor`), not
+a date: the first read of a new day moves it on one passage, however many
+days were missed, and **another passage** moves it on now, so a morning
+with time for two is two and tomorrow follows from there. Before the cursor
+existed the place was counted from `bible_plan_start`; the first read after
+the change starts the cursor where that count was, so nobody's place jumps.
+The plan can be restarted from the your-books screen.
+
+**Reading from anywhere.** The read view has a switch at the top — the book
+on the plan, or the Bible. The Bible side is the sixty-six books, a book's
+chapters as a grid of numbers, and a chapter set like a page with the
+previous and the next a tap away (across books: Malachi 4 leads to Matthew
+1). One box takes either a reference or words: "John 3:16", "1 john 4:7",
+"psalm 23" or "ps 23" open the chapter with the verse lit; anything else is
+full-text search over the verses, the same Postgres index as the book's
+(English stemming, every word required, forty hits at most, best first),
+and a hit opens its chapter at that verse. **Read on** under the day's
+passage opens its chapter there.
+
+**What it means.** The passage card has a button, and the 07:55 job presses
+it first: the model (the assistant's key and model, `AssistantProperties`)
+is given the reference, the edition's name and the verses, and asked for
+three short paragraphs — what is happening, what it means, one honest
+sentence for the day — in plain text, under 180 words, for two people who
+are not scholars. The note is kept in `bible_notes` by passage, so the same
+passage on two phones, or next time round the plan, is one call (about a
+cent). No key means the button answers 503 with a sentence and the morning
+job writes nothing; a failed call is a note that is not there yet, and the
+button is the retry. The prompt is `AnthropicPassageModel.SYSTEM_PROMPT`;
+`PassageModel` is the seam tests use.
 
 ## Data model
 
@@ -178,11 +205,12 @@ Migrations `033-recovery.sql`, `034-recovery-pages.sql` and `035-recovery-search
 | `recovery_paragraphs` | one paragraph of a book read in order | `text_id`, `chapter_no`, `chapter_title`, `seq`, `body`, `words`, `page_label` (as printed: "xvi", "58"), `page_seq` (running, from zero) |
 | `recovery_files` | one uploaded file | `slot`, `ordinal`, `filename`, `bytes`, `size`, `uploaded_at` — kept so the parser can run again |
 | `recovery_daily_entries` | one dated entry of a book read by date | `text_id`, `month`, `day`, `title`, `body` |
-| `recovery_settings` | one row | `read_cursor` (paragraph seq), `pages_per_day` (default 2), `read_last_done` (the carry-over counts from here), `reading_place` (where the reader was opened), `read_throughs`, `meditation_minutes` (last used), `bible_plan_start` |
+| `recovery_settings` | one row | `read_cursor` (paragraph seq), `pages_per_day` (default 2), `read_last_done` (the carry-over counts from here), `reading_place` (where the reader was opened), `read_throughs`, `meditation_minutes` (last used), `bible_plan_start`, `bible_cursor` (which passage is today's), `bible_shown_on` (the day it was set) |
 | `recovery_journal` | one entry | `created_at`, `body`, `spoken` |
 | `recovery_sessions` | one meditation | `started_at`, `minutes`, `completed` |
 | `recovery_days` | one day's marks | `day` (pk), `read_done`, `read_from`/`read_to` (the part that was read, so it stays on screen after the cursor moved), `meditated` |
-| `bible_verses` | one verse | `book` (USFM code), `book_ord`, `chapter`, `verse`, `para`, `text`; seeded once from the resource |
+| `bible_verses` | one verse | `book` (USFM code), `book_ord`, `chapter`, `verse`, `para`, `text`; seeded once from the resource; a GIN full-text index for search |
+| `bible_notes` | one passage explained | `passage_key` ("JHN 3:16-21"), `body`, `model`, `created_at`; written by the model on the first ask and kept |
 | `recovery_people` | someone to keep in touch with | `name`, `role` (`sponsor`, `prospect`, `friend`), `cadence_days`, `note`, `archived` |
 | `recovery_contacts` | one call | `person_id`, `at`, `note` |
 
@@ -215,6 +243,11 @@ All under `/api/recovery`, same auth as everything else.
 | `POST /import/{slot}?dryRun=true&title=` | Multipart `files`: the PDFs together, or one text file; returns the report; `dryRun=false` writes and keeps the files |
 | `POST /import/{slot}/reparse` | The stored files through the parser again |
 | `POST /bible/restart` | Plan starts today |
+| `POST /bible/next` | Another passage: the next one becomes today's |
+| `POST /bible/explain` | What today's passage means; written on the first ask and kept; 503 without a model |
+| `GET /bible/books` | The sixty-six books with their chapter counts |
+| `GET /bible/search?q=` | A reference ("John 3:16") is a place to open; anything else is verses found |
+| `GET /bible/{book}/{chapter}` | A chapter's verses and its neighbours |
 
 The exact shapes are in [api.md](api.md#recovery-authenticated).
 
@@ -223,7 +256,7 @@ The exact shapes are in [api.md](api.md#recovery-authenticated).
 | Time | Job | Push |
 |---|---|---|
 | 05:30 | Morning brief (unchanged) | "good morning" line, then the brief |
-| **07:55** | `RecoveryReadingScheduler` | One notification, tag `readings`: the reflection's title, the passage reference, and the Big Book pages ("Big Book · pp. 58–59"), for reading together later. Tapping opens the recovery tab. Sent only if at least one of the three exists. |
+| **07:55** | `RecoveryReadingScheduler` | First writes the day's passage note if there is a model and none yet, so it is waiting; then one notification, tag `readings`: the reflection's title, the passage reference, and the Big Book pages ("Big Book · pp. 58–59"), for reading together later. Tapping opens the recovery tab. Sent only if at least one of the three exists. |
 | 08:00, 18:00 | Todo reminders (unchanged) | |
 | **18:00** | `PeopleReminderScheduler` | One notification, tag `people`: who is due a call — the sponsor still to be asked first, then whoever is furthest past their cadence, three names and a count. Sent only while someone is. |
 
@@ -253,11 +286,11 @@ reference, not the text.
 | The parsers | `recovery/service/BookParser.java`, `DailyParser.java`, `Blocks.java` | Pure functions from text to structure; every rule above is a test in `BookParserTest` / `DailyParserTest` |
 | The PDFs | `PdfText.java`, `PdfBookParser.java` | PDFBox to lines with paragraph marks; the shape of a page to chapters, pages and paragraphs — every rule above is a test in `PdfBookParserTest` |
 | The day's part | `ReadingPlanner.java` | Every paragraph that starts on a page owed |
-| The Bible | `BibleBooks.java`, `BiblePlan.java`, `BibleSeeder.java`, `BibleService.java` | The canon, the cutting rule, the batched seed, the plan held in memory |
+| The Bible | `BibleBooks.java`, `BiblePlan.java`, `BibleSeeder.java`, `BibleService.java`, `PassageModel.java`, `AnthropicPassageModel.java` | The canon, the cutting rule, the batched seed; the plan and the chapter counts held in memory, a chapter and its neighbours, a reference parsed or the text searched, a passage explained once (`BibleServiceTest`); the cursor's rule is on `RecoverySettings` (`RecoverySettingsBibleTest`) |
 | The number | `Milestones.java` | Day one is the date; the next milestone |
 | Everything else | `RecoveryService.java` | The today view, the cursor and the carry-over, the reader, the imports and the stored files, the people, the push lines |
 | The pushes | `RecoveryReadingScheduler.java`, `PeopleReminderScheduler.java` + `PushService.Notification.readings` / `peopleToCall` | Same shape as the todo reminder |
-| The page | `frontend/src/features/recovery/` | `RecoveryPage` (views and columns), `BookSearch` (search and go to page), `BookReader` (any chapter, a hit lit, mark read to here), `PeoplePanel`, `MeditationTimer` (+ `bell.ts`), `JournalComposer` (the ask tab's composer with `useSpeech`), `LibraryPanel` |
+| The page | `frontend/src/features/recovery/` | `RecoveryPage` (views and columns), `BookSearch` (search and go to page), `BookReader` (any chapter, a hit lit, mark read to here), `BibleBrowser` (the books, a chapter, one box for a reference or words), `Verses` (verses set like a page, shared by the passage card and the chapter), `PeoplePanel`, `MeditationTimer` (+ `bell.ts`), `JournalComposer` (the ask tab's composer with `useSpeech`), `LibraryPanel` |
 
 ## Decisions taken
 

@@ -28,6 +28,9 @@ public class RecoveryReadingScheduler {
   @Scheduled(cron = "${grindtrack.recovery.readings-cron}", zone = "${grindtrack.assistant.zone}")
   public void send() {
     try {
+      // The passage's note first, so it is waiting when the passage is read; its own failure is
+      // its own — the button on the card is the retry.
+      recovery.prepareExplanation();
       PushService.Notification notification = notification(recovery.readingsToday());
       if (notification == null) {
         return;
