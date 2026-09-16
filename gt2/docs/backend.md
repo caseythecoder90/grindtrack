@@ -24,7 +24,8 @@ Each feature is a top-level package split into layer subpackages:
 | `push` | Web Push to the installed app: subscriptions, the VAPID signer, the payload cipher, the two producers' hook | `/api/push` |
 | `speech` | speech to text for the ask box: a WebSocket relay from the microphone to a transcription model | `/api/speech` |
 | `calendar` | events on days, and recurring upkeep | `/api/calendar`, `/api/upkeep` |
-| `config` | cross-cutting: `SecurityConfig`, `StaticContentConfig`, `AppProperties` | — |
+| `recovery` | the number, the readings, the Big Book by the page, the timer, the journal, the people to call; the PDF and text importers; the Bible seed | `/api/recovery` |
+| `config` | cross-cutting: `SecurityConfig`, `StaticContentConfig`, `SchedulingConfig`, the `*Properties` records, the two `*AsyncConfig` executor sets | — |
 
 Full inventory:
 
@@ -33,7 +34,12 @@ dev.grindtrack
 ├── GrindtrackApplication.java
 ├── config/
 │   ├── AppProperties.java        record, @ConfigurationProperties(prefix="grindtrack")
+│   ├── {Assistant,Push,Speech,Recovery,Todo}Properties.java   one record per optional feature,
+│   │                             each with a configured()/cron the rest of the app checks
 │   ├── SecurityConfig.java       @EnableWebSecurity, SecurityFilterChain + PasswordEncoder beans
+│   ├── SchedulingConfig.java     @EnableScheduling — one replica, so no lock; says so
+│   ├── AssistantAsyncConfig.java the bounded executor a chat turn runs on + the heartbeat scheduler
+│   ├── SpeechAsyncConfig.java    the executor a dictation's relay runs on
 │   └── StaticContentConfig.java  Tomcat MIME mapping for .webmanifest (the PWA manifest)
 ├── web/                          the shared HTTP edge — no feature may duplicate it
 │   ├── Requests.java             requireDate/optionalDate/monthOrNow/requireText/enumValue/…
@@ -84,9 +90,30 @@ dev.grindtrack
 │   ├── api/{RelationshipController,RelationshipDtos}.java
 │   ├── service/{RelationshipService,RelationshipSummary}.java
 │   └── domain/{Moment,Idea,Occasion,Reading}(+Repository) + enums.java
-└── assistant/
-    ├── api/{AssistantController,AssistantDtos}.java
-    └── service/{ContextService,AssistantContext}.java   — no domain/: owns no table
+├── assistant/
+│   ├── api/{AssistantController,ChatController,ChatStream,AssistantDtos}.java
+│   ├── service/{ContextService,AssistantContext}.java   the read-only view over every feature
+│   ├── service/{ChatService,AssistantToolExecutor,Costs}.java
+│   ├── service/{ChatModel,BriefModel,ReviewModel,WeekPlanModel}.java   interfaces; Anthropic*Model behind each
+│   ├── service/{WeekPlan,DayLog,TodoDraft,MorningBrief,WeeklyReview}Service.java (+ *Draft records)
+│   ├── service/{MorningBriefScheduler,WeeklyReviewScheduler}.java
+│   └── domain/{AssistantReport,AssistantConversation,AssistantMessage}(+Repository).java
+├── push/
+│   ├── api/PushController.java            request records nested in the controller
+│   ├── service/{PushService,Vapid,PayloadCipher,PushTransport,HttpPushTransport}.java
+│   └── domain/PushSubscription(+Repository).java
+├── speech/
+│   ├── api/{SpeechController,SpeechSocketConfig,SpeechSocketHandler}.java
+│   └── service/{TranscriptionRelay,TranscriptionUpstream,OpenAiTranscriptionUpstream}.java   — no domain/: owns no table
+└── recovery/
+    ├── api/{RecoveryController,RecoveryDtos}.java
+    ├── service/{RecoveryService,ReadingPlanner,Milestones,ImportReport}.java
+    ├── service/{BookParser,DailyParser,Blocks,PdfText,PdfBookParser}.java   text and PDF → paragraphs
+    ├── service/{BibleBooks,BiblePlan,BibleSeeder,BibleService}.java
+    ├── service/{RecoveryReadingScheduler,PeopleReminderScheduler}.java
+    └── domain/{RecoveryText,RecoveryParagraph,RecoveryFile,RecoveryDailyEntry,RecoverySettings,
+                JournalEntry,MeditationSession,RecoveryDay,Person,Contact,BibleVerse}(+Repository)
+                + TextSlot, PersonRole
 ```
 
 DTOs are Java **records** in `<feature>/api/<Feature>Dtos.java`; response records carry a static
@@ -357,6 +384,30 @@ turns audio frames into `input_audio_buffer.append` events, and turns the servic
 events into `ready` / `delta` / `final` / `speech` / `error` frames. `TranscriptionUpstream` is
 the socket behind an interface, so the relay is tested against a fake service and a fake browser.
 See the "Speaking a question" section of [assistant.md](assistant.md).
+
+### `RecoveryController` — `/api/recovery`
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/today` | everything the today view needs; cards the data cannot fill are `null` |
+| POST | `/read/done`, `/read/mark?seq=`, `/read/catch-up`, `/read/restart` | move the book's cursor; each answers the `today` shape |
+| GET | `/book`, `/book/chapters/{no}`, `/book/page/{label}` | the reading, a chapter's paragraphs, the first paragraph on a printed page |
+| GET | `/book/search?q=` | full-text over the paragraphs (Postgres `tsvector`, English stemming, GIN index from 035); forty at most |
+| PUT | `/book/place`, `/settings` | where the reader is; pages per day and meditation minutes |
+| POST | `/sessions` | logs a sitting; `{streak, doneToday}` |
+| GET/POST/DELETE | `/journal`, `/journal/{id}` | newest first, 50 at a time |
+| GET/POST/PATCH/DELETE | `/people`, `/people/{id}` | the people to call; delete archives, the calls stay |
+| GET/POST | `/people/{id}/contacts` | the calls to one person; logging one to a prospect makes them a sponsor |
+| GET | `/library` | the three text slots, the Bible, the plan start |
+| POST | `/import/{slot}?dryRun=&title=` | multipart `files`: a book's PDFs together or one text file; dry run by default. The one non-JSON request body in the app; limits under `spring.servlet.multipart` |
+| POST | `/import/{slot}/reparse`, `/bible/restart` | the stored files through the parser again; the Bible plan from the top |
+
+Shapes for every answer are in [api.md](api.md#recovery-authenticated); the design, the import
+formats and the parsers are in [recovery.md](recovery.md). `RecoveryService` owns all of it,
+including the imports, because replacing a book and keeping the cursor honest is one transaction.
+`BibleSeeder` (an `ApplicationRunner`) fills `bible_verses` on first start from a gzipped JSONL on
+the classpath — batched JDBC, never a migration. The 07:55 readings push and the 18:00 people
+reminder are the two schedulers in `recovery/service/`.
 
 ## Auth internals (summary)
 

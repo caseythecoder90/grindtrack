@@ -85,10 +85,10 @@ Order on startup: **preliquibase → Liquibase → JPA validate**.
    grindtrack`). This solves the chicken-and-egg problem: Liquibase needs a schema to write its
    own `DATABASECHANGELOG` into.
 2. Liquibase runs `db/changelog/db.changelog-master.yaml`, which includes the formatted-SQL
-   changelogs in numeric order — currently `001`–`019`, roughly users/tokens → tracking → focus →
-   plan → work → todos → finance → relationship, with later changesets widening earlier CHECKs as
-   the app grew. Every schema change forever after is a new changeset — **never edit an applied
-   one**. The full annotated list is in [backend.md](backend.md#migrations).
+   changelogs in numeric order — currently `001`–`035`, roughly users/tokens → tracking → focus →
+   plan → work → todos → finance → relationship → calendar → auth hardening → assistant → push →
+   recovery, with later changesets widening earlier CHECKs as the app grew. Every schema change
+   forever after is a new changeset — **never edit an applied one**. The full annotated list is in [backend.md](backend.md#migrations).
 3. Hibernate validates that entities match reality (`ddl-auto: validate`) and refuses to start on
    drift.
 
@@ -103,9 +103,12 @@ Package-by-feature at the top level; inside each feature, layers get their own s
 ```
 dev.grindtrack
 ├── GrindtrackApplication         @SpringBootApplication + @ConfigurationPropertiesScan
-├── config/                       SecurityConfig, AppProperties, StaticContentConfig
-├── web/                          Requests, Responses, BadRequest/ConflictException,
-│                                 ApiExceptionHandler — the shared HTTP edge
+├── config/                       SecurityConfig, StaticContentConfig, SchedulingConfig,
+│                                 the *Properties records (app, assistant, push, speech,
+│                                 recovery, todo), the two *AsyncConfig executor sets
+├── web/                          Requests, Responses, the four named exceptions (BadRequest,
+│                                 Conflict, ServiceOff, Upstream), ApiExceptionHandler — the
+│                                 shared HTTP edge
 ├── auth/
 │   ├── api/                      AuthController, AuthDtos
 │   ├── service/                  AuthService, JwtService, TotpService, TrustedDeviceService,
@@ -140,9 +143,35 @@ dev.grindtrack
 │   ├── api/                      RelationshipController, RelationshipDtos
 │   ├── service/                  RelationshipService (+RelationshipSummary)
 │   └── domain/                   Moment, Idea, Occasion, Reading + enums
-└── assistant/                    AssistantController/AssistantDtos · ContextService
-                                  (+AssistantContext) — a read-only GET surface over every
-                                  other feature; owns no table
+├── assistant/
+│   ├── api/                      AssistantController, ChatController (+ChatStream, SSE),
+│   │                             AssistantDtos
+│   ├── service/                  ContextService (+AssistantContext) — a read-only view over
+│   │                             every other feature; ChatService + AssistantToolExecutor;
+│   │                             the four Anthropic*Model adapters behind interfaces;
+│   │                             WeekPlan/DayLog/TodoDraft/MorningBrief/WeeklyReview services
+│   │                             and the two schedulers
+│   └── domain/                   AssistantReport, AssistantConversation, AssistantMessage
+│                                 + repositories
+├── push/
+│   ├── api/                      PushController (DTOs are nested records)
+│   ├── service/                  PushService, Vapid (RFC 8292), PayloadCipher (RFC 8291),
+│   │                             PushTransport/HttpPushTransport
+│   └── domain/                   PushSubscription + repository
+├── speech/
+│   ├── api/                      SpeechController, SpeechSocketConfig, SpeechSocketHandler
+│   └── service/                  TranscriptionRelay, TranscriptionUpstream/OpenAi… — no
+│                                 domain/: owns no table
+└── recovery/
+    ├── api/                      RecoveryController, RecoveryDtos
+    ├── service/                  RecoveryService, ReadingPlanner, Milestones, the parsers
+    │                             (BookParser, DailyParser, PdfText, PdfBookParser), the Bible
+    │                             (BibleBooks, BiblePlan, BibleSeeder, BibleService), the two
+    │                             schedulers
+    └── domain/                   RecoveryText, RecoveryParagraph, RecoveryFile,
+                                  RecoveryDailyEntry, RecoverySettings, JournalEntry,
+                                  MeditationSession, RecoveryDay, Person, Contact, BibleVerse
+                                  + repositories, TextSlot, PersonRole
 ```
 
 Every record a browser sends or receives is in a feature's `api/<Feature>Dtos.java`; a service

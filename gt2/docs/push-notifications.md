@@ -18,8 +18,8 @@ sentence of the brief to anyone but the phone.
 | Morning brief | after the 05:30 draft lands, second | `morning brief` | the brief's headline | today tab |
 | Todos waiting | 08:00 and 18:00, while anything is open | `2 todos are overdue` (or due today, or waiting) | up to three titles, most urgent first | todos tab |
 | Weekly review | after the Friday 17:00 draft lands | `weekly review is ready` | one fixed sentence | week tab |
-| Today's readings | 07:55 | `today's readings` | the reflection, the passage, the pages | recovery tab |
-| A call to make | 18:00, while someone is due | `a call to make` / `someone to ask` | the names | recovery tab |
+| Today's readings | 07:55, when a reading exists | `today's readings` | the reflection's title, the passage, the Big Book pages | recovery tab |
+| People to call | 18:00, while someone is due | `a call to make` / `3 calls to make` (or `someone to ask`) | up to three names, days over | recovery tab |
 | Block starting | 10 minutes before a timed block, once | the block's title | `in 10 minutes · 05:30–07:00 · study block` | cal tab |
 | Upkeep due | 08:05, while anything is overdue or due today | `2 upkeep items are overdue` (or due today) | up to three titles, most overdue first | cal tab |
 | The plan, evening | 21:00, once a plan is imported | `week 12 of the plan` | `7.5 of 15 h this week · CKA exam · Oct 9 · in 23 days · tomorrow 05:30 · etcd lab` | plan tab |
@@ -267,11 +267,14 @@ the system one, it appears once, and a denial can only be undone in Settings →
   keeps it; off is a state, not an error; the test message goes to one endpoint when asked.
 - `PushControllerTest`: the shape of the five endpoints, and that a subscribe with a bad key
   is a 400 with a sentence.
-- Frontend: Playwright with a scripted `PushManager` and `Notification`, checking each of the
-  five states renders the right thing and that subscribe PUTs what the browser produced.
+- Frontend: nothing yet. `lib/push.ts` derives its five states from `PushManager`,
+  `Notification.permission` and the user agent, and none of that is under a test. When one is
+  written it belongs in `tools/audit/` beside the other Playwright checks, with a scripted
+  `PushManager` and `Notification`, asserting each state renders the right thing and that
+  subscribe PUTs what the browser produced.
 
-The one thing no test covers is the real push service accepting a real message. That is the
-**send a test** button, and the runbook says to press it.
+Two things no test covers: the panel's five states, above, and the real push service accepting a
+real message. The second is the **send a test** button, and the runbook says to press it.
 
 ## Runbook
 
