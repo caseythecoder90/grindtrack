@@ -45,7 +45,7 @@ export default function Landing({ onLoginClick }: Props) {
         </>
       )}
       <div className="landing-cta">
-        <button className="primary" onClick={onLoginClick}>Owner login</button>
+        <button className="primary" onClick={onLoginClick}>Log in</button>
       </div>
     </>
   );

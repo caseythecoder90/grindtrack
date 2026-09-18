@@ -100,11 +100,6 @@ public class AuthService {
     return deviceTrustedUserId != null && deviceTrustedUserId.equals(user.getId());
   }
 
-  /** The signed-in user, by name. For callers that hold a Principal and need the row. */
-  public Optional<User> findByUsername(String username) {
-    return users.findByUsername(username);
-  }
-
   /**
    * Starts a session: a new opaque refresh token at the head of a new family. Only its SHA-256 hash
    * is stored.

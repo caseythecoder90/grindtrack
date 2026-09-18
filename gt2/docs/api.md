@@ -3,6 +3,11 @@
 All request/response bodies are JSON. Authenticated endpoints require the `gt_access` cookie
 (set by login/refresh); unauthenticated calls receive `401` with no body.
 
+Two roles. Everything marked *authenticated* is the **owner's** unless it says *owner or partner*;
+a partner's cookie gets `403` with no body on the rest, decided by URL before any handler runs. The
+rule, and the test that walks every mapping to hold it, are in
+[auth.md](auth.md#roles-and-what-a-partner-may-reach).
+
 ## Errors
 
 One envelope, `{"error": "<a sentence you can act on>"}`, produced by a single
@@ -29,13 +34,17 @@ error.
 
 | Method | Path | Body | Effect |
 |---|---|---|---|
-| POST | `/api/auth/login` | `{username, password, otp?, trustDevice?}` | Sets `gt_access` (30 min) + `gt_refresh` (90 d, sliding) cookies, plus `gt_device` (30 d) when `trustDevice` is true. `otp` may be omitted on a trusted device. 401 on any failure (deliberately does not say which factor failed). 429 after 5 attempts / 5 min / IP. |
+| POST | `/api/auth/login` | `{username, password, otp?, trustDevice?}` | `{username, role}`. Sets `gt_access` (30 min) + `gt_refresh` (90 d, sliding) cookies, plus `gt_device` (30 d) when `trustDevice` is true. `otp` may be omitted on a trusted device. 401 on any failure (deliberately does not say which factor failed). 429 after 5 attempts / 5 min / IP. |
 | GET | `/api/auth/device` | – | `{trusted, count}` — whether this browser holds a live device cookie. Public; says nothing about who. |
-| POST | `/api/auth/refresh` | – | Renews the session (slides expiry, same token) and sets a fresh `gt_access`; rotates the token once it is 24 h old. 401 **and both cookies cleared** if missing/expired/revoked; a rotated token replayed more than 24 h after its rotation also revokes that token's family (see [auth.md](auth.md)). |
+| POST | `/api/auth/refresh` | – | `{username, role}`. Renews the session (slides expiry, same token) and sets a fresh `gt_access`; rotates the token once it is 24 h old. 401 **and both cookies cleared** if missing/expired/revoked; a rotated token replayed more than 24 h after its rotation also revokes that token's family (see [auth.md](auth.md)). |
 | POST | `/api/auth/logout` | – | Revokes this browser's session server-side and expires both cookies. The device cookie is kept. |
-| POST | `/api/auth/logout-all` | – | Authenticated. Ends every live session for the account, on every device. `{status, sessionsEnded}`; expires this browser's cookies. |
-| POST | `/api/auth/devices/forget` | – | Authenticated. Revokes every trusted device; `{trusted: false, count}`. |
-| GET | `/api/auth/me` | – | `{username}` if the access cookie is valid. |
+| POST | `/api/auth/logout-all` | – | Authenticated, owner or partner. Ends every live session for the account, on every device. `{status, sessionsEnded}`; expires this browser's cookies. |
+| POST | `/api/auth/devices/forget` | – | Authenticated, owner or partner. Revokes every trusted device; `{trusted: false, count}`. |
+| GET | `/api/auth/me` | – | `{username, role}` if the access cookie is valid. Owner or partner. |
+| GET | `/api/auth/users` | – | Owner only. `[{id, username, role, createdAt}]` — never a hash, never a secret. |
+| POST | `/api/auth/users` | `{username, password}` | Owner only. Creates a partner: `{id, username, role, totpSecret, otpauthUri}` — the secret is in this answer once and never again. 409 if the name is taken; 400 for a name with spaces or over 64 characters, or a password under 12. |
+| PUT | `/api/auth/users/{id}/password` | `{password}` | Owner only. A partner's forgotten password replaced; `{id, username, role, createdAt}`. 400 for the owner's own id, 404 for no such account. |
+| POST | `/api/auth/users/{id}/logout-all` | – | Owner only. Ends every session of that partner and forgets their devices; `{status, sessionsEnded}`. |
 
 ## Tracking (authenticated)
 
@@ -343,19 +352,20 @@ Deliberately absent from `/api/public/**`. Nothing here has a public shape.
 | POST | `/api/relationship/reading/{id}/promote` | Turns a takeaway into a gesture idea — the reason the takeaway field exists |
 | DELETE | `/api/relationship/reading/{id}` | |
 
-## Push notifications (authenticated)
+## Push notifications (authenticated, owner or partner)
 
-Web Push to the installed app. Design, key generation and the runbook are in
+Web Push to the installed app. Every row is the caller's own: a partner lists, tests and removes
+their devices and never sees the owner's. Design, key generation and the runbook are in
 [push-notifications.md](push-notifications.md). With no VAPID pair configured, `status` says so and
 the writes answer 503.
 
 | Method | Path | Body | Answer |
 |---|---|---|---|
-| GET | `/api/push/status` | – | `{configured, publicKey, devices}` — the VAPID public key a browser subscribes with, and how many have |
+| GET | `/api/push/status` | – | `{configured, publicKey, devices}` — the VAPID public key a browser subscribes with, and how many of the caller's devices have |
 | GET | `/api/push/subscriptions` | – | `[{id, label, createdAt, lastSentAt, endpoint}]` |
 | PUT | `/api/push/subscriptions` | `{endpoint, keys: {p256dh, auth}, userAgent?}` — what `pushManager.subscribe` returned | upsert by endpoint; `{id, devices}`. 400 with a sentence when the keys are not a browser's |
 | DELETE | `/api/push/subscriptions/{id}` | – | `{deleted: id}` |
-| POST | `/api/push/test` | `{endpoint?}` | sends the test notification to that device, or to all when absent; `{sent, gone, failed}` |
+| POST | `/api/push/test` | `{endpoint?}` | sends the test notification to that device (the caller's, or 404), or to every device of the caller's when absent; `{sent, gone, failed}` |
 
 ## Speech to text (authenticated)
 

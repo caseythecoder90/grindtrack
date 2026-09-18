@@ -1,10 +1,9 @@
-
 import { useEffect, useState, type FormEvent } from "react";
 import { errorMessage } from "../../lib/api";
-import { deviceTrusted, login } from "./authApi";
+import { deviceTrusted, login, type Session } from "./authApi";
 
 interface Props {
-  onSuccess: (username: string) => void;
+  onSuccess: (session: Session) => void;
   onBack: () => void;
 }
 
@@ -42,8 +41,7 @@ export default function Login({ onSuccess, onBack }: Props) {
     setBusy(true);
     setError("");
     try {
-      const res = await login(username, password, otp, trustThis);
-      onSuccess(res.username);
+      onSuccess(await login(username, password, otp, trustThis));
     } catch (err) {
       setError(errorMessage(err, "Login failed"));
     } finally {
@@ -53,7 +51,8 @@ export default function Login({ onSuccess, onBack }: Props) {
 
   return (
     <form className="panel login-card" onSubmit={submit}>
-      <h2>owner login</h2>
+      {/* One form for both accounts: which one you are is the server's answer, not a choice here. */}
+      <h2>log in</h2>
       <label htmlFor="u">Username</label>
       <input id="u" value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" />
       <label htmlFor="p">Password</label>

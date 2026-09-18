@@ -36,7 +36,10 @@ src/
 │   │   ├── WeekPlanCard.tsx     the planner on the week tab: propose, read the blocks, Book
 │   │   ├── MorningBrief.tsx     the 06:00 brief above the daily log; a redraft button when it is stale
 │   │   └── assistantApi.ts      the endpoints, and streamChat over the SSE reader in lib/api.ts
-│   ├── auth/Login.tsx           username + password + TOTP form
+│   ├── auth/
+│   │   ├── Login.tsx            username + password + TOTP form, for either account
+│   │   ├── AccountsPanel.tsx    the owner's: who can sign in, add a partner, the secret shown once
+│   │   └── authApi.ts           the session endpoints, and the accounts endpoints
 │   ├── calendar/
 │   │   ├── CalendarPage.tsx     month + selected day + upkeep, one request per month
 │   │   ├── MonthGrid.tsx        six-week grid with per-day density dots
@@ -44,6 +47,7 @@ src/
 │   │   ├── EventForm.tsx        add one entry; the plan select only shows for a study block
 │   │   └── UpkeepPanel.tsx      what is due, grouped overdue / this week / later
 │   ├── landing/Landing.tsx      public read-only view
+│   ├── partner/PartnerHome.tsx  everything a partner sees: notifications and log out; the chat's home next
 │   ├── focus/
 │   │   ├── FocusPage.tsx        session list + POST wiring + JSX
 │   │   ├── LunchSubject.tsx     picks the book/paper/repo a reading or review session is for
@@ -126,7 +130,7 @@ stateDiagram-v2
     [*] --> Booting
     Booting --> App : GET /api/auth/me → 200
     Booting --> Landing : 401
-    Landing --> Login : "Owner login"
+    Landing --> Login : "Log in"
     Login --> App : POST /api/auth/login → 200
     Login --> Landing : "Back"
     App --> Landing : logout / logout everywhere, or refresh answers 401 (AuthError)
@@ -157,12 +161,18 @@ Session state is **not** a stored token — it lives entirely in the httpOnly co
 infers login status by probing the backend on mount:
 
 ```ts
-useEffect(() => {
-  api<{ username: string }>("/api/auth/me")
-    .then(() => { setView("app"); refreshHeader(); })
-    .catch(() => setView("landing"));
-}, [refreshHeader]);
+const enter = (who: Session) => {   // Session is {username, role}
+  setSession(who);
+  setView("app");
+  if (who.role === "OWNER") refreshHeader();
+};
+useEffect(() => { me().then(enter).catch(/* AuthError → landing; anything else → stay */); }, []);
 ```
+
+The role picks the shell. An `OWNER` gets the tabs; a `PARTNER` gets `PartnerHome` and nothing
+else is mounted — not as the security boundary (the server answers a partner's request for
+anything else with a 403 before a handler runs) but so their screen is a place rather than a wall
+of refused requests. The login form is the same for both; which one you are is the server's answer.
 
 `refreshHeader` (memoized with `useCallback`) loads `/api/stats` — a **single** request that now
 carries the heatmap day series for every scope, so it feeds both `StatBar` and `Heatmap`. It is

@@ -1,5 +1,6 @@
 package dev.grindtrack.config;
 
+import dev.grindtrack.auth.domain.Role;
 import dev.grindtrack.auth.security.JwtAuthFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -17,12 +18,18 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  * Stateless security: no sessions, no CSRF tokens. CSRF is mitigated by SameSite=Strict cookies
  * (documented in docs/auth.md); auth state travels only in httpOnly cookies validated by {@link
  * JwtAuthFilter}.
+ *
+ * <p>Three tiers, by URL. Public paths need no cookie. {@link #SHARED_PATHS} are open to both
+ * roles: the session endpoints an account needs to stay signed in, and notifications. Everything
+ * else is the owner's, which is the rule that keeps a partner out of the tracker, the money, the
+ * journal and the assistant — and, because it is the default, out of whatever is added next until
+ * it is named here. {@code SecurityConfigTest} walks every controller mapping to prove it.
  */
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
-  private static final String[] PUBLIC_PATHS = {
+  static final String[] PUBLIC_PATHS = {
     "/",
     "/index.html",
     "/assets/**",
@@ -45,6 +52,14 @@ public class SecurityConfig {
     "/api/auth/device",
   };
 
+  /**
+   * What a partner may reach, beyond the public paths. Named one by one on purpose: {@code
+   * /api/auth/**} would have handed them the account management under {@code /api/auth/users}.
+   */
+  static final String[] SHARED_PATHS = {
+    "/api/auth/me", "/api/auth/logout-all", "/api/auth/devices/forget", "/api/push/**",
+  };
+
   @Bean
   public PasswordEncoder passwordEncoder() {
     return new BCryptPasswordEncoder();
@@ -53,14 +68,26 @@ public class SecurityConfig {
   @Bean
   public SecurityFilterChain filterChain(HttpSecurity http, JwtAuthFilter jwtAuthFilter)
       throws Exception {
+    String owner = Role.OWNER.name();
+    String partner = Role.PARTNER.name();
     return http.csrf(AbstractHttpConfigurer::disable)
         .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .authorizeHttpRequests(
-            auth -> auth.requestMatchers(PUBLIC_PATHS).permitAll().anyRequest().authenticated())
+            auth ->
+                auth.requestMatchers(PUBLIC_PATHS)
+                    .permitAll()
+                    .requestMatchers(SHARED_PATHS)
+                    .hasAnyRole(owner, partner)
+                    .anyRequest()
+                    .hasRole(owner))
         .exceptionHandling(
             e ->
                 e.authenticationEntryPoint(
-                    (req, res, ex) -> res.setStatus(HttpStatus.UNAUTHORIZED.value())))
+                        (req, res, ex) -> res.setStatus(HttpStatus.UNAUTHORIZED.value()))
+                    // Signed in, but not theirs. Bare like the 401: a body would only say what
+                    // the status already does.
+                    .accessDeniedHandler(
+                        (req, res, ex) -> res.setStatus(HttpStatus.FORBIDDEN.value())))
         .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
         .build();
   }

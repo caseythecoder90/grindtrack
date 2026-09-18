@@ -1,5 +1,6 @@
 package dev.grindtrack.auth.api;
 
+import dev.grindtrack.auth.domain.Role;
 import jakarta.validation.constraints.NotBlank;
 
 /**
@@ -40,13 +41,14 @@ public final class AuthDtos {
       permits SessionResponse, AuthError, LogoutResponse, LogoutAllResponse, DeviceTrust {}
 
   /**
-   * The body of a successful login or refresh.
+   * The body of a successful login or refresh, and of {@code /me}.
    *
-   * <p>Deliberately just the username. The tokens are set as HttpOnly cookies and never appear in a
-   * response body, which is the whole point of the cookie scheme — a body that carried them would
-   * be readable by any script on the page.
+   * <p>The username and the role, nothing else. The tokens are set as HttpOnly cookies and never
+   * appear in a response body, which is the whole point of the cookie scheme — a body that carried
+   * them would be readable by any script on the page. The role is what the page renders by: the
+   * owner's tabs, or a partner's one screen.
    */
-  public record SessionResponse(String username) implements AuthResponse {}
+  public record SessionResponse(String username, Role role) implements AuthResponse {}
 
   /** {@code {"error": "..."}} — the same shape {@code ApiExceptionHandler} produces. */
   public record AuthError(String error) implements AuthResponse {}
@@ -68,4 +70,25 @@ public final class AuthDtos {
    * is only meaningful once signed in — it is zero to anyone else.
    */
   public record DeviceTrust(boolean trusted, int count) implements AuthResponse {}
+
+  // ---- Accounts: the owner making a partner's, and minding it ----
+
+  /** A partner to create. The rules on both fields are in {@code UserService}. */
+  public record CreateUserRequest(@NotBlank String username, @NotBlank String password) {}
+
+  /** A new password for a partner who has forgotten theirs. */
+  public record PasswordRequest(@NotBlank String password) {}
+
+  /** One account as the list shows it. Never the hash, never the secret. */
+  public record UserSummary(long id, String username, Role role, String createdAt) {}
+
+  /**
+   * A partner just created, with the authenticator secret — the one time it is ever sent.
+   *
+   * <p>The owner reads it off the screen into the partner's authenticator app, the way the owner's
+   * own secret came off the bootstrap log once. It is not stored anywhere it can be read back; a
+   * lost authenticator means a new account.
+   */
+  public record PartnerCreated(
+      long id, String username, Role role, String totpSecret, String otpauthUri) {}
 }
