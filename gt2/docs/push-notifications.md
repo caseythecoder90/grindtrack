@@ -26,7 +26,7 @@ sentence of the brief to anyone but the phone.
 | A message | when the other person sends one and no open socket of yours acknowledged it within five seconds | their username | the first 120 characters, or `📷 photo` / `🎥 video` / `sticker` with the caption | chat tab |
 | Test | on a click | `notifications are on` | one fixed sentence | today tab |
 
-Ten real ones and a test. The message is the one that is not a job: `ChatService.tell` sends
+Ten real ones and a test. The message is the one that is not a job: `RoomService.tell` sends
 it from the request that stored the message, or five seconds later if the other phone's socket
 was open and might deliver it first ([chat.md](chat.md#the-push)); it goes to the *other*
 account's devices, which is what `PushService.sendTo(userId, …)` is for. The morning pair fires only when the draft *succeeded* — a push

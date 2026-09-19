@@ -1,6 +1,6 @@
 package dev.grindtrack.chat.api;
 
-/** Request shapes for the chat. The answers are {@code ChatService}'s records. */
+/** Request shapes for the chat. The answers are {@code RoomService}'s records. */
 public final class ChatDtos {
 
   private ChatDtos() {}

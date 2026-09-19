@@ -51,9 +51,9 @@ import org.springframework.transaction.annotation.Transactional;
  * its id; a message with one may have no words. Unsending takes both away.
  */
 @Service
-public class ChatService {
+public class RoomService {
 
-  private static final Logger log = LoggerFactory.getLogger(ChatService.class);
+  private static final Logger log = LoggerFactory.getLogger(RoomService.class);
 
   static final int MAX_BODY_CHARS = 4000;
   static final int MAX_EMOJI_CHARS = 32;
@@ -71,7 +71,7 @@ public class ChatService {
   private final TaskScheduler scheduler;
   private final MediaService mediaService;
 
-  public ChatService(
+  public RoomService(
       ChatMessageRepository messages,
       ChatReactionRepository reactions,
       ChatCursorRepository cursors,

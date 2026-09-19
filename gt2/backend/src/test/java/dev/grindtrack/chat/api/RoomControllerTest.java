@@ -19,8 +19,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import dev.grindtrack.auth.domain.Role;
 import dev.grindtrack.auth.security.SignedIn;
 import dev.grindtrack.chat.domain.MediaKind;
-import dev.grindtrack.chat.service.ChatService;
 import dev.grindtrack.chat.service.MediaService;
+import dev.grindtrack.chat.service.RoomService;
 import dev.grindtrack.web.ApiExceptionHandler;
 import dev.grindtrack.web.ServiceOffException;
 import java.net.URI;
@@ -35,27 +35,27 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 /** The shapes over HTTP, and that every one of them is asked on behalf of the signed-in account. */
-class ChatControllerTest {
+class RoomControllerTest {
 
   private static final SignedIn CASEY = new SignedIn(1L, "casey", Role.OWNER);
   private static final UUID CLIENT_ID = UUID.fromString("6f1d2b6e-1c3a-4f9e-9b2a-1d2e3f4a5b6c");
 
-  private ChatService chat;
+  private RoomService chat;
   private MediaService media;
   private MockMvc mvc;
 
   @BeforeEach
   void setUp() {
-    chat = mock(ChatService.class);
+    chat = mock(RoomService.class);
     media = mock(MediaService.class);
     mvc =
-        MockMvcBuilders.standaloneSetup(new ChatController(chat, media))
+        MockMvcBuilders.standaloneSetup(new RoomController(chat, media))
             .setControllerAdvice(new ApiExceptionHandler())
             .build();
   }
 
-  private static ChatService.MessageView view(long id, String body) {
-    return new ChatService.MessageView(
+  private static RoomService.MessageView view(long id, String body) {
+    return new RoomService.MessageView(
         id, 1L, body, "2026-09-19T08:00:00Z", null, CLIENT_ID.toString(), List.of(), null);
   }
 
@@ -68,13 +68,13 @@ class ChatControllerTest {
   void theStateIsTheRoomAsSeenByMe() throws Exception {
     when(chat.state(CASEY))
         .thenReturn(
-            new ChatService.State(
-                new ChatService.Person(1L, "casey"),
-                new ChatService.Person(2L, "wife"),
+            new RoomService.State(
+                new RoomService.Person(1L, "casey"),
+                new RoomService.Person(2L, "wife"),
                 3,
                 10,
-                new ChatService.CursorView(1L, 8, 4),
-                new ChatService.CursorView(2L, 9, 9)));
+                new RoomService.CursorView(1L, 8, 4),
+                new RoomService.CursorView(2L, 9, 9)));
 
     mvc.perform(get("/api/chat").principal(CASEY))
         .andExpect(status().isOk())
@@ -86,7 +86,7 @@ class ChatControllerTest {
 
   @Test
   void historyPassesBeforeAndAfterThrough() throws Exception {
-    when(chat.history(5L, null)).thenReturn(new ChatService.Page(List.of(view(4, "a")), false));
+    when(chat.history(5L, null)).thenReturn(new RoomService.Page(List.of(view(4, "a")), false));
 
     mvc.perform(get("/api/chat/messages").param("before", "5").principal(CASEY))
         .andExpect(status().isOk())
@@ -94,7 +94,7 @@ class ChatControllerTest {
         .andExpect(jsonPath("$.hasMore").value(false));
     verify(chat).history(5L, null);
 
-    when(chat.history(null, 9L)).thenReturn(new ChatService.Page(List.of(), false));
+    when(chat.history(null, 9L)).thenReturn(new RoomService.Page(List.of(), false));
     mvc.perform(get("/api/chat/messages").param("after", "9").principal(CASEY))
         .andExpect(status().isOk());
     verify(chat).history(null, 9L);
@@ -152,7 +152,7 @@ class ChatControllerTest {
   void unsendingAnswersTheMessageAsItNowStandsAndSomebodyElsesIs404() throws Exception {
     when(chat.unsend(CASEY, 4L))
         .thenReturn(
-            new ChatService.MessageView(
+            new RoomService.MessageView(
                 4L, 1L, "", "2026-09-19T08:00:00Z", "2026-09-19T08:01:00Z", "x", List.of(), null));
 
     mvc.perform(delete("/api/chat/messages/4").principal(CASEY))
@@ -181,7 +181,7 @@ class ChatControllerTest {
 
   @Test
   void theCursorTakesEitherNumber() throws Exception {
-    when(chat.moveCursor(CASEY, null, 9L)).thenReturn(new ChatService.CursorView(1L, 9, 9));
+    when(chat.moveCursor(CASEY, null, 9L)).thenReturn(new RoomService.CursorView(1L, 9, 9));
 
     mvc.perform(
             post("/api/chat/cursor")

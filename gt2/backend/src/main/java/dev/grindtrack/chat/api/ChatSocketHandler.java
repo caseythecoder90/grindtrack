@@ -3,8 +3,8 @@ package dev.grindtrack.chat.api;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.grindtrack.auth.security.SignedIn;
-import dev.grindtrack.chat.service.ChatService;
 import dev.grindtrack.chat.service.ChatSessions;
+import dev.grindtrack.chat.service.RoomService;
 import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,10 +29,10 @@ public class ChatSocketHandler extends TextWebSocketHandler {
   private static final Logger log = LoggerFactory.getLogger(ChatSocketHandler.class);
 
   private final ChatSessions sessions;
-  private final ChatService chat;
+  private final RoomService chat;
   private final ObjectMapper mapper;
 
-  public ChatSocketHandler(ChatSessions sessions, ChatService chat, ObjectMapper mapper) {
+  public ChatSocketHandler(ChatSessions sessions, RoomService chat, ObjectMapper mapper) {
     this.sessions = sessions;
     this.chat = chat;
     this.mapper = mapper;

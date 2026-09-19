@@ -10,8 +10,8 @@ import static org.mockito.Mockito.when;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.grindtrack.auth.domain.Role;
 import dev.grindtrack.auth.security.SignedIn;
-import dev.grindtrack.chat.service.ChatService;
 import dev.grindtrack.chat.service.ChatSessions;
+import dev.grindtrack.chat.service.RoomService;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -25,14 +25,14 @@ class ChatSocketHandlerTest {
   private static final SignedIn CASEY = new SignedIn(1L, "casey", Role.OWNER);
 
   private ChatSessions sessions;
-  private ChatService chat;
+  private RoomService chat;
   private ChatSocketHandler handler;
   private WebSocketSession raw;
 
   @BeforeEach
   void setUp() {
     sessions = mock(ChatSessions.class);
-    chat = mock(ChatService.class);
+    chat = mock(RoomService.class);
     handler = new ChatSocketHandler(sessions, chat, new ObjectMapper());
     raw = mock(WebSocketSession.class);
     when(raw.getId()).thenReturn("s1");
