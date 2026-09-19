@@ -1,23 +1,38 @@
 import { useSyncExternalStore } from "react";
-import { errorMessage } from "../../lib/api";
+import { errorMessage, keepSessionAlive } from "../../lib/api";
 import {
+  getMediaStatus,
   getMessages,
   getRoom,
+  getStickers,
+  keepSticker,
   moveCursor,
+  posterUrl,
   sendMessage,
   setReaction,
   unsendMessage,
+  uploadMedia,
   type ChatMessage,
   type Cursor,
+  type MediaView,
   type Person,
 } from "./chatApi";
 import { ChatSocket, type Connection, type Frame } from "./chatSocket";
+import type { Prepared } from "./media";
 
 /** A message on its way: shown at once, replaced by the real one when the server answers. */
 export interface Pending {
   clientId: string;
   body: string;
   failed: boolean;
+  error: string;
+  /** The picture or clip going with it, until the upload is done. */
+  attachment: Prepared | null;
+  /** A sticker from the tray, or the id the upload came back with. */
+  mediaId: number | null;
+  /** The thumbnail to show meanwhile, and the upload's progress. */
+  preview: string | null;
+  progress: number;
 }
 
 export interface ChatView {
@@ -36,6 +51,10 @@ export interface ChatView {
   /** The other person is typing (clears itself). */
   typing: boolean;
   connection: Connection;
+  /** Whether there is a bucket, and how big one upload may be. */
+  mediaOn: boolean;
+  maxBytes: number;
+  stickers: MediaView[];
 }
 
 const EMPTY: ChatView = {
@@ -52,6 +71,9 @@ const EMPTY: ChatView = {
   unread: 0,
   typing: false,
   connection: "closed",
+  mediaOn: false,
+  maxBytes: 0,
+  stickers: [],
 };
 
 /** Typing is re-sent at most this often while the keys keep moving. */
@@ -62,6 +84,11 @@ const TYPING_IDLE_MS = 5000;
 const TYPING_SHOW_MS = 6000;
 /** Acknowledgements are batched: a burst of messages is one cursor request. */
 const ACK_DEBOUNCE_MS = 250;
+/**
+ * The access cookie lasts thirty minutes and pictures load through plain img tags, which cannot
+ * refresh it. While the chat is open the session is renewed well inside that.
+ */
+const KEEPALIVE_MS = 20 * 60 * 1000;
 
 /**
  * The chat's one piece of shared state, and the one socket.
@@ -84,6 +111,7 @@ export class ChatStore {
   private typingIdle: number | null = null;
   private typingShow: number | null = null;
   private ack: number | null = null;
+  private keepalive: number | null = null;
 
   constructor() {
     this.socket = new ChatSocket(
@@ -107,13 +135,18 @@ export class ChatStore {
   start(): void {
     this.socket.start();
     void this.load();
+    void this.loadMedia();
+    this.keepalive = window.setInterval(() => void keepSessionAlive(), KEEPALIVE_MS);
   }
 
   stop(): void {
     this.socket.stop();
-    for (const t of [this.typingIdle, this.typingShow, this.ack]) if (t !== null) clearTimeout(t);
-    this.typingIdle = this.typingShow = this.ack = null;
+    for (const t of [this.typingIdle, this.typingShow, this.ack, this.keepalive]) {
+      if (t !== null) clearTimeout(t);
+    }
+    this.typingIdle = this.typingShow = this.ack = this.keepalive = null;
     this.typingOn = false;
+    for (const p of this.state.pending) this.release(p);
     this.state = EMPTY;
     for (const listener of this.listeners) listener();
   }
@@ -143,6 +176,25 @@ export class ChatStore {
       this.acknowledge();
     } catch (e) {
       this.set({ error: errorMessage(e, "could not open the chat") });
+    }
+  }
+
+  /** Whether pictures can be sent, and the tray. Off is a state: the attach button is not drawn. */
+  private async loadMedia(): Promise<void> {
+    try {
+      const status = await getMediaStatus();
+      this.set({ mediaOn: status.configured, maxBytes: status.maxBytes });
+      if (status.configured) this.set({ stickers: await getStickers() });
+    } catch {
+      // Words still work without it.
+    }
+  }
+
+  async refreshStickers(): Promise<void> {
+    try {
+      this.set({ stickers: await getStickers() });
+    } catch {
+      // The tray shows what it last knew.
     }
   }
 
@@ -188,7 +240,11 @@ export class ChatStore {
     for (const m of incoming) byId.set(m.id, m);
     const messages = [...byId.values()].sort((a, b) => a.id - b.id);
     const named = new Set(incoming.map((m) => m.clientId));
-    const pending = this.state.pending.filter((p) => !named.has(p.clientId));
+    const pending = this.state.pending.filter((p) => {
+      const done = named.has(p.clientId);
+      if (done) this.release(p);
+      return !done;
+    });
     this.set({ messages, pending });
   }
 
@@ -279,35 +335,90 @@ export class ChatStore {
 
   // ---- what I do ---------------------------------------------------------------------------
 
-  async send(body: string): Promise<void> {
+  /** Words, a picture, or both. The picture is uploaded first; the message follows with its id. */
+  async send(body: string, attachment: Prepared | null = null): Promise<void> {
     const clientId = crypto.randomUUID();
-    this.set({ pending: [...this.state.pending, { clientId, body, failed: false }] });
+    const item: Pending = {
+      clientId,
+      body,
+      failed: false,
+      error: "",
+      attachment,
+      mediaId: null,
+      preview: attachment?.previewUrl ?? null,
+      progress: 0,
+    };
+    this.set({ pending: [...this.state.pending, item] });
     this.typing(false);
-    await this.deliver(clientId, body);
+    await this.deliver(clientId);
+  }
+
+  /** One from the tray: no upload, the message carries the sticker's id. */
+  async sendSticker(sticker: MediaView): Promise<void> {
+    const clientId = crypto.randomUUID();
+    const item: Pending = {
+      clientId,
+      body: "",
+      failed: false,
+      error: "",
+      attachment: null,
+      mediaId: sticker.id,
+      preview: posterUrl(sticker.id),
+      progress: 1,
+    };
+    this.set({ pending: [...this.state.pending, item] });
+    await this.deliver(clientId);
   }
 
   async retry(clientId: string): Promise<void> {
-    const item = this.state.pending.find((p) => p.clientId === clientId);
-    if (!item) return;
-    this.set({
-      pending: this.state.pending.map((p) => (p.clientId === clientId ? { ...p, failed: false } : p)),
-    });
-    await this.deliver(clientId, item.body);
+    if (!this.state.pending.some((p) => p.clientId === clientId)) return;
+    this.patchPending(clientId, { failed: false, error: "" });
+    await this.deliver(clientId);
   }
 
   discard(clientId: string): void {
+    const item = this.state.pending.find((p) => p.clientId === clientId);
+    if (item) this.release(item);
     this.set({ pending: this.state.pending.filter((p) => p.clientId !== clientId) });
   }
 
-  /** The same clientId on a retry is the same message to the server, so nothing lands twice. */
-  private async deliver(clientId: string, body: string): Promise<void> {
+  /**
+   * The upload, if there is one and it has not happened yet, then the message. The same clientId
+   * on a retry is the same message to the server, and an upload that already came back with an id
+   * is not sent twice.
+   */
+  private async deliver(clientId: string): Promise<void> {
     try {
-      this.merge([await sendMessage(clientId, body)]);
-    } catch {
-      this.set({
-        pending: this.state.pending.map((p) => (p.clientId === clientId ? { ...p, failed: true } : p)),
-      });
+      let item = this.state.pending.find((p) => p.clientId === clientId);
+      if (!item) return;
+      if (item.attachment && item.mediaId === null) {
+        const a = item.attachment;
+        const uploaded = await uploadMedia(
+          a.file,
+          a.filename,
+          a.poster,
+          { width: a.width, height: a.height, durationMs: a.durationMs ?? undefined },
+          (fraction) => this.patchPending(clientId, { progress: fraction }),
+        );
+        this.patchPending(clientId, { mediaId: uploaded.id, progress: 1 });
+        item = this.state.pending.find((p) => p.clientId === clientId);
+        if (!item) return; // discarded meanwhile
+      }
+      this.merge([await sendMessage(clientId, item.body, item.mediaId ?? undefined)]);
+    } catch (e) {
+      this.patchPending(clientId, { failed: true, error: errorMessage(e, "could not send that") });
     }
+  }
+
+  private patchPending(clientId: string, patch: Partial<Pending>): void {
+    this.set({
+      pending: this.state.pending.map((p) => (p.clientId === clientId ? { ...p, ...patch } : p)),
+    });
+  }
+
+  /** The preview's object URL is memory until it is revoked. */
+  private release(item: Pending): void {
+    if (item.attachment) URL.revokeObjectURL(item.attachment.previewUrl);
   }
 
   async unsend(id: number): Promise<void> {
@@ -328,6 +439,21 @@ export class ChatStore {
       this.merge([await setReaction(id, emoji, on)]);
     } catch (e) {
       this.set({ error: errorMessage(e, "could not react to that") });
+    }
+  }
+
+  /** A picture into the tray, or out of it; every message showing it learns the same. */
+  async keepSticker(mediaId: number, on: boolean): Promise<void> {
+    try {
+      const media = await keepSticker(mediaId, on);
+      this.set({
+        messages: this.state.messages.map((m) =>
+          m.media && m.media.id === mediaId ? { ...m, media: { ...m.media, sticker: media.sticker } } : m,
+        ),
+      });
+      await this.refreshStickers();
+    } catch (e) {
+      this.set({ error: errorMessage(e, "could not change the tray") });
     }
   }
 

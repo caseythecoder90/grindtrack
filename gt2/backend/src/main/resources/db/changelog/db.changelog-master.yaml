@@ -77,3 +77,5 @@ databaseChangeLog:
       file: db/changelog/038-roles.sql
   - include:
       file: db/changelog/039-chat.sql
+  - include:
+      file: db/changelog/040-chat-media.sql

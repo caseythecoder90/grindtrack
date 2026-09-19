@@ -18,10 +18,12 @@ import dev.grindtrack.auth.domain.UserRepository;
 import dev.grindtrack.auth.security.SignedIn;
 import dev.grindtrack.chat.domain.ChatCursor;
 import dev.grindtrack.chat.domain.ChatCursorRepository;
+import dev.grindtrack.chat.domain.ChatMedia;
 import dev.grindtrack.chat.domain.ChatMessage;
 import dev.grindtrack.chat.domain.ChatMessageRepository;
 import dev.grindtrack.chat.domain.ChatReaction;
 import dev.grindtrack.chat.domain.ChatReactionRepository;
+import dev.grindtrack.chat.domain.MediaKind;
 import dev.grindtrack.push.service.PushService;
 import dev.grindtrack.web.BadRequestException;
 import java.time.Instant;
@@ -39,7 +41,8 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 /**
  * Every change goes out over the sockets; the other person is pushed unless their open socket
- * delivered it first; only the sender unsends; cursors move forward and never past the end.
+ * delivered it first; only the sender unsends; cursors move forward and never past the end; a
+ * picture rides with its message and leaves with it, unless it is a sticker.
  */
 class ChatServiceTest {
 
@@ -54,6 +57,7 @@ class ChatServiceTest {
   private ChatSessions sessions;
   private PushService push;
   private TaskScheduler scheduler;
+  private MediaService mediaService;
   private ChatService service;
 
   @BeforeEach
@@ -65,7 +69,10 @@ class ChatServiceTest {
     sessions = mock(ChatSessions.class);
     push = mock(PushService.class);
     scheduler = mock(TaskScheduler.class);
-    service = new ChatService(messages, reactions, cursors, users, sessions, push, scheduler);
+    mediaService = mock(MediaService.class);
+    service =
+        new ChatService(
+            messages, reactions, cursors, users, sessions, push, scheduler, mediaService);
 
     when(users.findFirstByRoleOrderByIdAsc(Role.PARTNER))
         .thenReturn(Optional.of(account(2L, "wife", Role.PARTNER)));
@@ -83,6 +90,8 @@ class ChatServiceTest {
     when(cursors.save(any())).thenAnswer(inv -> inv.getArgument(0));
     when(reactions.findAllByMessageIdOrderByIdAsc(anyLong())).thenReturn(List.of());
     when(reactions.findAllByMessageIdInOrderByIdAsc(any())).thenReturn(List.of());
+    when(mediaService.find(anyLong())).thenReturn(Optional.empty());
+    when(mediaService.findAll(any())).thenReturn(List.of());
     when(push.configured()).thenReturn(true);
     when(push.sendTo(anyLong(), any())).thenReturn(new PushService.Outcome(1, 0, 0));
   }
@@ -94,8 +103,29 @@ class ChatServiceTest {
   }
 
   private static ChatMessage message(long id, long senderId, String body) {
-    ChatMessage m = new ChatMessage(senderId, body, UUID.randomUUID());
+    return message(id, senderId, body, null);
+  }
+
+  private static ChatMessage message(long id, long senderId, String body, Long mediaId) {
+    ChatMessage m = new ChatMessage(senderId, body, UUID.randomUUID(), mediaId);
     ReflectionTestUtils.setField(m, "id", id);
+    return m;
+  }
+
+  private static ChatMedia picture(long id, long ownerId, boolean sticker) {
+    ChatMedia m =
+        new ChatMedia(
+            ownerId,
+            MediaKind.IMAGE,
+            "chat/2026/" + id + ".jpg",
+            null,
+            "image/jpeg",
+            9,
+            4,
+            3,
+            null);
+    ReflectionTestUtils.setField(m, "id", id);
+    m.setSticker(sticker);
     return m;
   }
 
@@ -114,13 +144,14 @@ class ChatServiceTest {
     when(messages.findByClientId(CLIENT_ID)).thenReturn(Optional.empty());
     when(sessions.hasOpen(2L)).thenReturn(false);
 
-    ChatService.MessageView view = service.send(CASEY, CLIENT_ID, "hi there");
+    ChatService.MessageView view = service.send(CASEY, CLIENT_ID, "hi there", null);
 
     assertThat(view.id()).isEqualTo(10L);
     assertThat(view.senderId()).isEqualTo(1L);
     assertThat(view.body()).isEqualTo("hi there");
     assertThat(view.clientId()).isEqualTo(CLIENT_ID.toString());
     assertThat(view.deletedAt()).isNull();
+    assertThat(view.media()).isNull();
     verify(sessions).broadcast(argThat(f -> isFrame(f, "message")));
     ArgumentCaptor<PushService.Notification> pushed =
         ArgumentCaptor.forClass(PushService.Notification.class);
@@ -137,7 +168,7 @@ class ChatServiceTest {
     when(messages.findByClientId(CLIENT_ID)).thenReturn(Optional.empty());
     when(sessions.hasOpen(2L)).thenReturn(true);
 
-    service.send(CASEY, CLIENT_ID, "are you up?");
+    service.send(CASEY, CLIENT_ID, "are you up?", null);
 
     verify(push, never()).sendTo(anyLong(), any());
     ArgumentCaptor<Runnable> later = ArgumentCaptor.forClass(Runnable.class);
@@ -159,7 +190,7 @@ class ChatServiceTest {
     ChatMessage existing = message(7L, 1L, "once");
     when(messages.findByClientId(CLIENT_ID)).thenReturn(Optional.of(existing));
 
-    ChatService.MessageView view = service.send(CASEY, CLIENT_ID, "once");
+    ChatService.MessageView view = service.send(CASEY, CLIENT_ID, "once", null);
 
     assertThat(view.id()).isEqualTo(7L);
     verify(messages, never()).save(any());
@@ -173,7 +204,7 @@ class ChatServiceTest {
     when(sessions.hasOpen(2L)).thenReturn(false);
     when(push.sendTo(anyLong(), any())).thenThrow(new IllegalStateException("apple is down"));
 
-    ChatService.MessageView view = service.send(CASEY, CLIENT_ID, "still sent");
+    ChatService.MessageView view = service.send(CASEY, CLIENT_ID, "still sent", null);
 
     assertThat(view.id()).isEqualTo(10L);
     verify(sessions).broadcast(argThat(f -> isFrame(f, "message")));
@@ -183,21 +214,76 @@ class ChatServiceTest {
   void nothingIsPushedWhenPushIsOffOrThereIsNobodyElseYet() {
     when(messages.findByClientId(any())).thenReturn(Optional.empty());
     when(push.configured()).thenReturn(false);
-    service.send(CASEY, CLIENT_ID, "into the void");
+    service.send(CASEY, CLIENT_ID, "into the void", null);
     verify(push, never()).sendTo(anyLong(), any());
     verify(scheduler, never()).schedule(any(Runnable.class), any(Instant.class));
 
     when(push.configured()).thenReturn(true);
     when(users.findFirstByRoleOrderByIdAsc(Role.PARTNER)).thenReturn(Optional.empty());
-    service.send(CASEY, UUID.randomUUID(), "still nobody");
+    service.send(CASEY, UUID.randomUUID(), "still nobody", null);
     verify(push, never()).sendTo(anyLong(), any());
     verify(sessions, times(2)).broadcast(argThat(f -> isFrame(f, "message")));
   }
 
   @Test
-  void onlyTheSenderUnsendsAndTwiceIsOnce() {
-    ChatMessage hers = message(4L, 2L, "oops");
-    when(messages.findById(4L)).thenReturn(Optional.of(hers));
+  void aPictureRidesWithItsMessageAndThePushSaysSo() {
+    when(messages.findByClientId(CLIENT_ID)).thenReturn(Optional.empty());
+    when(sessions.hasOpen(2L)).thenReturn(false);
+    when(mediaService.find(4L)).thenReturn(Optional.of(picture(4L, 1L, false)));
+    when(messages.existsByMediaId(4L)).thenReturn(false);
+
+    ChatService.MessageView view = service.send(CASEY, CLIENT_ID, "", 4L);
+
+    assertThat(view.media()).isNotNull();
+    assertThat(view.media().id()).isEqualTo(4L);
+    assertThat(view.media().kind()).isEqualTo(MediaKind.IMAGE);
+    ArgumentCaptor<ChatMessage> saved = ArgumentCaptor.forClass(ChatMessage.class);
+    verify(messages).save(saved.capture());
+    assertThat(saved.getValue().getMediaId()).isEqualTo(4L);
+    ArgumentCaptor<PushService.Notification> pushed =
+        ArgumentCaptor.forClass(PushService.Notification.class);
+    verify(push).sendTo(eq(2L), pushed.capture());
+    assertThat(pushed.getValue().body()).isEqualTo("📷 photo");
+  }
+
+  @Test
+  void anUploadThatIsNotMineOrIsAlreadyOnAMessageCannotBeAttached() {
+    when(messages.findByClientId(any())).thenReturn(Optional.empty());
+    when(mediaService.find(4L)).thenReturn(Optional.of(picture(4L, 2L, false)));
+    assertThatThrownBy(() -> service.send(CASEY, CLIENT_ID, "", 4L))
+        .isInstanceOf(BadRequestException.class)
+        .hasMessageContaining("not here");
+
+    when(mediaService.find(5L)).thenReturn(Optional.of(picture(5L, 1L, false)));
+    when(messages.existsByMediaId(5L)).thenReturn(true);
+    assertThatThrownBy(() -> service.send(CASEY, CLIENT_ID, "", 5L))
+        .isInstanceOf(BadRequestException.class)
+        .hasMessageContaining("already");
+    verify(messages, never()).save(any());
+  }
+
+  @Test
+  void aStickerIsAnyonesToSendAndSentAgainAndAgain() {
+    when(messages.findByClientId(any())).thenReturn(Optional.empty());
+    when(mediaService.find(6L)).thenReturn(Optional.of(picture(6L, 1L, true)));
+    when(messages.existsByMediaId(6L)).thenReturn(true);
+    when(sessions.hasOpen(1L)).thenReturn(false);
+
+    ChatService.MessageView view = service.send(WIFE, CLIENT_ID, "", 6L);
+
+    assertThat(view.media().sticker()).isTrue();
+    ArgumentCaptor<PushService.Notification> pushed =
+        ArgumentCaptor.forClass(PushService.Notification.class);
+    verify(push).sendTo(eq(1L), pushed.capture());
+    assertThat(pushed.getValue().body()).isEqualTo("sticker");
+  }
+
+  @Test
+  void onlyTheSenderUnsendsTwiceIsOnceAndThePictureGoesTooUnlessItIsASticker() {
+    ChatMedia hers = picture(4L, 2L, false);
+    ChatMessage photo = message(4L, 2L, "oops", 4L);
+    when(messages.findById(4L)).thenReturn(Optional.of(photo));
+    when(mediaService.find(4L)).thenReturn(Optional.of(hers));
 
     assertThatThrownBy(() -> service.unsend(CASEY, 4L)).isInstanceOf(NoSuchElementException.class);
     verify(messages, never()).save(any());
@@ -205,11 +291,20 @@ class ChatServiceTest {
     ChatService.MessageView view = service.unsend(WIFE, 4L);
     assertThat(view.body()).isEmpty();
     assertThat(view.deletedAt()).isNotNull();
+    assertThat(view.media()).isNull();
+    verify(mediaService).remove(hers);
     verify(sessions).broadcast(argThat(f -> isFrame(f, "unsent")));
 
     service.unsend(WIFE, 4L);
     verify(messages, times(1)).save(any());
-    verify(sessions, times(2)).broadcast(argThat(f -> isFrame(f, "unsent")));
+    verify(mediaService, times(1)).remove(any());
+
+    ChatMedia sticker = picture(6L, 1L, true);
+    ChatMessage sent = message(8L, 2L, "", 6L);
+    when(messages.findById(8L)).thenReturn(Optional.of(sent));
+    when(mediaService.find(6L)).thenReturn(Optional.of(sticker));
+    service.unsend(WIFE, 8L);
+    verify(mediaService, never()).remove(sticker);
   }
 
   @Test
@@ -333,15 +428,20 @@ class ChatServiceTest {
   }
 
   @Test
-  void reactionsRideAlongWithAPageInOneQuery() {
-    when(messages.findTop50ByOrderByIdDesc()).thenReturn(List.of(message(3L, 1L, "a")));
-    when(reactions.findAllByMessageIdInOrderByIdAsc(List.of(3L)))
+  void reactionsAndPicturesRideAlongWithAPageInOneQueryEach() {
+    when(messages.findTop50ByOrderByIdDesc())
+        .thenReturn(List.of(message(4L, 2L, "", 4L), message(3L, 1L, "a")));
+    when(reactions.findAllByMessageIdInOrderByIdAsc(List.of(3L, 4L)))
         .thenReturn(List.of(new ChatReaction(3L, 2L, "😂")));
+    when(mediaService.findAll(List.of(4L))).thenReturn(List.of(picture(4L, 2L, false)));
 
     ChatService.Page page = service.history(null, null);
 
+    assertThat(page.messages().get(0).id()).isEqualTo(3L);
     assertThat(page.messages().get(0).reactions())
         .containsExactly(new ChatService.ReactionView(2L, "😂"));
+    assertThat(page.messages().get(0).media()).isNull();
+    assertThat(page.messages().get(1).media().id()).isEqualTo(4L);
   }
 
   @Test
@@ -354,9 +454,15 @@ class ChatServiceTest {
   }
 
   @Test
-  void aPreviewIsOneShortLine() {
+  void aPreviewIsOneShortLineAndSaysWhatKindOfThingCameWithIt() {
     assertThat(ChatService.preview("hi\n\nthere   you")).isEqualTo("hi there you");
     String longOne = "x".repeat(300);
     assertThat(ChatService.preview(longOne)).hasSize(ChatService.PREVIEW_CHARS).endsWith("…");
+
+    MediaService.MediaView clip =
+        new MediaService.MediaView(1, MediaKind.VIDEO, "video/mp4", 9, 1, 1, 100, true, false);
+    ChatService.MessageView withCaption =
+        new ChatService.MessageView(1, 1, "the dog", "t", null, "c", List.of(), clip);
+    assertThat(ChatService.preview(withCaption)).isEqualTo("🎥 video · the dog");
   }
 }

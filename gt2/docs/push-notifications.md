@@ -23,7 +23,7 @@ sentence of the brief to anyone but the phone.
 | Block starting | 10 minutes before a timed block, once | the block's title | `in 10 minutes · 05:30–07:00 · study block` | cal tab |
 | Upkeep due | 08:05, while anything is overdue or due today | `2 upkeep items are overdue` (or due today) | up to three titles, most overdue first | cal tab |
 | The plan, evening | 21:00, once a plan is imported | `week 12 of the plan` | `7.5 of 15 h this week · CKA exam · Oct 9 · in 23 days · tomorrow 05:30 · etcd lab` | plan tab |
-| A message | when the other person sends one and no open socket of yours acknowledged it within five seconds | their username | the first 120 characters | chat tab |
+| A message | when the other person sends one and no open socket of yours acknowledged it within five seconds | their username | the first 120 characters, or `📷 photo` / `🎥 video` / `sticker` with the caption | chat tab |
 | Test | on a click | `notifications are on` | one fixed sentence | today tab |
 
 Ten real ones and a test. The message is the one that is not a job: `ChatService.tell` sends

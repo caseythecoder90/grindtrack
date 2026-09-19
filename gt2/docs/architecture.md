@@ -104,7 +104,7 @@ Package-by-feature at the top level; inside each feature, layers get their own s
 dev.grindtrack
 ├── GrindtrackApplication         @SpringBootApplication + @ConfigurationPropertiesScan
 ├── config/                       SecurityConfig, StaticContentConfig, SchedulingConfig,
-│                                 the *Properties records (app, assistant, push, speech,
+│                                 the *Properties records (app, assistant, push, speech, media,
 │                                 recovery, todo), the two *AsyncConfig executor sets
 ├── web/                          Requests, Responses, the four named exceptions (BadRequest,
 │                                 Conflict, ServiceOff, Upstream), ApiExceptionHandler — the

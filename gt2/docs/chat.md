@@ -1,6 +1,6 @@
 # The chat
 
-One room, two people: the owner and the partner. Text messages, reactions, unsend, delivered and
+One room, two people: the owner and the partner. Text messages, pictures and video, stickers, reactions, unsend, delivered and
 read, the other person typing, and a push to whichever phone is not looking. This document is the
 plan and the record: the shape, the protocol, what is stored, and what the phone does when the
 network goes away.
@@ -33,17 +33,18 @@ of the app has no shared store; the chat has a small one for this reason
 
 ## Data model
 
-![The chat's three tables](diagrams/data-model-chat.svg)
+![The chat's four tables](diagrams/data-model-chat.svg)
 
 <sub>PlantUML source: [`diagrams/data-model-chat.puml`](diagrams/data-model-chat.puml).</sub>
 
-Migration `039-chat.sql`, package `dev.grindtrack.chat` (`domain`, `service`, `api`):
+Migrations `039-chat.sql` and `040-chat-media.sql`, package `dev.grindtrack.chat` (`domain`, `service`, `api`):
 
 | Table | Row is | Notes |
 |---|---|---|
 | `chat_messages` | one message | `sender_id`, `body`, `client_id` (UUID, unique: the phone's own name for it), `sent_at`, `deleted_at` (unsent: body cleared, row kept) |
 | `chat_reactions` | one person's one emoji on one message | unique on `(message_id, user_id, emoji)`; cascades with the message |
 | `chat_cursors` | how far one person has got | `delivered_id`, `read_id` — two watermarks per person, not two rows per message |
+| `chat_media` | one photo or clip in the bucket | `owner_id`, `kind`, `object_key`, `poster_key`, the shape, `sticker` (in the tray); a message points at it by `media_id` |
 
 **No conversation table**, because there is one conversation. A third person would mean rooms,
 and that is a migration for that day; nothing here would be thrown away by it.
@@ -120,7 +121,8 @@ send: the message is already in the room. With push off (no VAPID pair) nothing 
 |---|---|
 | `chatStore.ts` | the one shared store: messages (ascending, contiguous from the oldest loaded to the newest known), cursors, unread, typing, the connection, pending sends; `useChat()` reads it with `useSyncExternalStore`. Started by `App` when someone signs in, stopped when they sign out |
 | `chatSocket.ts` | the socket, and its coming back |
-| `chatApi.ts` | the requests |
+| `chatApi.ts` | the requests, and the upload with its progress |
+| `media.ts` | what the phone does to a photo or a clip before it is sent: resized, upright, the EXIF gone, a poster made; and the big-emoji test |
 | `ChatPage.tsx` | the room: the thread as the page, a sticky composer like the ask tab, "earlier messages" at the top, day lines between days, the receipt under my last message |
 | `Message.tsx` | one bubble; its reactions as chips; tapped, a row of six reactions and, for mine, unsend |
 
@@ -139,6 +141,57 @@ the window title.
 to the bottom bar is the one line in `lib/tabs.ts`). A partner's home *is* the room, with the
 notifications switch and the way out behind one word above it.
 
+## Pictures and video
+
+A photo or a clip is **uploaded first, then sent**: `POST /api/chat/media` takes the file and the
+small poster the phone made, answers with an id, and the message follows with that id (and a
+caption, or none). Two requests rather than one so a failed message after a good upload is retried
+without uploading again, and so the words never wait on a hundred megabytes.
+
+**Where the bytes live.** An S3-compatible bucket — Hetzner Object Storage in `nbg1`, next to the
+cluster — reached with the AWS SDK for Java pointed at Hetzner's endpoint. `S3MediaStore` is the
+four settings that make an S3 client talk to a non-Amazon S3: the endpoint override, the location
+name as the signing region, the bucket as a subdomain (virtual-hosted addressing, which Hetzner
+serves), and the SDK's integrity checksums turned down to "when required", which some S3-compatible
+services need since the SDK began adding one to every upload. Four variables in the secret turn it
+on — `MEDIA_S3_ENDPOINT`, `MEDIA_S3_BUCKET`, `MEDIA_S3_ACCESS_KEY`, `MEDIA_S3_SECRET_KEY`
+([deployment.md](deployment.md#optional-features-the-assistant-push-and-speech)). Off is a state:
+`/api/chat/media/status` says so and the attach button is not drawn.
+
+**Uploads go through the app; downloads are signed links.** The pod streams the multipart body to
+the bucket (100 MB a file; the multipart limits and the ingress body size are set to match), so the
+bucket needs no CORS rule and the browser never holds a credential. Nothing in the bucket is public:
+`GET /api/chat/media/{id}` answers a 302 to a link signed for ten minutes, the browser follows it
+straight to the bucket, and an `img` or `video` tag loads it cross-origin without CORS. An expired
+link is a fresh 302 the next time the picture is asked for. A picture that fails to load is asked
+for once more after the session is renewed, because an `img` tag cannot refresh a lapsed cookie
+by itself — and the store renews the session every twenty minutes while the chat is open for the
+same reason.
+
+**What the phone does first** (`media.ts`): a photo is redrawn at most 2000 px on its long side and
+saved as a JPEG — an iPhone photo goes from ten megabytes to under one, orientation is applied, and
+the EXIF block with the GPS position in it is gone, which is the right default for a picture leaving
+your network. A poster of at most 480 px is made for the thread. A GIF is kept as it is, so it still
+moves. A clip is sent as it is (no transcoding on a phone), with a frame from half a second in as
+its poster. An iPhone records HEVC, which Chrome on Windows may not play; Settings → Camera →
+Formats → *Most Compatible* if that matters.
+
+**In the thread**, the poster is what loads; a tap opens the full picture; a clip plays in place.
+The message's `media` carries the shape, so the thread lays out before anything loads. Unsending a
+message with a picture removes the objects from the bucket too — best effort: a stranded object is
+a log line, not an unsend that did not happen.
+
+## Stickers and emoji
+
+Emoji are text: whatever the keyboard types is in the message, and a message that is only a few
+emoji is shown big, the way every chat shows them. Reactions are the six on a tap.
+
+A **sticker** is any picture in the room that either of you kept: tap a picture, *keep as sticker*,
+and it is in the tray — shared, because the room is — to send again with a tap. Sending one is a
+message with that picture's id and no upload; it shows small and without a bubble. Unsending such a
+message leaves the sticker; *drop sticker* takes it out of the tray, and a picture no message shows
+any more is removed from the bucket then. Nothing here needs a key or a service.
+
 ## API
 
 All under `/api/chat`, owner or partner. Exact shapes in [api.md](api.md#chat-authenticated-owner-or-partner).
@@ -152,6 +205,11 @@ All under `/api/chat`, owner or partner. Exact shapes in [api.md](api.md#chat-au
 | `PUT` / `DELETE /messages/{id}/reactions/{emoji}` | On and off; the message as it now stands |
 | `POST /cursor` | `{deliveredUpTo?, readUpTo?}` — forward only, clamped to the newest message |
 | `GET /ws` | The socket |
+| `GET /media/status` | Whether there is a bucket, and how big one upload may be |
+| `POST /media` | The upload, before the message: the file, the poster, the shape |
+| `GET /media/{id}`, `/poster` | A 302 to a link signed for ten minutes |
+| `GET /media/stickers` | The tray |
+| `PUT` / `DELETE /media/{id}/sticker` | Into the tray, out of it |
 
 ## What runs when
 
@@ -177,18 +235,24 @@ sender's alone.
 - **Push unless delivered within five seconds**, rather than "push unless a socket is open":
   an open socket on a sleeping phone delivers nothing.
 - **4000 characters** a message, one emoji a reaction (up to 32 characters, so a family with skin
-  tones fits), the newest fifty a page, five hundred a catch-up.
+  tones fits), the newest fifty a page, five hundred a catch-up; 100 MB a picture or clip.
+- **Uploads through the app, downloads by signed link.** No bucket CORS, no credential in the
+  browser, nothing public; the pod carries bytes in and never out.
+- **The phone resizes.** 2000 px JPEG, EXIF gone; the server trusts the declared type within its
+  allow-list and checks the size.
+- **A shared tray.** Stickers are pictures either of you kept, for both of you.
 - **Single replica.** `ChatSessions` is a map in one pod, like `SchedulingConfig` says of the
   jobs; a second pod means a channel between them.
 
 ## Runbook
 
-Nothing to configure: the socket goes through the same Ingress as everything else, which passes
+The whole first day on two phones — the partner account, her phone, the bucket, the test — is
+[go-live-chat.md](go-live-chat.md). Pictures need the bucket ([above](#pictures-and-video)); the
+words need nothing: the socket goes through the same Ingress as everything else, which passes
 the `Upgrade` header by default, and push needs only what push already needs. The first message
 between two phones is the live check; if it does not arrive, `kubectl logs` for `Chat socket` and
 `Chat push` says which half did not happen.
 
 ## Not yet
 
-Photos and video (object storage, presigned uploads, a thumbnail made on the phone), then calls.
-Edit. Search. A third person.
+Calls. Edit. Search. GIF search (a Tenor key). A third person.

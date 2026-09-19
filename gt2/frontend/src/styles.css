@@ -1579,3 +1579,24 @@ header .more { position: relative; }
 .partner-tools { display: flex; align-items: center; gap: 8px; margin: 2px 0 8px; font-family: var(--mono); font-size: 12px; color: var(--muted); }
 .partner-home .panel { margin-bottom: 12px; }
 .partner-home .panel .notif { border-top: none; margin-top: 0; padding-top: 0; }
+
+/* --- pictures, clips, stickers, big emoji in the chat --- */
+.chat-msg .bubble.media { padding: 4px; max-width: min(100%, 340px); }
+.chat-msg .bubble.media .chat-caption { padding: 6px 9px 4px; }
+.chat-media { display: block; width: 100%; max-height: 70vh; object-fit: cover; border-radius: 13px; background: var(--panel); }
+.chat-msg .bubble.sticker { background: none; border: none; padding: 0; }
+.chat-msg .bubble.sticker .chat-media { width: 150px; height: auto; max-height: none; object-fit: contain; border-radius: 8px; background: none; }
+.chat-msg .bubble.big { background: none; border: none; padding: 0 4px; font-size: 44px; line-height: 1.15; }
+.chat-msg.pending .chat-media { max-height: 200px; }
+.chat-actions .word { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.chat-lightbox { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.93); cursor: zoom-out; }
+.chat-lightbox img { max-width: 100vw; max-height: 100vh; object-fit: contain; }
+.chat-attach { display: flex; align-items: center; gap: 10px; padding: 2px 0 6px; }
+.chat-attach img { width: 56px; height: 56px; object-fit: cover; border-radius: 8px; }
+.chat-attach .hint { flex: 1; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.chat-tray { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 6px; margin: 4px 0 10px; padding: 8px; background: var(--panel2); border: 1px solid var(--line); border-radius: 14px; }
+.chat-tray .hint { grid-column: 1 / -1; margin: 2px 4px; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.chat-tray button { min-height: 0; padding: 0; aspect-ratio: 1; border-radius: 10px; overflow: hidden; background: var(--panel); }
+.chat-tray img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.composer .tool { width: 40px; height: 40px; padding: 0; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: none; border-color: transparent; color: var(--muted); }
+.composer .tool:hover, .composer .tool[aria-pressed="true"] { color: var(--text); border-color: var(--line); }

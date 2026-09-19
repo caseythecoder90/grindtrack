@@ -51,7 +51,8 @@ src/
 │   │   ├── Message.tsx          one bubble, its reactions, the row of actions under it
 │   │   ├── chatStore.ts         the one shared store: messages, cursors, unread, the socket; useChat()
 │   │   ├── chatSocket.ts        one WebSocket for as long as the app is open, reconnecting on its own
-│   │   └── chatApi.ts           the room, its pages, send, unsend, react, cursor
+│   │   ├── chatApi.ts           the room, its pages, send, unsend, react, cursor, the upload
+│   │   └── media.ts             a photo resized and stripped, a clip's poster frame, the big-emoji test
 │   ├── landing/Landing.tsx      public read-only view
 │   ├── partner/PartnerHome.tsx  everything a partner sees: notifications and log out; the chat's home next
 │   ├── focus/

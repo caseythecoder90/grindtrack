@@ -22,4 +22,7 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
 
   /** The other person's messages past a read cursor, unsent ones aside. */
   long countBySenderIdNotAndIdGreaterThanAndDeletedAtIsNull(long senderId, long id);
+
+  /** Whether an upload is already on a message: one message per upload. */
+  boolean existsByMediaId(Long mediaId);
 }

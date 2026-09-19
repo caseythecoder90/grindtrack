@@ -16,12 +16,13 @@ spring:
         default_schema: grindtrack
   servlet:
     multipart:
-      # Must not be below the limit StatementImportController enforces, or files between the two
-      # sizes fail with a raw container error instead of the message written for them.
-      max-file-size: 5MB
-      # A whole book of PDFs in one request: the Big Book's thirty-one files are about 3 MB.
-      # The ingress allows the same (proxy-body-size in the cluster repo).
-      max-request-size: 16MB
+      # One photo or clip for the chat (grindtrack.media.max-size below says the same). Must not
+      # be below the limit StatementImportController enforces, or files between the two sizes
+      # fail with a raw container error instead of the message written for them.
+      max-file-size: 100MB
+      # A clip and its poster in one request, or a whole book of PDFs (the Big Book's thirty-one
+      # files are about 3 MB). The ingress allows the same (proxy-body-size in the cluster repo).
+      max-request-size: 110MB
   liquibase:
     change-log: classpath:db/changelog/db.changelog-master.yaml
     default-schema: grindtrack
@@ -75,6 +76,16 @@ grindtrack:
     api-key: ${OPENAI_API_KEY:}
     model: gpt-4o-mini-transcribe
     language: en
+  # Photos and video in the chat: an S3-compatible bucket (Hetzner Object Storage, in the
+  # cluster's own location) reached with the AWS SDK. Absent means off: the attach button is not
+  # rendered and an upload answers 503 with a sentence. See chat.md.
+  media:
+    endpoint: ${MEDIA_S3_ENDPOINT:}        # https://nbg1.your-objectstorage.com
+    region: ${MEDIA_S3_REGION:nbg1}         # the location name; what the request signature is for
+    bucket: ${MEDIA_S3_BUCKET:}
+    access-key: ${MEDIA_S3_ACCESS_KEY:}
+    secret-key: ${MEDIA_S3_SECRET_KEY:}
+    max-size: 100MB                        # one upload; the multipart limits above match
   # Recovery. The sobriety date comes from the environment because this file is public and the
   # date is personal; absent means the assistant's context has no recovery section.
   recovery:
