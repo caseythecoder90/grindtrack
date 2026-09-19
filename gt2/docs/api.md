@@ -356,19 +356,27 @@ Deliberately absent from `/api/public/**`. Nothing here has a public shape.
 
 One room, two people; the design is in [chat.md](chat.md). Requests change the room; the socket at
 `/api/chat/ws` carries the news to every open app of both accounts. A message is
-`{id, senderId, body, sentAt, deletedAt, clientId, reactions: [{userId, emoji}]}`; `body` is empty
-and `deletedAt` set once unsent. A cursor is `{userId, deliveredId, readId}`.
+`{id, senderId, body, sentAt, deletedAt, clientId, reactions: [{userId, emoji}], media}`; `body` is
+empty and `deletedAt` set once unsent; `media` is the upload it carries (the shape `POST /media`
+answers with) or null. A cursor is `{userId, deliveredId, readId}`.
 
 | Method | Path | Body | Answer |
 |---|---|---|---|
 | GET | `/api/chat` | – | `{me, them, unread, latestId, mine, theirs}` — `them` and `theirs` are null while there is nobody else yet |
 | GET | `/api/chat/messages` | `?before=<id>` or `?after=<id>`, or neither | `{messages, hasMore}`, oldest first within the page: the newest fifty; the fifty before `before`; or everything after `after`, up to five hundred |
-| POST | `/api/chat/messages` | `{clientId, body}` — a UUID the phone made, and up to 4000 characters | the message. The same `clientId` again answers the same message rather than storing a second. 400 for a bad id or no words |
+| POST | `/api/chat/messages` | `{clientId, body, mediaId?}` — a UUID the phone made, up to 4000 characters, and an upload of mine or a sticker; with one the body may be empty | the message. The same `clientId` again answers the same message rather than storing a second. 400 for a bad id or no words |
 | DELETE | `/api/chat/messages/{id}` | – | unsend my own: the message with `body` empty and `deletedAt` set. 404 for anyone else's |
 | PUT | `/api/chat/messages/{id}/reactions/{emoji}` | – | the emoji on, idempotent; the message as it now stands. 400 for an unsent message or a "reaction" that is not one emoji |
 | DELETE | `/api/chat/messages/{id}/reactions/{emoji}` | – | the emoji off, idempotent |
 | POST | `/api/chat/cursor` | `{deliveredUpTo?, readUpTo?}` | my cursor after the move: forward only, never past the newest message; read implies delivered |
 | GET | `/api/chat/ws` | (WebSocket) | frames `message`, `unsent`, `reaction`, `cursor`, `typing` to the browser; `{"type":"typing","on":bool}` from it |
+| GET | `/api/chat/media/status` | – | `{configured, maxBytes}` — whether there is a bucket; the attach button is drawn only when there is |
+| POST | `/api/chat/media` | multipart: `file` (JPEG, PNG, WebP or GIF; MP4, MOV or WebM; up to 100 MB), `poster?` (a JPEG under 2 MB), `width?`, `height?`, `durationMs?` | the upload: `{id, kind, contentType, bytes, width, height, durationMs, hasPoster, sticker}`. 400 for the wrong kind or too big; 503 with no bucket; 502 when the bucket refuses |
+| GET | `/api/chat/media/{id}` | – | 302 to a link signed for ten minutes, `Cache-Control: no-store`; fine as an `img` or `video` src |
+| GET | `/api/chat/media/{id}/poster` | – | the same for the poster (the object itself when it has none) |
+| GET | `/api/chat/media/stickers` | – | the tray, newest first |
+| PUT | `/api/chat/media/{id}/sticker` | – | keep a picture as a sticker; 400 for a clip |
+| DELETE | `/api/chat/media/{id}/sticker` | – | out of the tray; a picture no message shows any more is removed altogether |
 
 ## Push notifications (authenticated, owner or partner)
 

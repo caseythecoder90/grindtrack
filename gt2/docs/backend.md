@@ -106,7 +106,8 @@ dev.grindtrack
 ├── chat/                              one room, two people: REST in, sockets out (chat.md)
 │   ├── api/{ChatController,ChatDtos,ChatSocketHandler,ChatSocketConfig}.java
 │   ├── service/{ChatService,ChatSessions}.java   the room; the open sockets and the frames
-│   └── domain/{ChatMessage,ChatReaction,ChatCursor}.java + repositories
+│   ├── service/{MediaService,MediaStore,S3MediaStore}.java   pictures: the bucket (AWS SDK at Hetzner), signed links, the tray
+│   └── domain/{ChatMessage,ChatReaction,ChatCursor,ChatMedia}.java + repositories
 ├── speech/
 │   ├── api/{SpeechController,SpeechSocketConfig,SpeechSocketHandler}.java
 │   └── service/{TranscriptionRelay,TranscriptionUpstream,OpenAiTranscriptionUpstream}.java   — no domain/: owns no table

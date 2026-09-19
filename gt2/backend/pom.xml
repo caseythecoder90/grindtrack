@@ -19,6 +19,7 @@
   <properties>
     <java.version>21</java.version>
     <jjwt.version>0.12.6</jjwt.version>
+    <aws-sdk.version>2.55.1</aws-sdk.version>
   </properties>
 
   <dependencies>
@@ -97,6 +98,21 @@
       <groupId>org.apache.pdfbox</groupId>
       <artifactId>pdfbox</artifactId>
       <version>3.0.3</version>
+    </dependency>
+    <!-- The chat's photos and video live in an S3-compatible bucket (Hetzner Object Storage).
+         The AWS SDK is the client, pointed at Hetzner's endpoint: Hetzner has no SDK of its own
+         and the S3 API is the one every object store speaks. The async (Netty) client is left
+         out — every call here is a plain blocking put, presign or delete. -->
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>s3</artifactId>
+      <version>${aws-sdk.version}</version>
+      <exclusions>
+        <exclusion>
+          <groupId>software.amazon.awssdk</groupId>
+          <artifactId>netty-nio-client</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
 
     <dependency>

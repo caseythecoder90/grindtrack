@@ -30,6 +30,7 @@ entity "chat_messages" as msgs #E6F7EE {
   * client_id : uuid <<unique>>  (the phone's own name for it: a retry is the same message)
   * sent_at : timestamptz
   deleted_at : timestamptz  (unsent: the row stays, the words go)
+  media_id : bigint <<FK → chat_media, SET NULL>>  (the picture, or a sticker)
   --
   idx (sender_id, id)
 }
@@ -45,6 +46,21 @@ entity "chat_reactions" as reacts #E6F7EE {
   unique (message_id, user_id, emoji)
 }
 
+entity "chat_media" as media #FFF4E0 {
+  * id : bigint <<PK, identity>>
+  --
+  * owner_id : bigint <<FK → users>>
+  * kind : varchar(16)  (IMAGE | VIDEO)
+  * object_key : text <<unique>>  (in the bucket)
+  poster_key : text  (the small JPEG: thumbnail, or a frame)
+  * content_type : varchar(100)
+  * bytes : bigint
+  width, height : int
+  duration_ms : int
+  * sticker : boolean  (in the tray, for both)
+  * created_at : timestamptz
+}
+
 entity "chat_cursors" as cursors #E6F7EE {
   * user_id : bigint <<PK, FK → users, CASCADE>>
   --
@@ -57,6 +73,8 @@ users ||--o{ msgs : sends
 users ||--o{ reacts : reacts
 users ||--o| cursors : has got to
 msgs ||--o{ reacts : carries
+users ||--o{ media : uploads
+media |o--o{ msgs : shown by
 
 note bottom of cursors
   Two watermarks per person, not a row per message:

@@ -145,7 +145,7 @@ locally with `gt2/tools/plan-import/xlsx_to_plan_json.py` and upload it through 
 
 ## Optional features: the assistant, push, and speech
 
-Three features are off until a key exists in `grindtrack-secrets`. Off is a state, not an
+Four features are off until a key exists in `grindtrack-secrets`. Off is a state, not an
 error: the app deploys and runs without any of them, each answers "off" with a sentence, and
 the env vars are already on the deployment (`base/app-deployment.yaml` in the k8s repo, all
 `optional: true`). Turning one on is the same three moves every time.
@@ -155,6 +155,7 @@ the env vars are already on the deployment (`base/app-deployment.yaml` in the k8
 | Assistant (review, planner, chat, brief) | `ANTHROPIC_API_KEY` | console.anthropic.com | 503 with a sentence; scheduled jobs quiet; the ask tab explains | [assistant.md](assistant.md) |
 | Push notifications | `PUSH_VAPID_PUBLIC_KEY`, `PUSH_VAPID_PRIVATE_KEY`, `PUSH_VAPID_SUBJECT` | generated once on a laptop (node one-liner in the doc) | panel says "push is off on the server" | [push-notifications.md](push-notifications.md#runbook) |
 | Speech to text | `OPENAI_API_KEY` | platform.openai.com | no mic button on the ask tab | [speech-to-text.md](speech-to-text.md#runbook) |
+| Pictures and video in the chat | `MEDIA_S3_ENDPOINT`, `MEDIA_S3_BUCKET`, `MEDIA_S3_ACCESS_KEY`, `MEDIA_S3_SECRET_KEY` (`MEDIA_S3_REGION` defaults to `nbg1`) | a bucket and an S3 key pair in the Hetzner Cloud Console (Object Storage) | no attach button in the chat; `/api/chat/media/status` says `configured: false` | [chat.md](chat.md#pictures-and-video) |
 | The day count (the recovery tab's number, the brief's line) | `SOBRIETY_DATE` (`YYYY-MM-DD`) | you | no number on the recovery tab; the morning line has no day count | [recovery.md](recovery.md) |
 
 **1. Put the value in the secret.** `patch --type=merge` adds or replaces only the keys named,
@@ -164,12 +165,17 @@ and `stringData` takes the plain value (Kubernetes base64-encodes it):
 kubectl -n grindtrack patch secret grindtrack-secrets --type=merge -p '{"stringData":{
   "ANTHROPIC_API_KEY":"sk-ant-…",
   "OPENAI_API_KEY":"sk-…",
+  "MEDIA_S3_ENDPOINT":"https://nbg1.your-objectstorage.com","MEDIA_S3_BUCKET":"…",
+  "MEDIA_S3_ACCESS_KEY":"…","MEDIA_S3_SECRET_KEY":"…",
   "SOBRIETY_DATE":"2024-09-05",
   "PUSH_VAPID_PUBLIC_KEY":"…","PUSH_VAPID_PRIVATE_KEY":"…","PUSH_VAPID_SUBJECT":"mailto:you@example.com"
 }}'
 ```
 
 Any subset is fine; each feature reads only its own keys.
+
+The chat's first day on two phones — the partner account, her phone, the bucket, the test — is its
+own checklist: [go-live-chat.md](go-live-chat.md).
 
 The recovery tab's books are not secrets and not environment: they are imported through the app
 itself (recovery → your books), the publisher's PDFs all at once, and live in the database, files
@@ -188,7 +194,7 @@ kubectl -n grindtrack rollout status deploy/grindtrack
 
 ```bash
 kubectl -n grindtrack exec deploy/grindtrack -- sh -c '
-  for v in ANTHROPIC_API_KEY OPENAI_API_KEY PUSH_VAPID_PRIVATE_KEY; do
+  for v in ANTHROPIC_API_KEY OPENAI_API_KEY PUSH_VAPID_PRIVATE_KEY MEDIA_S3_SECRET_KEY; do
     eval "val=\$$v"; [ -n "$val" ] && echo "$v present" || echo "$v MISSING"; done'
 ```
 
@@ -199,6 +205,7 @@ Then, logged in, open each status endpoint in a browser tab:
 | `/api/assistant/status` | `configured: true`, the model, this month's spend |
 | `/api/push/status` | `configured: true`, the public key you generated |
 | `/api/speech/status` | `configured: true`, `model: gpt-4o-mini-transcribe` |
+| `/api/chat/media/status` | `configured: true`, `maxBytes: 104857600` |
 
 A `configured: false` after a restart means the env var did not reach the pod: the patch went
 to a different cluster or namespace, or the manifest with the env var was never applied

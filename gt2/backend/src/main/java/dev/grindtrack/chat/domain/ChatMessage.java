@@ -42,18 +42,28 @@ public class ChatMessage {
   @Column(name = "deleted_at")
   private OffsetDateTime deletedAt;
 
+  /** The upload this message carries, if any; cleared with the words when unsent. */
+  @Column(name = "media_id")
+  private Long mediaId;
+
   protected ChatMessage() {}
 
-  public ChatMessage(Long senderId, String body, UUID clientId) {
+  public ChatMessage(Long senderId, String body, UUID clientId, Long mediaId) {
     this.senderId = senderId;
     this.body = body;
     this.clientId = clientId;
+    this.mediaId = mediaId;
   }
 
-  /** Unsend: the words go, the place stays. */
+  /** Unsend: the words and the picture go, the place stays. */
   public void unsend() {
     this.body = "";
+    this.mediaId = null;
     this.deletedAt = OffsetDateTime.now();
+  }
+
+  public Long getMediaId() {
+    return mediaId;
   }
 
   public boolean isUnsent() {

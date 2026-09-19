@@ -8,10 +8,12 @@ import dev.grindtrack.auth.domain.UserRepository;
 import dev.grindtrack.auth.security.SignedIn;
 import dev.grindtrack.chat.domain.ChatCursor;
 import dev.grindtrack.chat.domain.ChatCursorRepository;
+import dev.grindtrack.chat.domain.ChatMedia;
 import dev.grindtrack.chat.domain.ChatMessage;
 import dev.grindtrack.chat.domain.ChatMessageRepository;
 import dev.grindtrack.chat.domain.ChatReaction;
 import dev.grindtrack.chat.domain.ChatReactionRepository;
+import dev.grindtrack.chat.domain.MediaKind;
 import dev.grindtrack.push.service.PushService;
 import dev.grindtrack.web.BadRequestException;
 import java.time.Duration;
@@ -21,6 +23,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -43,6 +46,9 @@ import org.springframework.transaction.annotation.Transactional;
  * delivered it first. No socket open — push at once. A socket open — wait {@link #DELIVERY_GRACE}
  * for their phone to acknowledge; an app in the foreground does within a second, and an app whose
  * socket is open but asleep in the background does not, and gets the push after all.
+ *
+ * <p>A picture or a clip is uploaded first ({@link MediaService}) and attached to the message by
+ * its id; a message with one may have no words. Unsending takes both away.
  */
 @Service
 public class ChatService {
@@ -63,6 +69,7 @@ public class ChatService {
   private final ChatSessions sessions;
   private final PushService push;
   private final TaskScheduler scheduler;
+  private final MediaService mediaService;
 
   public ChatService(
       ChatMessageRepository messages,
@@ -71,7 +78,8 @@ public class ChatService {
       UserRepository users,
       ChatSessions sessions,
       PushService push,
-      TaskScheduler scheduler) {
+      TaskScheduler scheduler,
+      MediaService mediaService) {
     this.messages = messages;
     this.reactions = reactions;
     this.cursors = cursors;
@@ -79,6 +87,7 @@ public class ChatService {
     this.sessions = sessions;
     this.push = push;
     this.scheduler = scheduler;
+    this.mediaService = mediaService;
   }
 
   /** Who is in the room, how far each has read, and how much is new for me. */
@@ -122,19 +131,39 @@ public class ChatService {
   }
 
   /**
-   * Say something. The same {@code clientId} twice is the same message, answered again rather than
-   * stored again — the retry after a dropped connection.
+   * Say something, with or without a picture. The same {@code clientId} twice is the same message,
+   * answered again rather than stored again — the retry after a dropped connection.
+   *
+   * @param mediaId an upload of mine that no message carries yet, or null
+   * @throws BadRequestException for an upload that is not mine, not there, or already on a message
    */
-  public MessageView send(SignedIn me, UUID clientId, String body) {
+  public MessageView send(SignedIn me, UUID clientId, String body, Long mediaId) {
     Optional<ChatMessage> already = messages.findByClientId(clientId);
     if (already.isPresent()) {
       return view(already.get());
     }
-    ChatMessage saved = messages.save(new ChatMessage(me.id(), body, clientId));
-    MessageView view = view(saved);
+    ChatMedia media = mediaId == null ? null : attachable(me, mediaId);
+    ChatMessage saved = messages.save(new ChatMessage(me.id(), body, clientId, mediaId));
+    MessageView view = view(saved, media);
     sessions.broadcast(frame("message", "message", view));
     other(me).ifPresent(them -> tell(them, me, view));
     return view;
+  }
+
+  /**
+   * An upload of mine that no message carries yet — or a sticker, which is anyone's to send and
+   * sent as often as they like. Anything else is not there, as far as I know.
+   */
+  private ChatMedia attachable(SignedIn me, long mediaId) {
+    ChatMedia media =
+        mediaService
+            .find(mediaId)
+            .filter(m -> m.isSticker() || m.getOwnerId().equals(me.id()))
+            .orElseThrow(() -> new BadRequestException("that upload is not here to attach"));
+    if (!media.isSticker() && messages.existsByMediaId(mediaId)) {
+      throw new BadRequestException("that upload is already on a message");
+    }
+    return media;
   }
 
   private void tell(User them, SignedIn from, MessageView view) {
@@ -142,7 +171,7 @@ public class ChatService {
       return;
     }
     PushService.Notification notification =
-        PushService.Notification.chatMessage(from.username(), preview(view.body()));
+        PushService.Notification.chatMessage(from.username(), preview(view));
     if (!sessions.hasOpen(them.getId())) {
       pushQuietly(them.getId(), notification);
       return;
@@ -168,8 +197,8 @@ public class ChatService {
   }
 
   /**
-   * Take a message back. Only the sender's own; anyone else's is not there, as far as they are
-   * concerned. Already unsent is unsent, not an error.
+   * Take a message back, picture included. Only the sender's own; anyone else's is not there, as
+   * far as they are concerned. Already unsent is unsent, not an error.
    *
    * @throws NoSuchElementException for another person's message or none — a 404
    */
@@ -180,10 +209,15 @@ public class ChatService {
             .filter(m -> m.getSenderId().equals(me.id()))
             .orElseThrow(() -> new NoSuchElementException("message " + id));
     if (!message.isUnsent()) {
+      Long mediaId = message.getMediaId();
       message.unsend();
       message = messages.save(message);
+      if (mediaId != null) {
+        // A sticker stays in the tray; anything else goes with the message.
+        mediaService.find(mediaId).filter(m -> !m.isSticker()).ifPresent(mediaService::remove);
+      }
     }
-    MessageView view = view(message);
+    MessageView view = view(message, null);
     sessions.broadcast(frame("unsent", "message", view));
     return view;
   }
@@ -254,6 +288,7 @@ public class ChatService {
     return upTo == null ? null : Math.min(upTo, latest);
   }
 
+  /** A page's reactions and uploads, one query each. */
   private List<MessageView> views(List<ChatMessage> rows) {
     if (rows.isEmpty()) {
       return List.of();
@@ -266,17 +301,49 @@ public class ChatService {
                 Collectors.groupingBy(
                     ChatReaction::getMessageId,
                     Collectors.mapping(ReactionView::of, Collectors.toList())));
+    List<Long> mediaIds =
+        rows.stream().map(ChatMessage::getMediaId).filter(Objects::nonNull).toList();
+    Map<Long, ChatMedia> media =
+        mediaIds.isEmpty()
+            ? Map.of()
+            : mediaService.findAll(mediaIds).stream()
+                .collect(Collectors.toMap(ChatMedia::getId, m -> m));
     return rows.stream()
-        .map(m -> MessageView.of(m, byMessage.getOrDefault(m.getId(), List.of())))
+        .map(
+            m ->
+                MessageView.of(
+                    m,
+                    byMessage.getOrDefault(m.getId(), List.of()),
+                    m.getMediaId() == null ? null : media.get(m.getMediaId())))
         .toList();
   }
 
   private MessageView view(ChatMessage message) {
+    ChatMedia media =
+        message.getMediaId() == null ? null : mediaService.find(message.getMediaId()).orElse(null);
+    return view(message, media);
+  }
+
+  private MessageView view(ChatMessage message, ChatMedia media) {
     return MessageView.of(
         message,
         reactions.findAllByMessageIdOrderByIdAsc(message.getId()).stream()
             .map(ReactionView::of)
-            .toList());
+            .toList(),
+        media);
+  }
+
+  /** What the push says: the words, or what kind of thing it is, or both. */
+  static String preview(MessageView view) {
+    String words = preview(view.body());
+    if (view.media() == null) {
+      return words;
+    }
+    String what =
+        view.media().sticker()
+            ? "sticker"
+            : view.media().kind() == MediaKind.IMAGE ? "📷 photo" : "🎥 video";
+    return words.isEmpty() ? what : what + " · " + words;
   }
 
   static String preview(String body) {
@@ -313,8 +380,9 @@ public class ChatService {
   public record Page(List<MessageView> messages, boolean hasMore) {}
 
   /**
-   * @param body empty once unsent
+   * @param body empty once unsent, and possibly empty with a picture
    * @param deletedAt when it was unsent, else null
+   * @param media the upload it carries, or null
    */
   public record MessageView(
       long id,
@@ -323,8 +391,9 @@ public class ChatService {
       String sentAt,
       String deletedAt,
       String clientId,
-      List<ReactionView> reactions) {
-    static MessageView of(ChatMessage m, List<ReactionView> reactions) {
+      List<ReactionView> reactions,
+      MediaService.MediaView media) {
+    static MessageView of(ChatMessage m, List<ReactionView> reactions, ChatMedia media) {
       return new MessageView(
           m.getId(),
           m.getSenderId(),
@@ -332,7 +401,8 @@ public class ChatService {
           m.getSentAt().toString(),
           m.getDeletedAt() == null ? null : m.getDeletedAt().toString(),
           m.getClientId().toString(),
-          reactions);
+          reactions,
+          media == null ? null : MediaService.MediaView.of(media));
     }
   }
 
