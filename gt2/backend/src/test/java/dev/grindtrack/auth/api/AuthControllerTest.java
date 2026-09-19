@@ -11,7 +11,9 @@ import static org.mockito.Mockito.when;
 import dev.grindtrack.auth.api.AuthDtos.LoginRequest;
 import dev.grindtrack.auth.api.AuthDtos.LogoutAllResponse;
 import dev.grindtrack.auth.api.AuthDtos.SessionResponse;
+import dev.grindtrack.auth.domain.Role;
 import dev.grindtrack.auth.domain.User;
+import dev.grindtrack.auth.security.SignedIn;
 import dev.grindtrack.auth.service.AuthService;
 import dev.grindtrack.auth.service.AuthService.RenewedSession;
 import dev.grindtrack.auth.service.JwtService;
@@ -59,6 +61,7 @@ class AuthControllerTest {
   private User userNamed(String username) {
     User user = mock(User.class);
     when(user.getUsername()).thenReturn(username);
+    when(user.getRole()).thenReturn(Role.OWNER);
     return user;
   }
 
@@ -79,13 +82,13 @@ class AuthControllerTest {
     when(trustedDevices.trustedUserFor(null)).thenReturn(Optional.empty());
     when(authService.authenticate("casey", "pw", "123456", null)).thenReturn(Optional.of(user));
     when(authService.issueRefreshToken(user)).thenReturn("refresh-token");
-    when(jwtService.issueAccessToken("casey")).thenReturn("access.jwt");
+    when(jwtService.issueAccessToken(user)).thenReturn("access.jwt");
 
     ResponseEntity<?> response =
         controller.login(new LoginRequest("casey", "pw", "123456", false), requestFrom("1.2.3.4"));
 
     assertThat(response.getStatusCode().value()).isEqualTo(200);
-    assertThat(response.getBody()).isEqualTo(new SessionResponse("casey"));
+    assertThat(response.getBody()).isEqualTo(new SessionResponse("casey", Role.OWNER));
     List<String> cookies = setCookies(response);
     assertThat(cookies).hasSize(2);
     assertThat(cookies.get(0))
@@ -157,12 +160,12 @@ class AuthControllerTest {
     User user = userNamed("casey");
     when(authService.renew("old-token"))
         .thenReturn(Optional.of(new RenewedSession(user, "new-token")));
-    when(jwtService.issueAccessToken("casey")).thenReturn("fresh.jwt");
+    when(jwtService.issueAccessToken(user)).thenReturn("fresh.jwt");
 
     ResponseEntity<?> response = controller.refresh(request);
 
     assertThat(response.getStatusCode().value()).isEqualTo(200);
-    assertThat(response.getBody()).isEqualTo(new SessionResponse("casey"));
+    assertThat(response.getBody()).isEqualTo(new SessionResponse("casey", Role.OWNER));
     List<String> cookies = setCookies(response);
     assertThat(cookies).hasSize(2);
     assertThat(cookies.get(0)).contains("gt_access=fresh.jwt");
@@ -206,12 +209,9 @@ class AuthControllerTest {
 
   @Test
   void logoutAllEndsEverySessionForThePrincipalAndExpiresThisBrowsersCookies() {
-    User user = mock(User.class);
-    when(user.getId()).thenReturn(7L);
-    when(authService.findByUsername("casey")).thenReturn(Optional.of(user));
     when(authService.revokeAllForUser(7L)).thenReturn(3);
 
-    ResponseEntity<?> response = controller.logoutAll(() -> "casey");
+    ResponseEntity<?> response = controller.logoutAll(new SignedIn(7L, "casey", Role.OWNER));
 
     assertThat(response.getStatusCode().value()).isEqualTo(200);
     assertThat(response.getBody()).isEqualTo(new LogoutAllResponse("logged out everywhere", 3));
@@ -220,6 +220,7 @@ class AuthControllerTest {
 
   @Test
   void meEchoesThePrincipalName() {
-    assertThat(controller.me(() -> "casey")).isEqualTo(new SessionResponse("casey"));
+    assertThat(controller.me(new SignedIn(7L, "casey", Role.OWNER)))
+        .isEqualTo(new SessionResponse("casey", Role.OWNER));
   }
 }

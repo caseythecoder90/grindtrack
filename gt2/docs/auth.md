@@ -151,14 +151,65 @@ sequenceDiagram
     participant TC as TrackingController
     SPA->>F: GET /api/stats (Cookie: gt_access)
     F->>F: JwtService.validate(token)<br/>signature + expiry check
-    F->>SEC: SecurityContext = authenticated(subject, ROLE_USER)
-    SEC->>TC: request authorized, proceeds
+    F->>SEC: SecurityContext = authenticated(SignedIn{id, username, role}, ROLE_OWNER | ROLE_PARTNER)
+    SEC->>TC: /api/stats is owner-only; ROLE_OWNER, proceeds
     TC-->>SPA: 200 JSON
 ```
 
 `JwtAuthFilter` is a `OncePerRequestFilter` registered before `UsernamePasswordAuthenticationFilter`.
 If the JWT is missing/expired/invalid, the filter sets nothing, the chain's authorization rules
-reject the request, and the entry point returns a bare 401.
+reject the request, and the entry point returns a bare 401. A valid cookie with the wrong role — a
+partner on an owner-only path — is a bare 403 from the access-denied handler, decided by URL
+before any handler runs; see [Roles](#roles-and-what-a-partner-may-reach).
+
+## Roles and what a partner may reach
+
+Two kinds of account, and the difference is a column: `users.role` is `OWNER` or `PARTNER`,
+fixed when the row is made. The owner is the account bootstrap created, and everything in the app
+is theirs. A partner is made by the owner from the app (the accounts panel, or
+`POST /api/auth/users`) and gets one screen of their own.
+
+The rule is written once, in `SecurityConfig`, by URL, in three tiers:
+
+| Tier | Paths | Who |
+|---|---|---|
+| Public | the SPA shell, `/api/public/**`, login, refresh, logout, the device probe | anyone |
+| Shared | `/api/auth/me`, `/api/auth/logout-all`, `/api/auth/devices/forget`, `/api/push/**` | owner or partner |
+| Everything else | every other path, `/api/**` included | owner only |
+
+The third tier is the point. A partner is refused the tracker, the money, the journal, the
+assistant and the relationship tab not because each was remembered but because nothing is open to
+them until it is named in `SHARED_PATHS`. An endpoint added next month is the owner's on the day
+it is written. `SecurityConfigTest` holds the line: it scans the classpath for every
+`@RestController` mapping and asserts that a partner's cookie gets 403 on each one outside the
+shared list, that the owner's is never refused by role, and that no cookie gets 401 on all of them.
+
+How the role travels: the access token carries three claims — the username as subject, the
+account id (`uid`) and the role — and `JwtAuthFilter` grants `ROLE_OWNER` or `ROLE_PARTNER`
+straight from the claim. Nothing is looked up per request, and nothing needs to be, because a role
+never changes for the life of an account. The principal in the security context is
+`SignedIn(id, username, role)`, so a controller that needs to know whose request this is reads
+`SignedIn.of(principal)` and never touches the database for it. A token without the two claims —
+one issued before roles existed — is refused, and the refresh that follows mints a current one.
+
+What is a partner's own: their sessions and devices (the `refresh_tokens` and `trusted_devices`
+rows were always keyed by user), and their push subscriptions, which got a `user_id` for this
+(migration 038; [push-notifications.md](push-notifications.md)). The scheduled pushes — the brief,
+the readings, the todos — go to the owner's devices only.
+
+Minding a partner's account is the owner's job, under `/api/auth/users`, which is deliberately
+*not* in the shared list even though it sits under `/api/auth`: the three session endpoints a
+partner needs are named one by one rather than the prefix. Create (the TOTP secret comes back once,
+in the response, and is shown on screen the way the owner's came off the bootstrap log), list,
+reset a forgotten password, and sign them out everywhere — sessions ended and devices forgotten, so
+the next sign-in wants the password and the code again. There is no delete: a partner's messages,
+once the chat exists, are a record that should outlive the account's access, and ending their
+sessions shuts them out reversibly. The owner's own row is out of these endpoints' reach; a
+password reset that could hit it would be a way to be locked out by a mistyped id. The database
+allows exactly one owner (a partial unique index on `role`), so there is no create-owner path.
+
+Two factors for both. A partner signs in on the same form with a password and an authenticator
+code, and can trust their phone for thirty days like the owner; there is no password-only account.
 
 ## Refresh: renew, rotate, or refuse
 
@@ -250,6 +301,10 @@ clock has to be right.
 It runs on every boot but no-ops once any user exists. If no user *and* no bootstrap credentials
 are set, it logs a warning that login is impossible rather than creating a blank account.
 
+The bootstrap account is the owner. A partner's account is never bootstrapped: the owner makes it
+from the app once signed in, and its secret is shown there once — see
+[Roles](#roles-and-what-a-partner-may-reach).
+
 (Locally, the same lines come from `docker compose logs app`.)
 
 ## Reading the logs
@@ -280,7 +335,7 @@ answerable from something the app recorded:
   `/api/auth`, httpOnly, and only a hash is stored.
 - **Rate limiter is in-memory**: `LoginRateLimiter` is a per-IP sliding window in a
   `ConcurrentHashMap` (max 5 / 5 min, bounded to 10k tracked IPs). It resets on restart and is
-  per-instance. Fine for one user on one node; a multi-instance deployment would move it to Redis.
+  per-instance. Fine for two accounts on one node; a multi-instance deployment would move it to Redis.
   It keys on the first `X-Forwarded-For` entry, falling back to `getRemoteAddr()`.
 - **X-Forwarded-For trust**: the rate limiter trusts the *first* XFF entry as the client IP, so
   the reverse proxy (ingress-nginx) must **overwrite** (not append) that header. If it appended, a

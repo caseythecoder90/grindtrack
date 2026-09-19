@@ -73,3 +73,5 @@ databaseChangeLog:
       file: db/changelog/036-calendar-reminders.sql
   - include:
       file: db/changelog/037-bible-browse.sql
+  - include:
+      file: db/changelog/038-roles.sql

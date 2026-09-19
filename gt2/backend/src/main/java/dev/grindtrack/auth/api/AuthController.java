@@ -10,6 +10,7 @@ import dev.grindtrack.auth.api.AuthDtos.SessionResponse;
 import dev.grindtrack.auth.domain.User;
 import dev.grindtrack.auth.security.Cookies;
 import dev.grindtrack.auth.security.JwtAuthFilter;
+import dev.grindtrack.auth.security.SignedIn;
 import dev.grindtrack.auth.service.AuthService;
 import dev.grindtrack.auth.service.JwtService;
 import dev.grindtrack.auth.service.LoginRateLimiter;
@@ -88,11 +89,11 @@ public class AuthController {
     if (trustDevice && !alreadyTrusted) {
       ok.header(HttpHeaders.SET_COOKIE, deviceCookie(trustedDevices.trust(user)).toString());
     }
-    String accessToken = jwtService.issueAccessToken(user.getUsername());
+    String accessToken = jwtService.issueAccessToken(user);
     return ok.header(HttpHeaders.SET_COOKIE, accessCookie(accessToken).toString())
         .header(
             HttpHeaders.SET_COOKIE, refreshCookie(authService.issueRefreshToken(user)).toString())
-        .body(new SessionResponse(user.getUsername()));
+        .body(new SessionResponse(user.getUsername(), user.getRole()));
   }
 
   /**
@@ -117,11 +118,7 @@ public class AuthController {
    */
   @PostMapping("/devices/forget")
   public ResponseEntity<AuthResponse> forgetDevices(Principal principal) {
-    int forgotten =
-        authService
-            .findByUsername(principal.getName())
-            .map(u -> trustedDevices.forgetAll(u.getId()))
-            .orElse(0);
+    int forgotten = trustedDevices.forgetAll(SignedIn.of(principal).id());
     return ResponseEntity.ok()
         .header(HttpHeaders.SET_COOKIE, expiredCookie(DEVICE_COOKIE, REFRESH_PATH).toString())
         .body(new DeviceTrust(false, forgotten));
@@ -169,27 +166,25 @@ public class AuthController {
    */
   @PostMapping("/logout-all")
   public ResponseEntity<AuthResponse> logoutAll(Principal principal) {
-    int ended =
-        authService
-            .findByUsername(principal.getName())
-            .map(u -> authService.revokeAllForUser(u.getId()))
-            .orElse(0);
+    int ended = authService.revokeAllForUser(SignedIn.of(principal).id());
     return withExpiredSessionCookies(ResponseEntity.ok())
         .body(new LogoutAllResponse("logged out everywhere", ended));
   }
 
+  /** Who this is, from the access cookie alone: the page renders by the role. */
   @GetMapping("/me")
   public SessionResponse me(Principal principal) {
-    return new SessionResponse(principal.getName());
+    SignedIn who = SignedIn.of(principal);
+    return new SessionResponse(who.username(), who.role());
   }
 
   /** 200 with fresh access + refresh cookies — the shared success shape of login and refresh. */
   private ResponseEntity<AuthResponse> sessionResponse(User user, String refreshToken) {
-    String accessToken = jwtService.issueAccessToken(user.getUsername());
+    String accessToken = jwtService.issueAccessToken(user);
     return ResponseEntity.ok()
         .header(HttpHeaders.SET_COOKIE, accessCookie(accessToken).toString())
         .header(HttpHeaders.SET_COOKIE, refreshCookie(refreshToken).toString())
-        .body(new SessionResponse(user.getUsername()));
+        .body(new SessionResponse(user.getUsername(), user.getRole()));
   }
 
   private static ResponseEntity<AuthResponse> unauthorized(String message) {

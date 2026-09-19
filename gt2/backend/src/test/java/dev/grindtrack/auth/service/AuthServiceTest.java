@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 
 import dev.grindtrack.auth.domain.RefreshToken;
 import dev.grindtrack.auth.domain.RefreshTokenRepository;
+import dev.grindtrack.auth.domain.Role;
 import dev.grindtrack.auth.domain.User;
 import dev.grindtrack.auth.domain.UserRepository;
 import dev.grindtrack.config.AppProperties;
@@ -71,7 +72,7 @@ class AuthServiceTest {
 
   @Test
   void authenticateSucceedsWithValidPasswordAndOtp() {
-    User user = new User("casey", "hash", "SECRET");
+    User user = new User("casey", "hash", "SECRET", Role.OWNER);
     when(users.findByUsername("casey")).thenReturn(Optional.of(user));
     when(passwordEncoder.matches("pw", "hash")).thenReturn(true);
     when(totpService.verify("SECRET", "123456")).thenReturn(true);
@@ -82,7 +83,7 @@ class AuthServiceTest {
   @Test
   void authenticateRejectsWrongPasswordWithoutConsultingTotp() {
     when(users.findByUsername("casey"))
-        .thenReturn(Optional.of(new User("casey", "hash", "SECRET")));
+        .thenReturn(Optional.of(new User("casey", "hash", "SECRET", Role.OWNER)));
     when(passwordEncoder.matches("wrong", "hash")).thenReturn(false);
 
     assertThat(service.authenticate("casey", "wrong", "123456")).isEmpty();
@@ -92,7 +93,7 @@ class AuthServiceTest {
   @Test
   void authenticateRejectsBadOtp() {
     when(users.findByUsername("casey"))
-        .thenReturn(Optional.of(new User("casey", "hash", "SECRET")));
+        .thenReturn(Optional.of(new User("casey", "hash", "SECRET", Role.OWNER)));
     when(passwordEncoder.matches("pw", "hash")).thenReturn(true);
     when(totpService.verify("SECRET", "000000")).thenReturn(false);
 
@@ -101,7 +102,7 @@ class AuthServiceTest {
 
   @Test
   void aTrustedDeviceSkipsTheCodeButNeverThePassword() {
-    User user = new User("casey", "hash", "SECRET");
+    User user = new User("casey", "hash", "SECRET", Role.OWNER);
     when(users.findByUsername("casey")).thenReturn(Optional.of(user));
     when(passwordEncoder.matches("wrong", "hash")).thenReturn(false);
 
@@ -140,7 +141,7 @@ class AuthServiceTest {
 
   @Test
   void anUntrustedBrowserStillNeedsTheCode() {
-    User user = new User("casey", "hash", "SECRET");
+    User user = new User("casey", "hash", "SECRET", Role.OWNER);
     when(users.findByUsername("casey")).thenReturn(Optional.of(user));
     when(passwordEncoder.matches("pw", "hash")).thenReturn(true);
     when(totpService.verify("SECRET", "")).thenReturn(false);

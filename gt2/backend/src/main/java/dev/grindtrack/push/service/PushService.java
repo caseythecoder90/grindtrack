@@ -2,6 +2,7 @@ package dev.grindtrack.push.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.grindtrack.auth.domain.Role;
 import dev.grindtrack.config.PushProperties;
 import dev.grindtrack.push.domain.PushSubscription;
 import dev.grindtrack.push.domain.PushSubscriptionRepository;
@@ -34,6 +35,10 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>Sending is deliberately not transactional: it is network I/O of up to ten seconds per device,
  * and a pooled connection held across that would be one of ten doing nothing. The repository calls
  * around it are each their own short transaction.
+ *
+ * <p>Devices belong to accounts. {@link #send} — what every scheduler calls — goes to the owner's
+ * devices and nobody else's; everything a signed-in account subscribes, lists, tests or removes is
+ * its own, keyed by the id in its principal. A partner's phone hears only what is addressed to it.
  */
 @Service
 public class PushService {
@@ -65,10 +70,15 @@ public class PushService {
     return vapid != null;
   }
 
+  /**
+   * Whether push is on, the key a browser subscribes with, and how many devices this account has.
+   */
   @Transactional(readOnly = true)
-  public Status status() {
+  public Status status(long userId) {
     return new Status(
-        configured(), vapid == null ? null : vapid.publicKeyBase64(), subscriptions.count());
+        configured(),
+        vapid == null ? null : vapid.publicKeyBase64(),
+        subscriptions.countByUserId(userId));
   }
 
   /**
@@ -78,7 +88,8 @@ public class PushService {
    *     client sent something other than what {@code pushManager.subscribe} returned
    */
   @Transactional
-  public Subscribed subscribe(String endpoint, String p256dh, String auth, String userAgent) {
+  public Subscribed subscribe(
+      long userId, String endpoint, String p256dh, String auth, String userAgent) {
     requireOn();
     String target = requireEndpoint(endpoint);
     String publicKey = requireKey(p256dh, 65, "p256dh must be a base64url 65-byte P-256 point");
@@ -90,58 +101,71 @@ public class PushService {
             .map(
                 existing -> {
                   existing.replaceKeys(publicKey, secret, agent);
+                  // The same browser, signed in as the other person now: the row follows them.
+                  existing.belongsTo(userId);
                   return existing;
                 })
-            .orElseGet(() -> new PushSubscription(target, publicKey, secret, agent));
+            .orElseGet(() -> new PushSubscription(userId, target, publicKey, secret, agent));
     row = subscriptions.save(row);
-    return new Subscribed(row.getId(), subscriptions.count());
+    return new Subscribed(row.getId(), subscriptions.countByUserId(userId));
   }
 
+  /** This account's devices, oldest first. */
   @Transactional(readOnly = true)
-  public List<Device> devices() {
-    return subscriptions.findAllByOrderByCreatedAtAsc().stream().map(PushService::device).toList();
+  public List<Device> devices(long userId) {
+    return subscriptions.findAllByUserIdOrderByCreatedAtAsc(userId).stream()
+        .map(PushService::device)
+        .toList();
   }
 
   /**
-   * @throws NoSuchElementException when there is no such row — a 404, so a device that was already
-   *     removed from another screen says so rather than pretending
+   * @throws NoSuchElementException when there is no such row of this account's — a 404, so a device
+   *     that was already removed from another screen says so rather than pretending, and another
+   *     account's device is simply not there
    */
   @Transactional
-  public void unsubscribe(long id) {
+  public void unsubscribe(long userId, long id) {
     PushSubscription row =
         subscriptions
-            .findById(id)
+            .findByIdAndUserId(id, userId)
             .orElseThrow(() -> new NoSuchElementException("push subscription " + id));
     subscriptions.delete(row);
   }
 
-  /** To every device. Off, or nobody subscribed, is an outcome of zeros, not an error. */
+  /**
+   * To every device of the owner's — the scheduled pushes, which are all about the owner's day.
+   * Off, or nobody subscribed, is an outcome of zeros, not an error.
+   */
   public Outcome send(Notification notification) {
     if (!configured()) {
       return Outcome.NOTHING;
     }
-    return deliver(subscriptions.findAllByOrderByCreatedAtAsc(), notification);
+    return deliver(subscriptions.findAllByRole(Role.OWNER), notification);
   }
 
   /**
-   * To one device, by its endpoint — the test button, so the phone that pressed it is the one that
-   * buzzes.
+   * To one of this account's devices, by its endpoint — the test button, so the phone that pressed
+   * it is the one that buzzes.
    *
-   * @throws NoSuchElementException when that endpoint is not subscribed
+   * @throws NoSuchElementException when that endpoint is not subscribed by this account
    */
-  public Outcome sendTo(String endpoint, Notification notification) {
+  public Outcome sendTo(long userId, String endpoint, Notification notification) {
     requireOn();
     PushSubscription row =
         subscriptions
             .findByEndpoint(endpoint == null ? "" : endpoint.trim())
+            .filter(s -> s.getUserId().equals(userId))
             .orElseThrow(() -> new NoSuchElementException("this device is not subscribed"));
     return deliver(List.of(row), notification);
   }
 
-  /** The test button with no endpoint: everyone. */
-  public Outcome sendToAll(Notification notification) {
+  /**
+   * To every device of one account: the test button with no endpoint, and (next) a message for the
+   * other person. Off is a 503 here, unlike {@link #send}, because somebody pressed something.
+   */
+  public Outcome sendTo(long userId, Notification notification) {
     requireOn();
-    return deliver(subscriptions.findAllByOrderByCreatedAtAsc(), notification);
+    return deliver(subscriptions.findAllByUserIdOrderByCreatedAtAsc(userId), notification);
   }
 
   private Outcome deliver(List<PushSubscription> targets, Notification notification) {
@@ -386,8 +410,8 @@ public class PushService {
   public record Subscribed(long id, long devices) {}
 
   /**
-   * @param endpoint returned so the browser can recognise its own row; it is the account's own
-   *     data, and there is one account
+   * @param endpoint returned so the browser can recognise its own row; the list is only ever the
+   *     asking account's own devices
    */
   public record Device(
       long id, String label, String createdAt, String lastSentAt, String endpoint) {}

@@ -1529,3 +1529,18 @@ button.rec-chap.open { background: var(--rec-bg); }
   .rec-search-row input[type="text"] { grid-column: 1; }
   .rec-search-row button { min-height: 44px; }
 }
+
+/* --- accounts: who can sign in ---
+   The owner's panel, in the more sheet and behind a header button, set like the notifications
+   panel above it because it is about the account rather than today. */
+.accounts form { display: flex; gap: 8px; flex-wrap: wrap; margin: 6px 0; }
+.accounts form input { flex: 1; min-width: 150px; font-size: 16px; }
+.accounts .secret-card { margin: 8px 0; padding: 10px 12px; border: 1px solid var(--cyan); border-radius: 8px; }
+.accounts .secret { font-family: var(--mono); font-size: 15px; letter-spacing: 0.08em; color: var(--text); word-break: break-all; user-select: all; margin: 4px 0 8px; }
+.accounts .secret.small { font-size: 11px; letter-spacing: 0; }
+
+/* --- a partner's home: the one screen they get --- */
+.partner-home { max-width: 520px; margin: 6vh auto 0; }
+.partner-home h2 { margin-top: 0; }
+.partner-home .notif { margin-top: 16px; }
+.partner-home .actions { margin-top: 16px; }

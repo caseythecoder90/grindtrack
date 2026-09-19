@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.grindtrack.auth.domain.Role;
 import dev.grindtrack.config.PushProperties;
 import dev.grindtrack.push.domain.PushSubscription;
 import dev.grindtrack.push.domain.PushSubscriptionRepository;
@@ -90,7 +91,7 @@ class PushServiceTest {
   }
 
   private PushSubscription subscribed() {
-    return new PushSubscription(ENDPOINT, p256dh, auth, "iPhone · Safari");
+    return new PushSubscription(1L, ENDPOINT, p256dh, auth, "iPhone · Safari");
   }
 
   @Test
@@ -99,11 +100,11 @@ class PushServiceTest {
         new PushService(new PushProperties("", "", null), repo, transport, new ObjectMapper());
 
     assertThat(off.configured()).isFalse();
-    assertThat(off.status().publicKey()).isNull();
+    assertThat(off.status(1L).publicKey()).isNull();
     assertThat(off.send(PushService.Notification.weeklyReview()))
         .isEqualTo(new PushService.Outcome(0, 0, 0));
     assertThat(transport.endpoints).isEmpty();
-    assertThatThrownBy(() -> off.subscribe(ENDPOINT, p256dh, auth, null))
+    assertThatThrownBy(() -> off.subscribe(1L, ENDPOINT, p256dh, auth, null))
         .isInstanceOf(ServiceOffException.class)
         .hasMessageContaining("PUSH_VAPID_PUBLIC_KEY");
   }
@@ -111,9 +112,9 @@ class PushServiceTest {
   @Test
   void subscribingStoresOneRowPerEndpointAndResubscribingReplacesItsKeys() {
     when(repo.findByEndpoint(ENDPOINT)).thenReturn(Optional.empty());
-    when(repo.count()).thenReturn(1L);
+    when(repo.countByUserId(1L)).thenReturn(1L);
 
-    PushService.Subscribed first = service.subscribe(ENDPOINT, p256dh, auth, "iPhone");
+    PushService.Subscribed first = service.subscribe(1L, ENDPOINT, p256dh, auth, "iPhone");
     assertThat(first.id()).isEqualTo(4);
     assertThat(first.devices()).isEqualTo(1);
     ArgumentCaptor<PushSubscription> saved = ArgumentCaptor.forClass(PushSubscription.class);
@@ -124,20 +125,20 @@ class PushServiceTest {
     PushSubscription existing = saved.getValue();
     when(repo.findByEndpoint(ENDPOINT)).thenReturn(Optional.of(existing));
     String newAuth = B64.encodeToString(new byte[16]);
-    service.subscribe(ENDPOINT, p256dh, newAuth, "iPhone again");
+    service.subscribe(1L, ENDPOINT, p256dh, newAuth, "iPhone again");
     assertThat(existing.getAuth()).isEqualTo(newAuth);
     assertThat(existing.getUserAgent()).isEqualTo("iPhone again");
   }
 
   @Test
   void keysThatAreNotWhatABrowserProducesAreA400WithASentence() {
-    assertThatThrownBy(() -> service.subscribe(ENDPOINT, "AAAA", auth, null))
+    assertThatThrownBy(() -> service.subscribe(1L, ENDPOINT, "AAAA", auth, null))
         .isInstanceOf(BadRequestException.class)
         .hasMessageContaining("p256dh");
-    assertThatThrownBy(() -> service.subscribe(ENDPOINT, p256dh, "short", null))
+    assertThatThrownBy(() -> service.subscribe(1L, ENDPOINT, p256dh, "short", null))
         .isInstanceOf(BadRequestException.class)
         .hasMessageContaining("auth");
-    assertThatThrownBy(() -> service.subscribe("http://plain.example/x", p256dh, auth, null))
+    assertThatThrownBy(() -> service.subscribe(1L, "http://plain.example/x", p256dh, auth, null))
         .isInstanceOf(BadRequestException.class)
         .hasMessageContaining("https");
     verify(repo, never()).save(any());
@@ -146,7 +147,7 @@ class PushServiceTest {
   @Test
   void aSendIsAnEncryptedBodyUnderAVapidHeaderWithTheNotificationsTtl() {
     PushSubscription row = subscribed();
-    when(repo.findAllByOrderByCreatedAtAsc()).thenReturn(List.of(row));
+    when(repo.findAllByRole(Role.OWNER)).thenReturn(List.of(row));
 
     PushService.Outcome outcome =
         service.send(PushService.Notification.morningBrief("Two blocks against CKA."));
@@ -170,7 +171,7 @@ class PushServiceTest {
   @Test
   void aGoneSubscriptionIsDeletedAndABadAnswerKeepsIt() {
     PushSubscription gone = subscribed();
-    when(repo.findAllByOrderByCreatedAtAsc()).thenReturn(List.of(gone));
+    when(repo.findAllByRole(Role.OWNER)).thenReturn(List.of(gone));
     transport.status = 410;
 
     assertThat(service.send(PushService.Notification.weeklyReview()))
@@ -178,7 +179,7 @@ class PushServiceTest {
     verify(repo).delete(gone);
 
     PushSubscription kept = subscribed();
-    when(repo.findAllByOrderByCreatedAtAsc()).thenReturn(List.of(kept));
+    when(repo.findAllByRole(Role.OWNER)).thenReturn(List.of(kept));
     transport.status = 403;
     transport.answer = "{\"reason\":\"VapidPkHashMismatch\"}";
     PushService.Outcome refused = service.send(PushService.Notification.weeklyReview());
@@ -203,21 +204,56 @@ class PushServiceTest {
     PushSubscription mine = subscribed();
     when(repo.findByEndpoint(ENDPOINT)).thenReturn(Optional.of(mine));
 
-    assertThat(service.sendTo(ENDPOINT, PushService.Notification.test()))
+    assertThat(service.sendTo(1L, ENDPOINT, PushService.Notification.test()))
         .isEqualTo(new PushService.Outcome(1, 0, 0));
     assertThat(transport.endpoints).containsExactly(ENDPOINT);
 
     when(repo.findByEndpoint("https://web.push.apple.com/other")).thenReturn(Optional.empty());
     assertThatThrownBy(
             () ->
-                service.sendTo("https://web.push.apple.com/other", PushService.Notification.test()))
+                service.sendTo(
+                    1L, "https://web.push.apple.com/other", PushService.Notification.test()))
         .isInstanceOf(NoSuchElementException.class);
   }
 
   @Test
   void unsubscribingSomethingAlreadyGoneIsA404() {
-    when(repo.findById(9L)).thenReturn(Optional.empty());
-    assertThatThrownBy(() -> service.unsubscribe(9L)).isInstanceOf(NoSuchElementException.class);
+    when(repo.findByIdAndUserId(9L, 1L)).thenReturn(Optional.empty());
+    assertThatThrownBy(() -> service.unsubscribe(1L, 9L))
+        .isInstanceOf(NoSuchElementException.class);
+  }
+
+  /** The endpoint is the browser's, not the account's: whoever subscribes it last owns the row. */
+  @Test
+  void aBrowserThatSubscribesAsTheOtherAccountTakesItsRowAlong() {
+    PushSubscription theirs = subscribed();
+    when(repo.findByEndpoint(ENDPOINT)).thenReturn(Optional.of(theirs));
+    when(repo.countByUserId(2L)).thenReturn(1L);
+
+    service.subscribe(2L, ENDPOINT, p256dh, auth, "iPhone");
+
+    assertThat(theirs.getUserId()).isEqualTo(2L);
+    verify(repo).save(theirs);
+  }
+
+  @Test
+  void theTestCannotReachAnotherAccountsDevice() {
+    PushSubscription theirs = subscribed(); // account 1's
+    when(repo.findByEndpoint(ENDPOINT)).thenReturn(Optional.of(theirs));
+
+    assertThatThrownBy(() -> service.sendTo(2L, ENDPOINT, PushService.Notification.test()))
+        .isInstanceOf(NoSuchElementException.class);
+    assertThat(transport.endpoints).isEmpty();
+  }
+
+  @Test
+  void theTestWithNoEndpointGoesToThatAccountsDevicesAndNotTheOwners() {
+    when(repo.findAllByUserIdOrderByCreatedAtAsc(2L)).thenReturn(List.of());
+
+    assertThat(service.sendTo(2L, PushService.Notification.test()))
+        .isEqualTo(new PushService.Outcome(0, 0, 0));
+    assertThat(transport.endpoints).isEmpty();
+    verify(repo, never()).findAllByRole(any());
   }
 
   /** Endpoints are capabilities: the log shows the push service and a tail, never the whole URL. */

@@ -1,5 +1,6 @@
 package dev.grindtrack.auth.service;
 
+import dev.grindtrack.auth.domain.Role;
 import dev.grindtrack.auth.domain.User;
 import dev.grindtrack.auth.domain.UserRepository;
 import dev.grindtrack.config.AppProperties;
@@ -10,7 +11,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 /**
- * First boot only: if no user exists and bootstrap credentials are configured, create the user and
+ * First boot only: if no user exists and bootstrap credentials are configured, create the owner and
  * log the TOTP provisioning URI once. Scan/enter it into your authenticator app, then it is never
  * shown again.
  */
@@ -47,7 +48,7 @@ public class UserBootstrap implements CommandLineRunner {
       return;
     }
     String secret = totpService.generateSecret();
-    users.save(new User(username, passwordEncoder.encode(password), secret));
+    users.save(new User(username, passwordEncoder.encode(password), secret, Role.OWNER));
     log.info("==========================================================");
     log.info("Bootstrap user '{}' created.", username);
     log.info("TOTP secret (enter manually in your authenticator): {}", secret);

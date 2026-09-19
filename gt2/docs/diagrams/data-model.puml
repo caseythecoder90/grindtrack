@@ -32,6 +32,7 @@ package "auth" {
     * username : varchar(64) <<unique>>
     * password_hash : varchar(100)  (BCrypt)
     * totp_secret : varchar(64)  (Base32, 160-bit)
+    * role : varchar(16)  (OWNER | PARTNER; one OWNER, partial unique index)
     created_at : timestamptz
   }
   entity "refresh_tokens" as refresh_tokens #E3F0FF {

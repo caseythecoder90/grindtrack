@@ -13,7 +13,14 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-/** Reads the access-token cookie on every request and populates the SecurityContext. */
+/**
+ * Reads the access-token cookie on every request and populates the SecurityContext.
+ *
+ * <p>The authority granted is the account's role, {@code ROLE_OWNER} or {@code ROLE_PARTNER},
+ * straight from the token's claim: the role is fixed for the life of an account, so there is
+ * nothing to look up. The principal is the {@link SignedIn} record, which is how a controller
+ * learns whose request this is.
+ */
 @Component
 public class JwtAuthFilter extends OncePerRequestFilter {
 
@@ -36,10 +43,10 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     chain.doFilter(request, response);
   }
 
-  private static void setAuthenticatedUser(String username) {
+  private static void setAuthenticatedUser(SignedIn who) {
     var auth =
         new UsernamePasswordAuthenticationToken(
-            username, null, List.of(new SimpleGrantedAuthority("ROLE_USER")));
+            who, null, List.of(new SimpleGrantedAuthority(who.authority())));
     SecurityContextHolder.getContext().setAuthentication(auth);
   }
 }

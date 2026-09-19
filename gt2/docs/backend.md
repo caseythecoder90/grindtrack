@@ -48,13 +48,14 @@ dev.grindtrack
 │   ├── ConflictException.java    well-formed but inapplicable → 409
 │   └── ApiExceptionHandler.java  the one @RestControllerAdvice
 ├── auth/
-│   ├── api/{AuthController,AuthDtos}.java
+│   ├── api/{AuthController,UsersController,AuthDtos}.java
 │   ├── service/AuthService.java           (+ nested RenewedSession record)
 │   ├── service/TrustedDeviceService.java   "trust this device" tokens
 │   ├── service/{JwtService,TotpService,LoginRateLimiter}.java
-│   ├── service/UserBootstrap.java          CommandLineRunner (not a REST bean)
-│   ├── security/{JwtAuthFilter,Cookies}.java
-│   └── domain/{User,RefreshToken,TrustedDevice}.java + repositories
+│   ├── service/UserService.java            a partner made and minded; never the owner row
+│   ├── service/UserBootstrap.java          CommandLineRunner (not a REST bean): the owner
+│   ├── security/{JwtAuthFilter,SignedIn,Cookies}.java  SignedIn = the principal: id, username, role
+│   └── domain/{User,Role,RefreshToken,TrustedDevice}.java + repositories
 ├── tracking/
 │   ├── api/{TrackingController,FocusController,PublicController,ExportController,TrackingDtos}.java
 │   ├── service/{TrackingService,StatsService,Stats,FocusService}.java
@@ -431,10 +432,18 @@ Deep dive with sequence diagrams in [auth.md](auth.md). The moving parts:
   refresh tokens.
 - **`LoginRateLimiter`** — in-memory per-IP sliding window, 5 / 5 min, bounded to 10k IPs.
 - **`SecurityConfig`** — CSRF disabled (SameSite=Strict mitigates), session policy STATELESS,
-  permitAll on static assets + the PWA shell + `/api/public/**` + login/refresh/logout/device,
-  everything else authenticated, bare-401 entry point, `JwtAuthFilter` before `UsernamePasswordAuthenticationFilter`.
+  three tiers by URL: permitAll on static assets + the PWA shell + `/api/public/**` +
+  login/refresh/logout/device; `/api/auth/me`, `/logout-all`, `/devices/forget` and
+  `/api/push/**` for either role; everything else `ROLE_OWNER` only. Bare-401 entry point,
+  bare-403 access-denied handler, `JwtAuthFilter` before `UsernamePasswordAuthenticationFilter`.
+  `SecurityConfigTest` walks every controller mapping on the classpath to prove the tiers
+  ([auth.md](auth.md#roles-and-what-a-partner-may-reach)).
 - **`JwtAuthFilter`** — reads `gt_access`, validates, sets a
-  `UsernamePasswordAuthenticationToken(username, null, [ROLE_USER])` into the `SecurityContextHolder`.
+  `UsernamePasswordAuthenticationToken(SignedIn{id, username, role}, null, [ROLE_OWNER | ROLE_PARTNER])`
+  into the `SecurityContextHolder`; a controller reads `SignedIn.of(principal)` for the id.
+- **`UserService` / `UsersController`** — the owner making and minding a partner's account
+  (`/api/auth/users`: create with the secret shown once, list, reset a password, sign out
+  everywhere). Never the owner's own row; the database allows one owner.
 
 ## Data model
 

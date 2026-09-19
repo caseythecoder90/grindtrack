@@ -68,6 +68,7 @@ entity "assistant_messages" as msgs #E3F0FF {
 entity "push_subscriptions" as subs #F0E9FF {
   * id : bigint <<PK, identity>>
   --
+  * user_id : bigint <<FK → users, CASCADE>>  (whose device; the schedulers push to the owner's)
   * endpoint : text  UNIQUE  (the push service's
       address for one browser on one device)
   * p256dh : text  (device public key, base64url)

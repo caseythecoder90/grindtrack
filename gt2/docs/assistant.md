@@ -109,9 +109,10 @@ longer leaves an empty thread in the list.
 
 Streamed turns run on `assistantTurnExecutor`, a pool of two — not Tomcat's threads, which are
 needed for the requests that answer in milliseconds. Nothing under there reads the authenticated
-principal (the app has one user and the services are written without one), so the security context
-staying behind on the request thread costs nothing. **That stops being true the day a second user
-exists.**
+principal (the assistant is the owner's and the services are written for one account), so the
+security context staying behind on the request thread costs nothing. The second account did not
+change that: a partner is refused `/api/assistant/**` by URL before any handler runs
+([auth.md](auth.md#roles-and-what-a-partner-may-reach)), so nothing under here ever runs for one.
 
 ### The stream
 

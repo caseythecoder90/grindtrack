@@ -125,13 +125,18 @@ push_subscriptions (
   auth          text not null,          -- device auth secret, base64url
   user_agent    text,                   -- for the list: "iPhone · Safari"
   created_at    timestamptz not null,
-  last_sent_at  timestamptz
+  last_sent_at  timestamptz,
+  user_id       bigint not null references users (id) on delete cascade  -- whose device
 )
 ```
 
 One row per endpoint, upserted: a browser that subscribes twice replaces its keys rather than
-doubling its notifications. One account, so no owner column — the day a second user exists,
-this table needs one, like every other table in the app.
+doubling its notifications. Every row belongs to an account (`user_id`, migration 038): the
+scheduled pushes go to the owner's devices and nobody else's, and a signed-in account subscribes,
+lists, tests and removes only its own. The endpoint is the browser's rather than the account's, so
+a browser that subscribes again while signed in as the other person takes its row along. The seam
+is `PushService.send` (the owner's devices — what every scheduler calls) against
+`sendTo(userId, …)` (one account's — the test button and, next, a message for the other person).
 
 ### Configuration
 

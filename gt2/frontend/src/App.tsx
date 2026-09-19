@@ -4,13 +4,21 @@ import MoreSheet from "./components/MoreSheet";
 import TabIcon from "./components/TabIcon";
 import Heatmap from "./components/Heatmap";
 import StatBar from "./components/StatBar";
-import { forgetDevices, logout as endSession, logoutEverywhere as endEverySession, me } from "./features/auth/authApi";
+import {
+  forgetDevices,
+  logout as endSession,
+  logoutEverywhere as endEverySession,
+  me,
+  type Session,
+} from "./features/auth/authApi";
+import AccountsPanel from "./features/auth/AccountsPanel";
 import AskPage from "./features/assistant/AskPage";
 import CalendarPage from "./features/calendar/CalendarPage";
 import Login from "./features/auth/Login";
 import FinancePage from "./features/finance/FinancePage";
 import FocusPage from "./features/focus/FocusPage";
 import Landing from "./features/landing/Landing";
+import PartnerHome from "./features/partner/PartnerHome";
 import PlanPage from "./features/plan/PlanPage";
 import RecoveryPage from "./features/recovery/RecoveryPage";
 import RelationshipPage from "./features/relationship/RelationshipPage";
@@ -52,8 +60,15 @@ function initialTab(): Tab {
 
 export default function App() {
   const [view, setView] = useState<View>("landing");
+  /**
+   * Who is signed in, from the server. The role decides which of two apps this is: the owner's
+   * tabs, or a partner's one screen. The server refuses a partner everything else with a 403
+   * whether or not this component agrees; the role here only chooses what to draw.
+   */
+  const [session, setSession] = useState<Session | null>(null);
   const [tab, setTab] = useState<Tab>(initialTab);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [accountsOpen, setAccountsOpen] = useState(false);
   /** The phone's sheet of the sections the bar has no room for. */
   const [moreOpen, setMoreOpen] = useState(false);
   const moreButton = useRef<HTMLButtonElement>(null);
@@ -81,6 +96,16 @@ export default function App() {
     localStorage.setItem(SCOPE_KEY, next);
   }, []);
 
+  /** Signed in, as whoever the server says. The header's numbers are the owner's; a partner has none. */
+  const enter = useCallback(
+    (who: Session) => {
+      setSession(who);
+      setView("app");
+      if (who.role === "OWNER") refreshHeader();
+    },
+    [refreshHeader],
+  );
+
   /**
    * Is there still a session? Only a refused one sends you to the landing page.
    *
@@ -90,18 +115,16 @@ export default function App() {
    */
   const checkSession = useCallback(async () => {
     try {
-      await me();
-      setView("app");
-      refreshHeader();
+      enter(await me());
     } catch (e) {
       // Never over the top of a login the user has already started. This check is async
       // and the answer arrives a round trip late, so on a cold load it can land after a
-      // click on "Owner login" and wipe the half-filled form.
+      // click on "Log in" and wipe the half-filled form.
       if (e instanceof AuthError) setView((v) => (v === "login" ? v : "landing"));
       // Anything else is the network. Whatever is on screen stays on screen, and the
       // next resume tries again.
     }
-  }, [refreshHeader]);
+  }, [enter]);
 
   useEffect(() => {
     checkSession();
@@ -127,6 +150,7 @@ export default function App() {
 
   async function logout() {
     await endSession();
+    setSession(null);
     setView("landing");
   }
 
@@ -138,6 +162,7 @@ export default function App() {
   async function logoutEverywhere() {
     try {
       await endEverySession();
+      setSession(null);
       setView("landing");
     } catch (e) {
       setLogoutEverywhereLabel(errorMessage(e, "could not log out everywhere"));
@@ -164,6 +189,9 @@ export default function App() {
     }
   }
 
+  const owner = view === "app" && session?.role === "OWNER";
+  const partner = view === "app" && session?.role === "PARTNER";
+
   return (
     <div className="wrap">
       <header>
@@ -174,7 +202,8 @@ export default function App() {
           jul 2026 → jun 2031 · {TARGETS.study} h/wk study · {TARGETS.work} h/wk work
         </div>
         <div className="spacer" />
-        {view === "app" && (
+        {/* The header's actions are the owner's. A partner's few live on their one screen. */}
+        {owner && (
           <>
             {/* The phone's door to the rest of the sections. Hidden on a fine pointer, where
                 the tab strip below shows everything. When the open section lives in the sheet,
@@ -195,6 +224,9 @@ export default function App() {
             <button onClick={() => setNotifOpen((o) => !o)} aria-expanded={notifOpen}>
               Notifications
             </button>
+            <button onClick={() => setAccountsOpen((o) => !o)} aria-expanded={accountsOpen}>
+              Accounts
+            </button>
             <button onClick={logout}>Log out</button>
             <button onClick={logoutEverywhere}>{logoutEverywhereLabel}</button>
           </>
@@ -202,16 +234,26 @@ export default function App() {
       </header>
 
       {view === "landing" && <Landing onLoginClick={() => setView("login")} />}
-      {view === "login" && (
-        <Login onBack={() => setView("landing")}
-          onSuccess={() => { setView("app"); refreshHeader(); }} />
+      {view === "login" && <Login onBack={() => setView("landing")} onSuccess={enter} />}
+      {partner && session && (
+        <PartnerHome
+          username={session.username}
+          onLogout={logout}
+          onLogoutEverywhere={logoutEverywhere}
+          logoutEverywhereLabel={logoutEverywhereLabel}
+        />
       )}
-      {view === "app" && (
+      {owner && (
         <>
-          {/* The desktop door to the same panel the phone reaches through the more sheet. */}
+          {/* The desktop doors to the two panels the phone reaches through the more sheet. */}
           {notifOpen && (
             <div className="notif-pop">
               <NotificationsPanel />
+            </div>
+          )}
+          {accountsOpen && (
+            <div className="notif-pop">
+              <AccountsPanel />
             </div>
           )}
           {/* The hours and the heatmap head every section but one: the recovery tab is not
