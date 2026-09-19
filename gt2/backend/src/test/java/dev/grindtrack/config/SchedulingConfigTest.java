@@ -10,7 +10,7 @@ import org.springframework.scheduling.TaskScheduler;
 
 /**
  * With the app's own executors in the context, Boot does not provide a {@link TaskScheduler}; the
- * one in {@link SchedulingConfig} has to be there, because {@code ChatService} needs it and the
+ * one in {@link SchedulingConfig} has to be there, because {@code RoomService} needs it and the
  * {@code @Scheduled} jobs are better on it than on a fallback thread.
  */
 class SchedulingConfigTest {

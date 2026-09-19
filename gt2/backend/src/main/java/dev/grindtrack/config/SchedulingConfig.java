@@ -15,7 +15,7 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
  * <p>The bean is here on purpose. Boot only auto-configures a {@link TaskScheduler} when the
  * context has no {@code ScheduledExecutorService} of its own, and this app has two (the speech
  * relay's timer and the assistant's heartbeat), so without this bean there was none: the
- * {@code @Scheduled} jobs ran on a fallback single thread and {@code ChatService}, which schedules
+ * {@code @Scheduled} jobs ran on a fallback single thread and {@code RoomService}, which schedules
  * the push that follows an unacknowledged message, could not be built — the first boot after the
  * chat merged found that out. Two threads, so a slow push does not hold the next job.
  */
