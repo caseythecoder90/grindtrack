@@ -17,6 +17,7 @@ export type Tab =
   | "work"
   | "money"
   | "us"
+  | "chat"
   | "week"
   | "stats"
   | "ask"
@@ -31,6 +32,7 @@ export const TABS: Tab[] = [
   "work",
   "money",
   "us",
+  "chat",
   "week",
   "stats",
   "ask",
@@ -45,7 +47,8 @@ export const TABS: Tab[] = [
  * slot: a section opened every day should not cost a tap through a sheet.
  *
  * `todos` gave up its slot to the calendar when that landed, which is what this
- * array being one line is for.
+ * array being one line is for. `chat` is in the sheet for now, with an unread mark on
+ * the "more" button; promoting it is the same one line.
  */
 export const PRIMARY_TABS: Tab[] = ["today", "focus", "cal", "plan", "recovery"];
 

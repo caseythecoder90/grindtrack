@@ -1,0 +1,59 @@
+@startuml
+' The chat: a message in over REST, out over the sockets, and the push that follows only if
+' nobody's open socket acknowledged it. Render: see diagrams/render.sh
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontSize 13
+skinparam defaultFontName Helvetica
+skinparam shadowing false
+skinparam ArrowColor #33475B
+skinparam sequence {
+  ParticipantBackgroundColor #E3F0FF
+  ParticipantBorderColor #2D6CDF
+  ActorBackgroundColor #FFE7BA
+  ActorBorderColor #B5651D
+  LifeLineBorderColor #33475B
+  GroupBorderColor #33475B
+  GroupBackgroundColor #EEF2F7
+}
+skinparam note {
+  BackgroundColor #FFF8DC
+  BorderColor #C8B560
+}
+
+actor "Casey's phone\nchatStore" as a
+participant "ChatController\n/api/chat" as ctl
+participant "ChatService" as svc
+database "chat_messages\nchat_cursors" as db
+participant "ChatSessions\n(open sockets)" as ws
+participant "TaskScheduler" as timer
+participant "PushService" as push
+actor "The other phone\nchatStore" as b
+
+a -> ctl : POST /messages {clientId, body}
+ctl -> svc : send(me, clientId, body)
+svc -> db : findByClientId — a retry? no
+svc -> db : INSERT chat_messages
+svc -> ws : broadcast {type: message}
+ws --> a : frame → replaces the pending bubble
+ws --> b : frame → inserts, counts unread
+svc --> a : 200 the message
+
+alt no socket of theirs open
+  svc -> push : sendTo(them, "casey: hi…")
+else a socket open
+  svc -> timer : in 5 s: delivered yet?
+  b -> ctl : POST /cursor {deliveredUpTo}
+  ctl -> svc : moveCursor
+  svc -> db : UPDATE chat_cursors (forward only)
+  svc -> ws : broadcast {type: cursor}
+  ws --> a : "delivered" under the last message
+  timer -> svc : check
+  svc -> db : delivered_id ≥ id? yes
+  note right of svc : no push — the phone has it
+end
+
+note over a, b
+  Read works the same way: the page on screen sends readUpTo,
+  the cursor frame turns "delivered" into "seen" on the other side.
+end note
+@enduml

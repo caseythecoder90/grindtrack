@@ -8,10 +8,12 @@ import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry
 import org.springframework.web.socket.server.standard.ServletServerContainerFactoryBean;
 
 /**
- * The one WebSocket endpoint. No allowed-origins list means Spring's default: the handshake's
- * Origin must match the host, which is exactly right for a same-origin app. The handler's timer
- * lives in {@code SpeechAsyncConfig}: a bean defined here would make this class and the handler
- * depend on each other.
+ * The speech socket, and the WebSocket support every socket in the app shares:
+ * {@code @EnableWebSocket} collects every {@code WebSocketConfigurer} (the chat's is {@code
+ * ChatSocketConfig}), and the container bean below sets the frame buffer for all of them. No
+ * allowed-origins list means Spring's default: the handshake's Origin must match the host, which is
+ * exactly right for a same-origin app. The handler's timer lives in {@code SpeechAsyncConfig}: a
+ * bean defined here would make this class and the handler depend on each other.
  */
 @Configuration
 @EnableWebSocket

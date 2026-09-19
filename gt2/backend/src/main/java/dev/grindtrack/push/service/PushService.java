@@ -352,6 +352,15 @@ public class PushService {
           "good morning", line.trim(), "today", "morning-motivation", SIX_HOURS);
     }
 
+    /**
+     * A message from the other person: their name, and the start of what they said. One tag, so a
+     * burst of them is one notification showing the latest; held a day, because a message is still
+     * worth reading tomorrow.
+     */
+    public static Notification chatMessage(String from, String preview) {
+      return new Notification(from, preview, "chat", "chat", ONE_DAY);
+    }
+
     /** Who to call. Replaces the previous one on the device rather than stacking. */
     public static Notification peopleToCall(String title, String names) {
       return new Notification(title, names, "recovery", "people", SIX_HOURS);

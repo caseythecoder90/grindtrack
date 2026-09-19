@@ -94,6 +94,7 @@ class SecurityConfigTest {
     assertThat(all).anyMatch(m -> m.path().equals("/api/auth/users"));
     assertThat(all).anyMatch(m -> m.path().startsWith("/api/recovery/"));
     assertThat(all).anyMatch(m -> m.path().startsWith("/api/push/"));
+    assertThat(all).anyMatch(m -> m.path().startsWith("/api/chat/"));
   }
 
   @Test

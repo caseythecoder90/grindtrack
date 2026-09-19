@@ -352,6 +352,24 @@ Deliberately absent from `/api/public/**`. Nothing here has a public shape.
 | POST | `/api/relationship/reading/{id}/promote` | Turns a takeaway into a gesture idea — the reason the takeaway field exists |
 | DELETE | `/api/relationship/reading/{id}` | |
 
+## Chat (authenticated, owner or partner)
+
+One room, two people; the design is in [chat.md](chat.md). Requests change the room; the socket at
+`/api/chat/ws` carries the news to every open app of both accounts. A message is
+`{id, senderId, body, sentAt, deletedAt, clientId, reactions: [{userId, emoji}]}`; `body` is empty
+and `deletedAt` set once unsent. A cursor is `{userId, deliveredId, readId}`.
+
+| Method | Path | Body | Answer |
+|---|---|---|---|
+| GET | `/api/chat` | – | `{me, them, unread, latestId, mine, theirs}` — `them` and `theirs` are null while there is nobody else yet |
+| GET | `/api/chat/messages` | `?before=<id>` or `?after=<id>`, or neither | `{messages, hasMore}`, oldest first within the page: the newest fifty; the fifty before `before`; or everything after `after`, up to five hundred |
+| POST | `/api/chat/messages` | `{clientId, body}` — a UUID the phone made, and up to 4000 characters | the message. The same `clientId` again answers the same message rather than storing a second. 400 for a bad id or no words |
+| DELETE | `/api/chat/messages/{id}` | – | unsend my own: the message with `body` empty and `deletedAt` set. 404 for anyone else's |
+| PUT | `/api/chat/messages/{id}/reactions/{emoji}` | – | the emoji on, idempotent; the message as it now stands. 400 for an unsent message or a "reaction" that is not one emoji |
+| DELETE | `/api/chat/messages/{id}/reactions/{emoji}` | – | the emoji off, idempotent |
+| POST | `/api/chat/cursor` | `{deliveredUpTo?, readUpTo?}` | my cursor after the move: forward only, never past the newest message; read implies delivered |
+| GET | `/api/chat/ws` | (WebSocket) | frames `message`, `unsent`, `reaction`, `cursor`, `typing` to the browser; `{"type":"typing","on":bool}` from it |
+
 ## Push notifications (authenticated, owner or partner)
 
 Web Push to the installed app. Every row is the caller's own: a partner lists, tests and removes

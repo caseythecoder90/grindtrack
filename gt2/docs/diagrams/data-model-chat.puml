@@ -1,0 +1,67 @@
+@startuml
+' Grindtrack data model — the chat (Postgres schema `grindtrack`). One room, two people.
+' The accounts are in data-model.puml. Render: see diagrams/render.sh
+hide circle
+skinparam linetype ortho
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontSize 13
+skinparam defaultFontName Helvetica
+skinparam shadowing false
+skinparam ArrowColor #33475B
+skinparam ArrowFontColor #1A2B3C
+skinparam entity {
+  BackgroundColor #EEF2F7
+  BorderColor #33475B
+  FontColor #12243A
+}
+
+entity "users" as users #E3F0FF {
+  * id : bigint <<PK>>
+  --
+  * username : varchar(64)
+  * role : varchar(16)  (OWNER | PARTNER)
+}
+
+entity "chat_messages" as msgs #E6F7EE {
+  * id : bigint <<PK, identity>>  (the order)
+  --
+  * sender_id : bigint <<FK → users>>
+  * body : text  (empty once unsent)
+  * client_id : uuid <<unique>>  (the phone's own name for it: a retry is the same message)
+  * sent_at : timestamptz
+  deleted_at : timestamptz  (unsent: the row stays, the words go)
+  --
+  idx (sender_id, id)
+}
+
+entity "chat_reactions" as reacts #E6F7EE {
+  * id : bigint <<PK, identity>>
+  --
+  * message_id : bigint <<FK → chat_messages, CASCADE>>
+  * user_id : bigint <<FK → users, CASCADE>>
+  * emoji : varchar(32)
+  * created_at : timestamptz
+  --
+  unique (message_id, user_id, emoji)
+}
+
+entity "chat_cursors" as cursors #E6F7EE {
+  * user_id : bigint <<PK, FK → users, CASCADE>>
+  --
+  * delivered_id : bigint  (reached one of their devices, up to here)
+  * read_id : bigint  (was on their screen, up to here; read implies delivered)
+  * updated_at : timestamptz
+}
+
+users ||--o{ msgs : sends
+users ||--o{ reacts : reacts
+users ||--o| cursors : has got to
+msgs ||--o{ reacts : carries
+
+note bottom of cursors
+  Two watermarks per person, not a row per message:
+  "seen" under my last message is their read_id
+  having passed it. Forward only, never past
+  the newest message.
+end note
+@enduml

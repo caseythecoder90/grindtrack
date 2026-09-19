@@ -15,6 +15,8 @@ interface Props {
   forgetLabel: string;
   onLogoutEverywhere: () => void;
   logoutEverywhereLabel: string;
+  /** Messages waiting in the chat, shown on its item so the sheet says why the dot was there. */
+  unread?: number;
 }
 
 /**
@@ -35,6 +37,7 @@ export default function MoreSheet({
   forgetLabel,
   onLogoutEverywhere,
   logoutEverywhereLabel,
+  unread = 0,
 }: Props) {
   const panel = useRef<HTMLDivElement>(null);
 
@@ -88,7 +91,10 @@ export default function MoreSheet({
               onClick={() => onPick(t)}
             >
               <TabIcon name={t} size={20} />
-              <span>{t}</span>
+              <span>
+                {t}
+                {t === "chat" && unread > 0 && <span className="sheet-badge">{unread}</span>}
+              </span>
             </button>
           ))}
         </div>

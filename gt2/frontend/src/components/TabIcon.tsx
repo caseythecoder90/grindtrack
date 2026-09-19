@@ -22,11 +22,18 @@ const PATHS: Record<Tab | "more", JSX.Element> = {
       <path d="M18 6l2 2 3-3.5" />
     </>
   ),
-  // A speech bubble with a tail — the one icon here that means "say something".
+  // A speech bubble with a tail: a question to the assistant.
   ask: (
     <>
       <path d="M20 15a2 2 0 0 1-2 2H8l-4 4V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2z" />
       <path d="M9 10h6" />
+    </>
+  ),
+  // Two bubbles, one answering the other: the two of you.
+  chat: (
+    <>
+      <path d="M3 11a3 3 0 0 1 3-3h7a3 3 0 0 1 3 3v3a3 3 0 0 1-3 3H8l-4 3v-3.4A3 3 0 0 1 3 14z" />
+      <path d="M13 8V6a3 3 0 0 1 3-3h2a3 3 0 0 1 3 3v3a3 3 0 0 1-3 3h-2" />
     </>
   ),
   cal: (

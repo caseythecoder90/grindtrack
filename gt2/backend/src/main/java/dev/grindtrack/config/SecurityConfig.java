@@ -20,10 +20,11 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  * JwtAuthFilter}.
  *
  * <p>Three tiers, by URL. Public paths need no cookie. {@link #SHARED_PATHS} are open to both
- * roles: the session endpoints an account needs to stay signed in, and notifications. Everything
- * else is the owner's, which is the rule that keeps a partner out of the tracker, the money, the
- * journal and the assistant — and, because it is the default, out of whatever is added next until
- * it is named here. {@code SecurityConfigTest} walks every controller mapping to prove it.
+ * roles: the session endpoints an account needs to stay signed in, notifications, and the chat.
+ * Everything else is the owner's, which is the rule that keeps a partner out of the tracker, the
+ * money, the journal and the assistant — and, because it is the default, out of whatever is added
+ * next until it is named here. {@code SecurityConfigTest} walks every controller mapping to prove
+ * it.
  */
 @Configuration
 @EnableWebSecurity
@@ -57,7 +58,12 @@ public class SecurityConfig {
    * /api/auth/**} would have handed them the account management under {@code /api/auth/users}.
    */
   static final String[] SHARED_PATHS = {
-    "/api/auth/me", "/api/auth/logout-all", "/api/auth/devices/forget", "/api/push/**",
+    "/api/auth/me",
+    "/api/auth/logout-all",
+    "/api/auth/devices/forget",
+    "/api/push/**",
+    // The room, and its socket: the one place in the app a partner writes to.
+    "/api/chat/**",
   };
 
   @Bean
