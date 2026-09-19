@@ -75,3 +75,5 @@ databaseChangeLog:
       file: db/changelog/037-bible-browse.sql
   - include:
       file: db/changelog/038-roles.sql
+  - include:
+      file: db/changelog/039-chat.sql
