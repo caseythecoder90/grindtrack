@@ -94,7 +94,7 @@ dev.grindtrack
 ├── assistant/
 │   ├── api/{AssistantController,ChatController,ChatStream,AssistantDtos}.java
 │   ├── service/{ContextService,AssistantContext}.java   the read-only view over every feature
-│   ├── service/{ChatService,AssistantToolExecutor,Costs}.java
+│   ├── service/{RoomService,AssistantToolExecutor,Costs}.java
 │   ├── service/{ChatModel,BriefModel,ReviewModel,WeekPlanModel}.java   interfaces; Anthropic*Model behind each
 │   ├── service/{WeekPlan,DayLog,TodoDraft,MorningBrief,WeeklyReview}Service.java (+ *Draft records)
 │   ├── service/{MorningBriefScheduler,WeeklyReviewScheduler}.java
@@ -104,8 +104,8 @@ dev.grindtrack
 │   ├── service/{PushService,Vapid,PayloadCipher,PushTransport,HttpPushTransport}.java
 │   └── domain/PushSubscription(+Repository).java
 ├── chat/                              one room, two people: REST in, sockets out (chat.md)
-│   ├── api/{ChatController,ChatDtos,ChatSocketHandler,ChatSocketConfig}.java
-│   ├── service/{ChatService,ChatSessions}.java   the room; the open sockets and the frames
+│   ├── api/{RoomController,ChatDtos,ChatSocketHandler,ChatSocketConfig}.java   RoomController, because the assistant already has a ChatController
+│   ├── service/{RoomService,ChatSessions}.java   the room (RoomService: the assistant has the ChatService); the open sockets and the frames
 │   ├── service/{MediaService,MediaStore,S3MediaStore}.java   pictures: the bucket (AWS SDK at Hetzner), signed links, the tray
 │   └── domain/{ChatMessage,ChatReaction,ChatCursor,ChatMedia}.java + repositories
 ├── speech/

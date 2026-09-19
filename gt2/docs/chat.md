@@ -100,7 +100,7 @@ nothing. Every reopen makes the store **catch up**: `GET /messages?after=<last i
 ## The push
 
 The other person is told about a message **unless one of their open sockets delivered it
-first.** In `ChatService.send`:
+first.** In `RoomService.send`:
 
 - no socket of theirs open → push at once;
 - a socket open → wait five seconds (`DELIVERY_GRACE`, a `TaskScheduler` task); if their
@@ -216,7 +216,7 @@ All under `/api/chat`, owner or partner. Exact shapes in [api.md](api.md#chat-au
 | Every | Job | Does |
 |---|---|---|
 | 30 s | `ChatSessions.ping` | a WebSocket ping to every open socket; drops the ones that are gone |
-| on a send, +5 s | a `TaskScheduler` task from `ChatService.tell` | the push, if the other person's socket did not deliver it |
+| on a send, +5 s | a `TaskScheduler` task from `RoomService.tell` | the push, if the other person's socket did not deliver it |
 
 ## Privacy
 

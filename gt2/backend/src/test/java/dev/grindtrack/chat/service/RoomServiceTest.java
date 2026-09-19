@@ -58,7 +58,7 @@ class ChatServiceTest {
   private PushService push;
   private TaskScheduler scheduler;
   private MediaService mediaService;
-  private ChatService service;
+  private RoomService service;
 
   @BeforeEach
   void setUp() {
@@ -71,7 +71,7 @@ class ChatServiceTest {
     scheduler = mock(TaskScheduler.class);
     mediaService = mock(MediaService.class);
     service =
-        new ChatService(
+        new RoomService(
             messages, reactions, cursors, users, sessions, push, scheduler, mediaService);
 
     when(users.findFirstByRoleOrderByIdAsc(Role.PARTNER))
@@ -144,7 +144,7 @@ class ChatServiceTest {
     when(messages.findByClientId(CLIENT_ID)).thenReturn(Optional.empty());
     when(sessions.hasOpen(2L)).thenReturn(false);
 
-    ChatService.MessageView view = service.send(CASEY, CLIENT_ID, "hi there", null);
+    RoomService.MessageView view = service.send(CASEY, CLIENT_ID, "hi there", null);
 
     assertThat(view.id()).isEqualTo(10L);
     assertThat(view.senderId()).isEqualTo(1L);
@@ -190,7 +190,7 @@ class ChatServiceTest {
     ChatMessage existing = message(7L, 1L, "once");
     when(messages.findByClientId(CLIENT_ID)).thenReturn(Optional.of(existing));
 
-    ChatService.MessageView view = service.send(CASEY, CLIENT_ID, "once", null);
+    RoomService.MessageView view = service.send(CASEY, CLIENT_ID, "once", null);
 
     assertThat(view.id()).isEqualTo(7L);
     verify(messages, never()).save(any());
@@ -204,7 +204,7 @@ class ChatServiceTest {
     when(sessions.hasOpen(2L)).thenReturn(false);
     when(push.sendTo(anyLong(), any())).thenThrow(new IllegalStateException("apple is down"));
 
-    ChatService.MessageView view = service.send(CASEY, CLIENT_ID, "still sent", null);
+    RoomService.MessageView view = service.send(CASEY, CLIENT_ID, "still sent", null);
 
     assertThat(view.id()).isEqualTo(10L);
     verify(sessions).broadcast(argThat(f -> isFrame(f, "message")));
@@ -232,7 +232,7 @@ class ChatServiceTest {
     when(mediaService.find(4L)).thenReturn(Optional.of(picture(4L, 1L, false)));
     when(messages.existsByMediaId(4L)).thenReturn(false);
 
-    ChatService.MessageView view = service.send(CASEY, CLIENT_ID, "", 4L);
+    RoomService.MessageView view = service.send(CASEY, CLIENT_ID, "", 4L);
 
     assertThat(view.media()).isNotNull();
     assertThat(view.media().id()).isEqualTo(4L);
@@ -269,7 +269,7 @@ class ChatServiceTest {
     when(messages.existsByMediaId(6L)).thenReturn(true);
     when(sessions.hasOpen(1L)).thenReturn(false);
 
-    ChatService.MessageView view = service.send(WIFE, CLIENT_ID, "", 6L);
+    RoomService.MessageView view = service.send(WIFE, CLIENT_ID, "", 6L);
 
     assertThat(view.media().sticker()).isTrue();
     ArgumentCaptor<PushService.Notification> pushed =
@@ -288,7 +288,7 @@ class ChatServiceTest {
     assertThatThrownBy(() -> service.unsend(CASEY, 4L)).isInstanceOf(NoSuchElementException.class);
     verify(messages, never()).save(any());
 
-    ChatService.MessageView view = service.unsend(WIFE, 4L);
+    RoomService.MessageView view = service.unsend(WIFE, 4L);
     assertThat(view.body()).isEmpty();
     assertThat(view.deletedAt()).isNotNull();
     assertThat(view.media()).isNull();
@@ -315,8 +315,8 @@ class ChatServiceTest {
     when(reactions.findAllByMessageIdOrderByIdAsc(5L))
         .thenReturn(List.of(new ChatReaction(5L, 2L, "❤️")));
 
-    ChatService.MessageView view = service.react(WIFE, 5L, " ❤️ ", true);
-    assertThat(view.reactions()).containsExactly(new ChatService.ReactionView(2L, "❤️"));
+    RoomService.MessageView view = service.react(WIFE, 5L, " ❤️ ", true);
+    assertThat(view.reactions()).containsExactly(new RoomService.ReactionView(2L, "❤️"));
     verify(reactions).save(any());
     verify(sessions).broadcast(argThat(f -> isFrame(f, "reaction")));
 
@@ -343,19 +343,19 @@ class ChatServiceTest {
     when(messages.findTopByOrderByIdDesc()).thenReturn(Optional.of(message(10L, 1L, "last")));
     when(cursors.findById(1L)).thenReturn(Optional.empty());
 
-    ChatService.CursorView moved = service.moveCursor(CASEY, 50L, null);
+    RoomService.CursorView moved = service.moveCursor(CASEY, 50L, null);
     assertThat(moved.deliveredId()).isEqualTo(10L);
     assertThat(moved.readId()).isEqualTo(0L);
     verify(cursors).save(any());
     verify(sessions).broadcast(argThat(f -> isFrame(f, "cursor")));
 
     when(cursors.findById(1L)).thenReturn(Optional.of(cursorAt(1L, 10, 0)));
-    ChatService.CursorView same = service.moveCursor(CASEY, 5L, null);
+    RoomService.CursorView same = service.moveCursor(CASEY, 5L, null);
     assertThat(same.deliveredId()).isEqualTo(10L);
     verify(cursors, times(1)).save(any());
     verify(sessions, times(1)).broadcast(any());
 
-    ChatService.CursorView read = service.moveCursor(CASEY, null, 7L);
+    RoomService.CursorView read = service.moveCursor(CASEY, null, 7L);
     assertThat(read.readId()).isEqualTo(7L);
     assertThat(read.deliveredId()).isEqualTo(10L);
   }
@@ -376,10 +376,10 @@ class ChatServiceTest {
     when(messages.findTopByOrderByIdDesc()).thenReturn(Optional.of(message(10L, 2L, "new")));
     when(messages.countBySenderIdNotAndIdGreaterThanAndDeletedAtIsNull(1L, 4L)).thenReturn(3L);
 
-    ChatService.State state = service.state(CASEY);
+    RoomService.State state = service.state(CASEY);
 
-    assertThat(state.me()).isEqualTo(new ChatService.Person(1L, "casey"));
-    assertThat(state.them()).isEqualTo(new ChatService.Person(2L, "wife"));
+    assertThat(state.me()).isEqualTo(new RoomService.Person(1L, "casey"));
+    assertThat(state.them()).isEqualTo(new RoomService.Person(2L, "wife"));
     assertThat(state.unread()).isEqualTo(3L);
     assertThat(state.latestId()).isEqualTo(10L);
     assertThat(state.mine().readId()).isEqualTo(4L);
@@ -392,7 +392,7 @@ class ChatServiceTest {
     when(cursors.findById(1L)).thenReturn(Optional.empty());
     when(messages.findTopByOrderByIdDesc()).thenReturn(Optional.empty());
 
-    ChatService.State state = service.state(CASEY);
+    RoomService.State state = service.state(CASEY);
 
     assertThat(state.them()).isNull();
     assertThat(state.theirs()).isNull();
@@ -407,7 +407,7 @@ class ChatServiceTest {
     }
     when(messages.findTop50ByOrderByIdDesc()).thenReturn(newestFirst);
 
-    ChatService.Page page = service.history(null, null);
+    RoomService.Page page = service.history(null, null);
 
     assertThat(page.messages()).hasSize(50);
     assertThat(page.messages().get(0).id()).isEqualTo(11L);
@@ -416,14 +416,14 @@ class ChatServiceTest {
 
     when(messages.findTop50ByIdLessThanOrderByIdDesc(11L))
         .thenReturn(List.of(message(9L, 1L, "m9"), message(8L, 2L, "m8")));
-    ChatService.Page above = service.history(11L, null);
-    assertThat(above.messages()).extracting(ChatService.MessageView::id).containsExactly(8L, 9L);
+    RoomService.Page above = service.history(11L, null);
+    assertThat(above.messages()).extracting(RoomService.MessageView::id).containsExactly(8L, 9L);
     assertThat(above.hasMore()).isFalse();
 
     when(messages.findTop500ByIdGreaterThanOrderByIdAsc(60L))
         .thenReturn(List.of(message(61L, 2L, "m61")));
-    ChatService.Page since = service.history(null, 60L);
-    assertThat(since.messages()).extracting(ChatService.MessageView::id).containsExactly(61L);
+    RoomService.Page since = service.history(null, 60L);
+    assertThat(since.messages()).extracting(RoomService.MessageView::id).containsExactly(61L);
     assertThat(since.hasMore()).isFalse();
   }
 
@@ -435,11 +435,11 @@ class ChatServiceTest {
         .thenReturn(List.of(new ChatReaction(3L, 2L, "😂")));
     when(mediaService.findAll(List.of(4L))).thenReturn(List.of(picture(4L, 2L, false)));
 
-    ChatService.Page page = service.history(null, null);
+    RoomService.Page page = service.history(null, null);
 
     assertThat(page.messages().get(0).id()).isEqualTo(3L);
     assertThat(page.messages().get(0).reactions())
-        .containsExactly(new ChatService.ReactionView(2L, "😂"));
+        .containsExactly(new RoomService.ReactionView(2L, "😂"));
     assertThat(page.messages().get(0).media()).isNull();
     assertThat(page.messages().get(1).media().id()).isEqualTo(4L);
   }
@@ -455,14 +455,14 @@ class ChatServiceTest {
 
   @Test
   void aPreviewIsOneShortLineAndSaysWhatKindOfThingCameWithIt() {
-    assertThat(ChatService.preview("hi\n\nthere   you")).isEqualTo("hi there you");
+    assertThat(RoomService.preview("hi\n\nthere   you")).isEqualTo("hi there you");
     String longOne = "x".repeat(300);
-    assertThat(ChatService.preview(longOne)).hasSize(ChatService.PREVIEW_CHARS).endsWith("…");
+    assertThat(RoomService.preview(longOne)).hasSize(RoomService.PREVIEW_CHARS).endsWith("…");
 
     MediaService.MediaView clip =
         new MediaService.MediaView(1, MediaKind.VIDEO, "video/mp4", 9, 1, 1, 100, true, false);
-    ChatService.MessageView withCaption =
-        new ChatService.MessageView(1, 1, "the dog", "t", null, "c", List.of(), clip);
-    assertThat(ChatService.preview(withCaption)).isEqualTo("🎥 video · the dog");
+    RoomService.MessageView withCaption =
+        new RoomService.MessageView(1, 1, "the dog", "t", null, "c", List.of(), clip);
+    assertThat(RoomService.preview(withCaption)).isEqualTo("🎥 video · the dog");
   }
 }

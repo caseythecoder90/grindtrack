@@ -3,8 +3,8 @@ package dev.grindtrack.chat.api;
 import dev.grindtrack.auth.security.SignedIn;
 import dev.grindtrack.chat.api.ChatDtos.CursorRequest;
 import dev.grindtrack.chat.api.ChatDtos.SendRequest;
-import dev.grindtrack.chat.service.ChatService;
 import dev.grindtrack.chat.service.MediaService;
+import dev.grindtrack.chat.service.RoomService;
 import dev.grindtrack.web.BadRequestException;
 import dev.grindtrack.web.Requests;
 import java.net.URI;
@@ -33,20 +33,20 @@ import org.springframework.web.multipart.MultipartFile;
  */
 @RestController
 @RequestMapping("/api/chat")
-public class ChatController {
+public class RoomController {
 
   static final int MAX_BODY_CHARS = 4000;
 
-  private final ChatService chat;
+  private final RoomService chat;
   private final MediaService media;
 
-  public ChatController(ChatService chat, MediaService media) {
+  public RoomController(RoomService chat, MediaService media) {
     this.chat = chat;
     this.media = media;
   }
 
   @GetMapping
-  public ChatService.State state(Principal principal) {
+  public RoomService.State state(Principal principal) {
     return chat.state(SignedIn.of(principal));
   }
 
@@ -54,7 +54,7 @@ public class ChatController {
    * No argument: the newest page. {@code before}: the page above it. {@code after}: the catch-up.
    */
   @GetMapping("/messages")
-  public ChatService.Page messages(
+  public RoomService.Page messages(
       @RequestParam(required = false) Long before, @RequestParam(required = false) Long after) {
     return chat.history(before, after);
   }
@@ -64,7 +64,7 @@ public class ChatController {
    * none.
    */
   @PostMapping("/messages")
-  public ChatService.MessageView send(@RequestBody SendRequest body, Principal principal) {
+  public RoomService.MessageView send(@RequestBody SendRequest body, Principal principal) {
     String text =
         body.mediaId() == null
             ? Requests.requireText(body.body(), "message needs some words", MAX_BODY_CHARS)
@@ -73,25 +73,25 @@ public class ChatController {
   }
 
   @DeleteMapping("/messages/{id}")
-  public ChatService.MessageView unsend(@PathVariable long id, Principal principal) {
+  public RoomService.MessageView unsend(@PathVariable long id, Principal principal) {
     return chat.unsend(SignedIn.of(principal), id);
   }
 
   @PutMapping("/messages/{id}/reactions/{emoji}")
-  public ChatService.MessageView react(
+  public RoomService.MessageView react(
       @PathVariable long id, @PathVariable String emoji, Principal principal) {
     return chat.react(SignedIn.of(principal), id, emoji, true);
   }
 
   @DeleteMapping("/messages/{id}/reactions/{emoji}")
-  public ChatService.MessageView unreact(
+  public RoomService.MessageView unreact(
       @PathVariable long id, @PathVariable String emoji, Principal principal) {
     return chat.react(SignedIn.of(principal), id, emoji, false);
   }
 
   /** Delivered and read, as far as this device has got. */
   @PostMapping("/cursor")
-  public ChatService.CursorView cursor(@RequestBody CursorRequest body, Principal principal) {
+  public RoomService.CursorView cursor(@RequestBody CursorRequest body, Principal principal) {
     return chat.moveCursor(SignedIn.of(principal), body.deliveredUpTo(), body.readUpTo());
   }
 
