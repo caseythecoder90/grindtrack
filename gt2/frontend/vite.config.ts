@@ -36,6 +36,7 @@ export default defineConfig({
   plugins: [react(), pwaBuildId()],
   server: {
     // Local dev: Vite serves the UI, Spring serves the API
-    proxy: { "/api": "http://localhost:8080" },
+    // ws: the speech and chat sockets go through the same proxy as the requests.
+    proxy: { "/api": { target: "http://localhost:8080", ws: true } },
   },
 });

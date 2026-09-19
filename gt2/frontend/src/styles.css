@@ -1540,7 +1540,42 @@ button.rec-chap.open { background: var(--rec-bg); }
 .accounts .secret.small { font-size: 11px; letter-spacing: 0; }
 
 /* --- a partner's home: the one screen they get --- */
-.partner-home { max-width: 520px; margin: 6vh auto 0; }
-.partner-home h2 { margin-top: 0; }
-.partner-home .notif { margin-top: 16px; }
-.partner-home .actions { margin-top: 16px; }
+
+/* --- the chat ---------------------------------------------------------------
+   The thread is the page and the composer sticks to the bottom, like the ask tab; mine on the
+   right in the ask tab's tint, theirs on the left in the panel colour, and the day between them
+   as a quiet line. Tapping a message opens a row of reactions under it. */
+.chat { display: flex; flex-direction: column; }
+.chat-head { display: flex; justify-content: space-between; gap: 8px; margin: 4px 0 8px; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.chat-head .live { color: var(--cyan); }
+.chat-older { align-self: center; margin: 2px 0 10px; }
+.chat-thread { display: flex; flex-direction: column; gap: 6px; min-height: 50vh; padding-bottom: 8px; }
+.chat-day { align-self: center; margin: 12px 0 4px; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.chat-msg { display: flex; flex-direction: column; align-items: flex-start; max-width: 82%; align-self: flex-start; }
+.chat-msg.mine { align-self: flex-end; align-items: flex-end; }
+.chat-msg .bubble { max-width: 100%; cursor: pointer; }
+.chat-msg.theirs .bubble { background: var(--panel2); border: 1px solid var(--line); border-bottom-left-radius: 5px; }
+.chat-msg.mine .bubble { background: rgba(127, 209, 255, 0.13); border: 1px solid rgba(127, 209, 255, 0.3); border-bottom-right-radius: 5px; }
+.chat-msg .bubble.unsent { color: var(--muted); font-style: italic; }
+.chat-msg.pending .bubble { opacity: 0.6; }
+.chat-meta { margin: 2px 6px 0; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.chat-meta .linkish { padding: 0 2px; font-size: 11px; }
+.chat-reactions { display: flex; flex-wrap: wrap; gap: 4px; margin: -8px 6px 2px; }
+.chat-msg.mine .chat-reactions { justify-content: flex-end; }
+.chat-reaction { min-height: 0; padding: 1px 7px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); font-size: 13px; line-height: 1.5; }
+.chat-reaction.mine { border-color: var(--cyan); }
+.chat-actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 4px; }
+.chat-actions button { min-height: 0; padding: 4px 8px; border-radius: 999px; font-size: 18px; line-height: 1.3; }
+.chat-actions .unsend { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.chat-composer .composer-row { margin-top: -2px; }
+
+/* An unread mark: a count on the tab and on the sheet's item, a dot on the phone's more button. */
+.tab-badge, .sheet-badge { display: inline-block; min-width: 18px; margin-left: 6px; padding: 0 5px; border-radius: 999px; background: var(--cyan); color: #06121e; font-family: var(--mono); font-size: 11px; line-height: 18px; text-align: center; }
+header .more { position: relative; }
+.more-dot { position: absolute; top: 5px; right: 5px; width: 8px; height: 8px; border-radius: 50%; background: var(--cyan); }
+
+/* A partner's home is the chat, with the settings behind one word above it. */
+.partner-home { max-width: 720px; margin: 0 auto; }
+.partner-tools { display: flex; align-items: center; gap: 8px; margin: 2px 0 8px; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.partner-home .panel { margin-bottom: 12px; }
+.partner-home .panel .notif { border-top: none; margin-top: 0; padding-top: 0; }

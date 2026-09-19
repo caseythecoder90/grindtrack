@@ -46,6 +46,12 @@ src/
 │   │   ├── DaySheet.tsx         the selected day's entries, all-day first
 │   │   ├── EventForm.tsx        add one entry; the plan select only shows for a study block
 │   │   └── UpkeepPanel.tsx      what is due, grouped overdue / this week / later
+│   ├── chat/
+│   │   ├── ChatPage.tsx         the room: the thread as the page, a sticky composer, reactions on a tap
+│   │   ├── Message.tsx          one bubble, its reactions, the row of actions under it
+│   │   ├── chatStore.ts         the one shared store: messages, cursors, unread, the socket; useChat()
+│   │   ├── chatSocket.ts        one WebSocket for as long as the app is open, reconnecting on its own
+│   │   └── chatApi.ts           the room, its pages, send, unsend, react, cursor
 │   ├── landing/Landing.tsx      public read-only view
 │   ├── partner/PartnerHome.tsx  everything a partner sees: notifications and log out; the chat's home next
 │   ├── focus/
@@ -179,7 +185,8 @@ carries the heatmap day series for every scope, so it feeds both `StatBar` and `
 passed down as `onSaved`/`onLogged` so child screens can refresh the header after a mutation,
 including `WorkPage` (work hours move the combined totals). There is **no** shared
 cache/context/store — each feature screen owns its remote state locally and re-fetches in its own
-effects, with the exception of `StatsPage`, which receives the already-loaded `stats` as a prop
+effects — with two exceptions: the chat's `chatStore` ([chat.md](chat.md#the-client)), whose
+socket and unread count outlive the page and so live outside it, and `StatsPage`, which receives the already-loaded `stats` as a prop
 rather than refetching the same payload on every tab switch.
 
 ### Scope (`all` / `study` / `work`)

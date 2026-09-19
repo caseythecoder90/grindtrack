@@ -174,7 +174,7 @@ The rule is written once, in `SecurityConfig`, by URL, in three tiers:
 | Tier | Paths | Who |
 |---|---|---|
 | Public | the SPA shell, `/api/public/**`, login, refresh, logout, the device probe | anyone |
-| Shared | `/api/auth/me`, `/api/auth/logout-all`, `/api/auth/devices/forget`, `/api/push/**` | owner or partner |
+| Shared | `/api/auth/me`, `/api/auth/logout-all`, `/api/auth/devices/forget`, `/api/push/**`, `/api/chat/**` | owner or partner |
 | Everything else | every other path, `/api/**` included | owner only |
 
 The third tier is the point. A partner is refused the tracker, the money, the journal, the
@@ -195,7 +195,8 @@ one issued before roles existed — is refused, and the refresh that follows min
 What is a partner's own: their sessions and devices (the `refresh_tokens` and `trusted_devices`
 rows were always keyed by user), and their push subscriptions, which got a `user_id` for this
 (migration 038; [push-notifications.md](push-notifications.md)). The scheduled pushes — the brief,
-the readings, the todos — go to the owner's devices only.
+the readings, the todos — go to the owner's devices only. And the room: the chat is the two of
+them by design, and the one thing a partner writes to ([chat.md](chat.md)).
 
 Minding a partner's account is the owner's job, under `/api/auth/users`, which is deliberately
 *not* in the shared list even though it sits under `/api/auth`: the three session endpoints a

@@ -14,6 +14,8 @@ import {
 import AccountsPanel from "./features/auth/AccountsPanel";
 import AskPage from "./features/assistant/AskPage";
 import CalendarPage from "./features/calendar/CalendarPage";
+import ChatPage from "./features/chat/ChatPage";
+import { chatStore, useChat } from "./features/chat/chatStore";
 import Login from "./features/auth/Login";
 import FinancePage from "./features/finance/FinancePage";
 import FocusPage from "./features/focus/FocusPage";
@@ -38,6 +40,7 @@ import type { Scope, Stats } from "./lib/types";
 type View = "landing" | "login" | "app";
 
 const SCOPE_KEY = "gt-scope";
+const TITLE = document.title;
 
 function storedScope(): Scope {
   const raw = localStorage.getItem(SCOPE_KEY);
@@ -80,6 +83,7 @@ export default function App() {
   const [scope, setScope] = useState<Scope>(storedScope);
   const [forgetLabel, setForgetLabel] = useState("forget trusted devices");
   const [logoutEverywhereLabel, setLogoutEverywhereLabel] = useState("log out everywhere");
+  const { unread } = useChat();
 
   // One request: /api/stats now carries the heatmap day series for every scope,
   // so switching scope is local and the header no longer needs /api/public/stats.
@@ -129,6 +133,19 @@ export default function App() {
   useEffect(() => {
     checkSession();
   }, [checkSession]);
+
+  // The chat's socket lives as long as someone is signed in, whichever tab is showing: that is
+  // what keeps the unread mark honest and a message already there when the tab is opened.
+  const signedInAs = session?.username ?? null;
+  useEffect(() => {
+    if (signedInAs === null) return;
+    chatStore.start();
+    return () => chatStore.stop();
+  }, [signedInAs]);
+
+  useEffect(() => {
+    document.title = unread > 0 ? `(${unread}) ${TITLE}` : TITLE;
+  }, [unread]);
 
   // A tap on a notification names a tab. With a window open the worker posts it here; with none it
   // opens /?tab=…, which initialTab reads once.
@@ -191,6 +208,8 @@ export default function App() {
 
   const owner = view === "app" && session?.role === "OWNER";
   const partner = view === "app" && session?.role === "PARTNER";
+  /** The chat has something new and is not the tab on screen. */
+  const chatWaiting = unread > 0 && tab !== "chat";
 
   return (
     <div className="wrap">
@@ -219,6 +238,7 @@ export default function App() {
             >
               {inSheet && <span>{tab}</span>}
               <TabIcon name="more" size={18} />
+              {chatWaiting && <span className="more-dot" aria-label={`${unread} unread`} />}
             </button>
             <button onClick={() => (window.location.href = EXPORT_URL)}>Export JSON</button>
             <button onClick={() => setNotifOpen((o) => !o)} aria-expanded={notifOpen}>
@@ -256,9 +276,10 @@ export default function App() {
               <AccountsPanel />
             </div>
           )}
-          {/* The hours and the heatmap head every section but one: the recovery tab is not
-              about hours, and its first screen should be its own number. */}
-          {stats && tab !== "recovery" && (
+          {/* The hours and the heatmap head every section but two: the recovery tab is not
+              about hours, and its first screen should be its own number; the chat is the two
+              of you, not the week. */}
+          {stats && tab !== "recovery" && tab !== "chat" && (
             <>
               <StatBar stats={stats} scope={scope} onScopeChange={changeScope} />
               <Heatmap study={stats.study.days} work={stats.work.days} scope={scope} />
@@ -273,6 +294,7 @@ export default function App() {
                 aria-current={tab === t ? "page" : undefined}
                 onClick={() => setTab(t)}>
                 {t}
+                {t === "chat" && chatWaiting && <span className="tab-badge">{unread}</span>}
               </button>
             ))}
           </nav>
@@ -284,6 +306,7 @@ export default function App() {
           {tab === "work" && <WorkPage onSaved={refreshHeader} />}
           {tab === "money" && <FinancePage />}
           {tab === "us" && <RelationshipPage />}
+          {tab === "chat" && <ChatPage />}
           {tab === "week" && <Week />}
           {tab === "stats" && stats && <StatsPage stats={stats} scope={scope} />}
           {tab === "ask" && <AskPage />}
@@ -303,6 +326,7 @@ export default function App() {
               forgetLabel={forgetLabel}
               onLogoutEverywhere={logoutEverywhere}
               logoutEverywhereLabel={logoutEverywhereLabel}
+              unread={unread}
             />
           )}
         </>

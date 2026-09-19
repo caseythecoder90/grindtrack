@@ -103,6 +103,10 @@ dev.grindtrack
 │   ├── api/PushController.java            request records nested in the controller
 │   ├── service/{PushService,Vapid,PayloadCipher,PushTransport,HttpPushTransport}.java
 │   └── domain/PushSubscription(+Repository).java
+├── chat/                              one room, two people: REST in, sockets out (chat.md)
+│   ├── api/{ChatController,ChatDtos,ChatSocketHandler,ChatSocketConfig}.java
+│   ├── service/{ChatService,ChatSessions}.java   the room; the open sockets and the frames
+│   └── domain/{ChatMessage,ChatReaction,ChatCursor}.java + repositories
 ├── speech/
 │   ├── api/{SpeechController,SpeechSocketConfig,SpeechSocketHandler}.java
 │   └── service/{TranscriptionRelay,TranscriptionUpstream,OpenAiTranscriptionUpstream}.java   — no domain/: owns no table

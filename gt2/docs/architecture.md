@@ -158,6 +158,7 @@ dev.grindtrack
 │   ├── service/                  PushService, Vapid (RFC 8292), PayloadCipher (RFC 8291),
 │   │                             PushTransport/HttpPushTransport
 │   └── domain/                   PushSubscription + repository
+├── chat/                    the two of you: one room, REST in, sockets out (chat.md)
 ├── speech/
 │   ├── api/                      SpeechController, SpeechSocketConfig, SpeechSocketHandler
 │   └── service/                  TranscriptionRelay, TranscriptionUpstream/OpenAi… — no
