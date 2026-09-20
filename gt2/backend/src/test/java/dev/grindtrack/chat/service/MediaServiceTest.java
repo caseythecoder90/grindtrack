@@ -47,10 +47,18 @@ class MediaServiceTest {
     final Map<String, byte[]> objects = new LinkedHashMap<>();
     final List<String> deleted = new ArrayList<>();
     boolean refuse;
+    String problem;
+    int checks;
 
     @Override
     public boolean configured() {
       return on;
+    }
+
+    @Override
+    public Optional<String> check() {
+      checks++;
+      return Optional.ofNullable(problem);
     }
 
     @Override
@@ -135,10 +143,30 @@ class MediaServiceTest {
   }
 
   @Test
-  void statusSaysWhetherThereIsABucketAndTheLimit() {
-    assertThat(service.status()).isEqualTo(new MediaService.Status(true, 100L * 1024 * 1024));
+  void statusSaysWhetherThereIsABucketWhetherItAnswersAndTheLimit() {
+    assertThat(service.status()).isEqualTo(new MediaService.Status(true, 100L * 1024 * 1024, "ok"));
+    assertThat(store.checks).isEqualTo(1);
+
+    store.problem =
+        "NoSuchBucket (404) — no bucket named b answers at https://nbg1.your-objectstorage.com";
+    assertThat(service.status().bucket()).startsWith("NoSuchBucket (404)");
+
     store.on = false;
-    assertThat(service.status().configured()).isFalse();
+    assertThat(service.status())
+        .isEqualTo(new MediaService.Status(false, 100L * 1024 * 1024, null));
+    assertThat(store.checks).as("nothing to ask with no bucket configured").isEqualTo(2);
+  }
+
+  @Test
+  void theBootLineAsksTheBucketOnceAndNotAtAllWhenOff() {
+    service.logBucket();
+    store.problem = "AccessDenied (403)";
+    service.logBucket();
+    assertThat(store.checks).isEqualTo(2);
+
+    store.on = false;
+    service.logBucket();
+    assertThat(store.checks).isEqualTo(2);
   }
 
   @Test

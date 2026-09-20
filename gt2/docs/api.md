@@ -370,7 +370,7 @@ answers with) or null. A cursor is `{userId, deliveredId, readId}`.
 | DELETE | `/api/chat/messages/{id}/reactions/{emoji}` | – | the emoji off, idempotent |
 | POST | `/api/chat/cursor` | `{deliveredUpTo?, readUpTo?}` | my cursor after the move: forward only, never past the newest message; read implies delivered |
 | GET | `/api/chat/ws` | (WebSocket) | frames `message`, `unsent`, `reaction`, `cursor`, `typing` to the browser; `{"type":"typing","on":bool}` from it |
-| GET | `/api/chat/media/status` | – | `{configured, maxBytes}` — whether there is a bucket; the attach button is drawn only when there is |
+| GET | `/api/chat/media/status` | – | `{configured, maxBytes, bucket}` — whether a bucket is configured and, when it is, whether it answers: `bucket` is `"ok"` after a `HeadBucket` with the keys, or one sentence with what the bucket said instead (`null` when off). The attach button is drawn only when configured |
 | POST | `/api/chat/media` | multipart: `file` (JPEG, PNG, WebP or GIF; MP4, MOV or WebM; up to 100 MB), `poster?` (a JPEG under 2 MB), `width?`, `height?`, `durationMs?` | the upload: `{id, kind, contentType, bytes, width, height, durationMs, hasPoster, sticker}`. 400 for the wrong kind or too big; 503 with no bucket; 502 when the bucket refuses |
 | GET | `/api/chat/media/{id}` | – | 302 to a link signed for ten minutes, `Cache-Control: no-store`; fine as an `img` or `video` src |
 | GET | `/api/chat/media/{id}/poster` | – | the same for the poster (the object itself when it has none) |

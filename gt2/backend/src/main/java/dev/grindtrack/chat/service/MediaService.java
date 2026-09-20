@@ -21,6 +21,8 @@ import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -75,9 +77,32 @@ public class MediaService {
     this.props = props;
   }
 
-  /** Whether there is a bucket, and how big one upload may be — what the attach button reads. */
+  /**
+   * Whether there is a bucket, whether it answers, and how big one upload may be — what the attach
+   * button reads, and what the go-live checklist reads as proof. {@code bucket} is {@code "ok"}
+   * only after a {@code HeadBucket} with the keys; configuration alone proved nothing the first
+   * time.
+   */
   public Status status() {
-    return new Status(store.configured(), maxBytes());
+    if (!store.configured()) {
+      return new Status(false, maxBytes(), null);
+    }
+    return new Status(true, maxBytes(), store.check().orElse("ok"));
+  }
+
+  /** One line at boot with the same answer, so the runbook's grep has something to find. */
+  @EventListener(ApplicationReadyEvent.class)
+  public void logBucket() {
+    if (!store.configured()) {
+      log.info("Media: off — no bucket configured");
+      return;
+    }
+    store
+        .check()
+        .ifPresentOrElse(
+            problem ->
+                log.warn("Media: bucket {} at {} — {}", props.bucket(), props.endpoint(), problem),
+            () -> log.info("Media: bucket {} at {} answers", props.bucket(), props.endpoint()));
   }
 
   /**
@@ -122,6 +147,7 @@ public class MediaService {
         put(posterKey, "image/jpeg", poster);
       }
     } catch (IOException e) {
+      log.warn("Media upload by account {} failed: {}", me.id(), e.getMessage());
       throw new UpstreamException("could not store that: " + e.getMessage());
     }
     ChatMedia row =
@@ -233,7 +259,11 @@ public class MediaService {
     return kind == MediaKind.IMAGE ? IMAGE_TYPES.get(contentType) : VIDEO_TYPES.get(contentType);
   }
 
-  public record Status(boolean configured, long maxBytes) {}
+  /**
+   * @param bucket {@code "ok"} once the bucket answered a {@code HeadBucket}; otherwise what it
+   *     said (the error code, the status, where to look); {@code null} when media is off
+   */
+  public record Status(boolean configured, long maxBytes, String bucket) {}
 
   /**
    * What a message carries about its upload. No link: the page asks {@code /api/chat/media/{id}}

@@ -64,6 +64,8 @@ export interface Page {
 export interface MediaStatus {
   configured: boolean;
   maxBytes: number;
+  /** "ok" once the bucket answered a HeadBucket; otherwise what it said; null when off. */
+  bucket: string | null;
 }
 
 const BASE = "/api/chat";
