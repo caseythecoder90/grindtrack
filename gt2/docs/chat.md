@@ -168,7 +168,10 @@ the bucket (100 MB a file; the multipart limits and the ingress body size are se
 bucket needs no CORS rule and the browser never holds a credential. Nothing in the bucket is public:
 `GET /api/chat/media/{id}` answers a 302 to a link signed for ten minutes, the browser follows it
 straight to the bucket, and an `img` or `video` tag loads it cross-origin without CORS. An expired
-link is a fresh 302 the next time the picture is asked for. A picture that fails to load is asked
+link is a fresh 302 the next time the picture is asked for. The thumbnail is best effort: a poster
+the bucket refuses is a warning in the log and a row without one — the thread shows the picture
+itself — not a lost photo. (The first evening, the bucket took two pictures and refused their
+thumbnails; each refusal failed the upload and left an orphan object.) A picture that fails to load is asked
 for once more after the session is renewed, because an `img` tag cannot refresh a lapsed cookie
 by itself — and the store renews the session every twenty minutes while the chat is open for the
 same reason.

@@ -106,7 +106,11 @@ public class MediaService {
   }
 
   /**
-   * The upload: the file to the bucket under a fresh key, the poster beside it, a row for both.
+   * The upload: the file to the bucket under a fresh key, the poster beside it, a row for both. The
+   * poster is best effort: a refused thumbnail is a warning in the log and a row without one — the
+   * thread shows the picture itself — not a lost photo. The first evening, the bucket took two
+   * pictures and refused their thumbnails, which failed both uploads and left two orphan objects
+   * behind.
    *
    * @param poster a JPEG under two megabytes, or null; the thumbnail or the video's frame
    * @throws BadRequestException for a type the chat does not take, or a file over the limit
@@ -143,12 +147,20 @@ public class MediaService {
     String posterKey = hasPoster ? stem + "-poster.jpg" : null;
     try {
       put(key, contentType, file);
-      if (hasPoster) {
-        put(posterKey, "image/jpeg", poster);
-      }
     } catch (IOException e) {
       log.warn("Media upload by account {} failed: {}", me.id(), e.getMessage());
       throw new UpstreamException("could not store that: " + e.getMessage());
+    }
+    if (hasPoster) {
+      try {
+        put(posterKey, "image/jpeg", poster);
+      } catch (IOException e) {
+        log.warn(
+            "Media poster for account {}'s upload was refused; keeping the picture without one: {}",
+            me.id(),
+            e.getMessage());
+        posterKey = null;
+      }
     }
     ChatMedia row =
         media.save(

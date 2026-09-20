@@ -47,6 +47,7 @@ class MediaServiceTest {
     final Map<String, byte[]> objects = new LinkedHashMap<>();
     final List<String> deleted = new ArrayList<>();
     boolean refuse;
+    String refuseSuffix;
     String problem;
     int checks;
 
@@ -64,7 +65,7 @@ class MediaServiceTest {
     @Override
     public void put(String key, String contentType, InputStream body, long size)
         throws IOException {
-      if (refuse) {
+      if (refuse || (refuseSuffix != null && key.endsWith(refuseSuffix))) {
         throw new IOException("the bucket refused the upload: 403");
       }
       objects.put(key, body.readAllBytes());
@@ -155,6 +156,22 @@ class MediaServiceTest {
     assertThat(service.status())
         .isEqualTo(new MediaService.Status(false, 100L * 1024 * 1024, null));
     assertThat(store.checks).as("nothing to ask with no bucket configured").isEqualTo(2);
+  }
+
+  @Test
+  void aRefusedThumbnailDoesNotLoseThePicture() {
+    store.refuseSuffix = "-poster.jpg";
+
+    MediaService.MediaView view = service.upload(CASEY, photo(1000), poster(), 1600, 1200, null);
+
+    assertThat(view.hasPoster()).isFalse();
+    assertThat(store.objects.keySet()).hasSize(1);
+    assertThat(store.objects.keySet().iterator().next())
+        .endsWith(".jpg")
+        .doesNotEndWith("-poster.jpg");
+    ArgumentCaptor<ChatMedia> saved = ArgumentCaptor.forClass(ChatMedia.class);
+    verify(repo).save(saved.capture());
+    assertThat(saved.getValue().getPosterKey()).isNull();
   }
 
   @Test

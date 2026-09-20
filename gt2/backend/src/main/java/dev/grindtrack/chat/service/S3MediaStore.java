@@ -149,7 +149,10 @@ public class S3MediaStore implements MediaStore {
                   + endpoint
                   + " — the name, its location, or a bucket the console lists that the storage"
                   + " cluster does not have";
-          case "AccessDenied", "InvalidAccessKeyId", "SignatureDoesNotMatch" ->
+          case "AccessDenied" ->
+              "the bucket refused these keys — its policy, or the key pair (made in the bucket's"
+                  + " project)";
+          case "InvalidAccessKeyId", "SignatureDoesNotMatch" ->
               "the key pair (MEDIA_S3_ACCESS_KEY, MEDIA_S3_SECRET_KEY), made in the bucket's project";
           case "AuthorizationHeaderMalformed" ->
               "the region (MEDIA_S3_REGION), which must be the bucket's location";

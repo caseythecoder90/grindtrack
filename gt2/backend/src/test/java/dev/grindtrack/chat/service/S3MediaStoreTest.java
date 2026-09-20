@@ -70,6 +70,9 @@ class S3MediaStoreTest {
     assertThat(store.describe(s3(403, "SignatureDoesNotMatch", "The request signature is wrong")))
         .startsWith("SignatureDoesNotMatch (403): The request signature is wrong")
         .contains("the key pair");
+    assertThat(store.describe(s3(403, "AccessDenied", "")))
+        .startsWith("AccessDenied (403)")
+        .contains("policy");
     assertThat(store.describe(s3(400, "AuthorizationHeaderMalformed", "")))
         .contains("MEDIA_S3_REGION");
     assertThat(store.describe((S3Exception) S3Exception.builder().statusCode(500).build()))
