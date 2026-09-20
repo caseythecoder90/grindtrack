@@ -195,12 +195,13 @@ class RoomControllerTest {
 
   @Test
   void theMediaStatusSaysWhetherThereIsABucket() throws Exception {
-    when(media.status()).thenReturn(new MediaService.Status(false, 104857600));
+    when(media.status()).thenReturn(new MediaService.Status(false, 104857600, null));
 
     mvc.perform(get("/api/chat/media/status").principal(CASEY))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.configured").value(false))
-        .andExpect(jsonPath("$.maxBytes").value(104857600));
+        .andExpect(jsonPath("$.maxBytes").value(104857600))
+        .andExpect(jsonPath("$.bucket").isEmpty());
   }
 
   @Test

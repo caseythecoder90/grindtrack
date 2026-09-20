@@ -39,14 +39,17 @@ Change any of these and the k8s repo has to change with it:
 
 - **Listens on `8080`** (container port named `http`).
 - **`/api/public/stats` is unauthenticated and cheap** — it is both the readiness and the liveness
-  probe. Readiness starts at 20s, liveness at 60s. A successful `rollout status` therefore already
+  probe. Readiness starts at 20s, liveness at 60s, both with a 5-second timeout — a JVM under
+  memory pressure misses the 1-second default, and did once. A successful `rollout status` therefore already
   proves the app is serving; CI needs no separate health loop.
 - **Configured entirely by environment variables** — no profiles, no mounted config file. The
   Deployment sets `SPRING_DATASOURCE_URL` to `jdbc:postgresql://postgres:5432/$(POSTGRES_DB)`, so
   `POSTGRES_DB` must be declared *before* the URL in the env list (`$(VAR)` expansion only sees
   earlier entries).
 - **`COOKIE_SECURE=true`**, because TLS terminates at the ingress.
-- **Runs in 512Mi** — `JAVA_TOOL_OPTIONS: -Xmx256m -Xms64m`, request 100m CPU / 256Mi.
+- **Runs in 768Mi** — `JAVA_TOOL_OPTIONS: -Xmx256m -Xms64m`, request 100m CPU / 384Mi. It was 512Mi
+  until the chat: with the S3 client aboard the container idled at 400Mi, and the first upload's
+  memory pressure stalled the JVM past three 1-second liveness probes, so the kubelet restarted it.
 
 `gt2/docker-compose.prod.yml` is **not** used in production any more. `gt2/docker-compose.yml`
 is still the local-development stack and is unaffected.
@@ -205,7 +208,7 @@ Then, logged in, open each status endpoint in a browser tab:
 | `/api/assistant/status` | `configured: true`, the model, this month's spend |
 | `/api/push/status` | `configured: true`, the public key you generated |
 | `/api/speech/status` | `configured: true`, `model: gpt-4o-mini-transcribe` |
-| `/api/chat/media/status` | `configured: true`, `maxBytes: 104857600` |
+| `/api/chat/media/status` | `configured: true`, `maxBytes: 104857600`, `bucket: "ok"` — anything else in `bucket` is what the bucket itself answered |
 
 A `configured: false` after a restart means the env var did not reach the pod: the patch went
 to a different cluster or namespace, or the manifest with the env var was never applied

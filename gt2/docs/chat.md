@@ -156,14 +156,22 @@ serves), and the SDK's integrity checksums turned down to "when required", which
 services need since the SDK began adding one to every upload. Four variables in the secret turn it
 on — `MEDIA_S3_ENDPOINT`, `MEDIA_S3_BUCKET`, `MEDIA_S3_ACCESS_KEY`, `MEDIA_S3_SECRET_KEY`
 ([deployment.md](deployment.md#optional-features-the-assistant-push-and-speech)). Off is a state:
-`/api/chat/media/status` says so and the attach button is not drawn.
+`/api/chat/media/status` says so and the attach button is not drawn. On is asked, not assumed: the
+same status answers `bucket: "ok"` only after a `HeadBucket` with those keys, and otherwise repeats
+what the bucket said (`NoSuchBucket (404) — no bucket named … answers at …`), with the same line
+logged once at boot. The first bucket taught that: the console listed it, `ListBuckets` listed it,
+and it answered 404 to everything else until it was deleted and made again. A refused upload names
+the error code for the same reason — the SDK's own message drops it when Ceph sends an empty one.
 
 **Uploads go through the app; downloads are signed links.** The pod streams the multipart body to
 the bucket (100 MB a file; the multipart limits and the ingress body size are set to match), so the
 bucket needs no CORS rule and the browser never holds a credential. Nothing in the bucket is public:
 `GET /api/chat/media/{id}` answers a 302 to a link signed for ten minutes, the browser follows it
 straight to the bucket, and an `img` or `video` tag loads it cross-origin without CORS. An expired
-link is a fresh 302 the next time the picture is asked for. A picture that fails to load is asked
+link is a fresh 302 the next time the picture is asked for. The thumbnail is best effort: a poster
+the bucket refuses is a warning in the log and a row without one — the thread shows the picture
+itself — not a lost photo. (The first evening, the bucket took two pictures and refused their
+thumbnails; each refusal failed the upload and left an orphan object.) A picture that fails to load is asked
 for once more after the session is renewed, because an `img` tag cannot refresh a lapsed cookie
 by itself — and the store renews the session every twenty minutes while the chat is open for the
 same reason.

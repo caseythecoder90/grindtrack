@@ -47,6 +47,9 @@ class MediaServiceTest {
     final Map<String, byte[]> objects = new LinkedHashMap<>();
     final List<String> deleted = new ArrayList<>();
     boolean refuse;
+    String refuseSuffix;
+    String problem;
+    int checks;
 
     @Override
     public boolean configured() {
@@ -54,9 +57,15 @@ class MediaServiceTest {
     }
 
     @Override
+    public Optional<String> check() {
+      checks++;
+      return Optional.ofNullable(problem);
+    }
+
+    @Override
     public void put(String key, String contentType, InputStream body, long size)
         throws IOException {
-      if (refuse) {
+      if (refuse || (refuseSuffix != null && key.endsWith(refuseSuffix))) {
         throw new IOException("the bucket refused the upload: 403");
       }
       objects.put(key, body.readAllBytes());
@@ -135,10 +144,46 @@ class MediaServiceTest {
   }
 
   @Test
-  void statusSaysWhetherThereIsABucketAndTheLimit() {
-    assertThat(service.status()).isEqualTo(new MediaService.Status(true, 100L * 1024 * 1024));
+  void statusSaysWhetherThereIsABucketWhetherItAnswersAndTheLimit() {
+    assertThat(service.status()).isEqualTo(new MediaService.Status(true, 100L * 1024 * 1024, "ok"));
+    assertThat(store.checks).isEqualTo(1);
+
+    store.problem =
+        "NoSuchBucket (404) — no bucket named b answers at https://nbg1.your-objectstorage.com";
+    assertThat(service.status().bucket()).startsWith("NoSuchBucket (404)");
+
     store.on = false;
-    assertThat(service.status().configured()).isFalse();
+    assertThat(service.status())
+        .isEqualTo(new MediaService.Status(false, 100L * 1024 * 1024, null));
+    assertThat(store.checks).as("nothing to ask with no bucket configured").isEqualTo(2);
+  }
+
+  @Test
+  void aRefusedThumbnailDoesNotLoseThePicture() {
+    store.refuseSuffix = "-poster.jpg";
+
+    MediaService.MediaView view = service.upload(CASEY, photo(1000), poster(), 1600, 1200, null);
+
+    assertThat(view.hasPoster()).isFalse();
+    assertThat(store.objects.keySet()).hasSize(1);
+    assertThat(store.objects.keySet().iterator().next())
+        .endsWith(".jpg")
+        .doesNotEndWith("-poster.jpg");
+    ArgumentCaptor<ChatMedia> saved = ArgumentCaptor.forClass(ChatMedia.class);
+    verify(repo).save(saved.capture());
+    assertThat(saved.getValue().getPosterKey()).isNull();
+  }
+
+  @Test
+  void theBootLineAsksTheBucketOnceAndNotAtAllWhenOff() {
+    service.logBucket();
+    store.problem = "AccessDenied (403)";
+    service.logBucket();
+    assertThat(store.checks).isEqualTo(2);
+
+    store.on = false;
+    service.logBucket();
+    assertThat(store.checks).isEqualTo(2);
   }
 
   @Test
