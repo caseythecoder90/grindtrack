@@ -364,7 +364,7 @@ answers with) or null. A cursor is `{userId, deliveredId, readId}`.
 |---|---|---|---|
 | GET | `/api/chat` | – | `{me, them, unread, latestId, mine, theirs}` — `them` and `theirs` are null while there is nobody else yet |
 | GET | `/api/chat/messages` | `?before=<id>` or `?after=<id>`, or neither | `{messages, hasMore}`, oldest first within the page: the newest fifty; the fifty before `before`; or everything after `after`, up to five hundred |
-| POST | `/api/chat/messages` | `{clientId, body, mediaId?}` — a UUID the phone made, up to 4000 characters, and an upload of mine or a sticker; with one the body may be empty | the message. The same `clientId` again answers the same message rather than storing a second. 400 for a bad id or no words |
+| POST | `/api/chat/messages` | `{clientId, body, mediaId?, sticker?}` — a UUID the phone made, up to 4000 characters, and an upload of mine or a sticker; with one the body may be empty; `sticker: true` sends a tray picture small and without a bubble (400 for a picture not in the tray) | the message. The same `clientId` again answers the same message rather than storing a second. 400 for a bad id or no words |
 | DELETE | `/api/chat/messages/{id}` | – | unsend my own: the message with `body` empty and `deletedAt` set. 404 for anyone else's |
 | PUT | `/api/chat/messages/{id}/reactions/{emoji}` | – | the emoji on, idempotent; the message as it now stands. 400 for an unsent message or a "reaction" that is not one emoji |
 | DELETE | `/api/chat/messages/{id}/reactions/{emoji}` | – | the emoji off, idempotent |

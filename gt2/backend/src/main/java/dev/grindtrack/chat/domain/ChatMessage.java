@@ -46,13 +46,26 @@ public class ChatMessage {
   @Column(name = "media_id")
   private Long mediaId;
 
+  /** Sent from the tray: shown small and without a bubble, whatever the picture is elsewhere. */
+  @Column(nullable = false)
+  private boolean sticker;
+
   protected ChatMessage() {}
 
   public ChatMessage(Long senderId, String body, UUID clientId, Long mediaId) {
+    this(senderId, body, clientId, mediaId, false);
+  }
+
+  public ChatMessage(Long senderId, String body, UUID clientId, Long mediaId, boolean sticker) {
     this.senderId = senderId;
     this.body = body;
     this.clientId = clientId;
     this.mediaId = mediaId;
+    this.sticker = sticker;
+  }
+
+  public boolean isSticker() {
+    return sticker;
   }
 
   /** Unsend: the words and the picture go, the place stays. */

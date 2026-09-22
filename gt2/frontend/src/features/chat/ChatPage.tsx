@@ -200,7 +200,7 @@ export default function ChatPage() {
         {rows}
         {view.pending.map((p) => (
           <div key={p.clientId} className="chat-msg mine pending">
-            <div className={"bubble" + (p.preview ? " media" : "")}>
+            <div className={"bubble" + (p.sticker ? " sticker" : p.preview ? " media" : "")}>
               {p.preview && <img className="chat-media" src={p.preview} alt="" />}
               {p.body && <div className={p.preview ? "chat-caption" : undefined}>{p.body}</div>}
             </div>

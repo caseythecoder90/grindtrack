@@ -138,12 +138,24 @@ public class RoomService {
    * @throws BadRequestException for an upload that is not mine, not there, or already on a message
    */
   public MessageView send(SignedIn me, UUID clientId, String body, Long mediaId) {
+    return send(me, clientId, body, mediaId, false);
+  }
+
+  /**
+   * @param asSticker sent from the tray: small, no bubble. Only a picture in the tray can be.
+   * @throws BadRequestException when {@code asSticker} names a picture that is not a sticker
+   */
+  public MessageView send(
+      SignedIn me, UUID clientId, String body, Long mediaId, boolean asSticker) {
     Optional<ChatMessage> already = messages.findByClientId(clientId);
     if (already.isPresent()) {
       return view(already.get());
     }
     ChatMedia media = mediaId == null ? null : attachable(me, mediaId);
-    ChatMessage saved = messages.save(new ChatMessage(me.id(), body, clientId, mediaId));
+    if (asSticker && (media == null || !media.isSticker())) {
+      throw new BadRequestException("only a picture in the tray is sent as a sticker");
+    }
+    ChatMessage saved = messages.save(new ChatMessage(me.id(), body, clientId, mediaId, asSticker));
     MessageView view = view(saved, media);
     sessions.broadcast(frame("message", "message", view));
     other(me).ifPresent(them -> tell(them, me, view));
@@ -340,7 +352,7 @@ public class RoomService {
       return words;
     }
     String what =
-        view.media().sticker()
+        view.sticker()
             ? "sticker"
             : view.media().kind() == MediaKind.IMAGE ? "📷 photo" : "🎥 video";
     return words.isEmpty() ? what : what + " · " + words;
@@ -392,7 +404,8 @@ public class RoomService {
       String deletedAt,
       String clientId,
       List<ReactionView> reactions,
-      MediaService.MediaView media) {
+      MediaService.MediaView media,
+      boolean sticker) {
     static MessageView of(ChatMessage m, List<ReactionView> reactions, ChatMedia media) {
       return new MessageView(
           m.getId(),
@@ -402,7 +415,8 @@ public class RoomService {
           m.getDeletedAt() == null ? null : m.getDeletedAt().toString(),
           m.getClientId().toString(),
           reactions,
-          media == null ? null : MediaService.MediaView.of(media));
+          media == null ? null : MediaService.MediaView.of(media),
+          m.isSticker() && media != null);
     }
   }
 

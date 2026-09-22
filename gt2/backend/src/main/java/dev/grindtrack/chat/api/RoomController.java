@@ -69,7 +69,12 @@ public class RoomController {
         body.mediaId() == null
             ? Requests.requireText(body.body(), "message needs some words", MAX_BODY_CHARS)
             : caption(body.body());
-    return chat.send(SignedIn.of(principal), clientId(body.clientId()), text, body.mediaId());
+    return chat.send(
+        SignedIn.of(principal),
+        clientId(body.clientId()),
+        text,
+        body.mediaId(),
+        Boolean.TRUE.equals(body.sticker()));
   }
 
   @DeleteMapping("/messages/{id}")

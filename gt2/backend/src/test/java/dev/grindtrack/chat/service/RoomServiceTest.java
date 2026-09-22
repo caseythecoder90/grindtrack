@@ -269,13 +269,24 @@ class ChatServiceTest {
     when(messages.existsByMediaId(6L)).thenReturn(true);
     when(sessions.hasOpen(1L)).thenReturn(false);
 
-    RoomService.MessageView view = service.send(WIFE, CLIENT_ID, "", 6L);
+    RoomService.MessageView view = service.send(WIFE, CLIENT_ID, "", 6L, true);
 
     assertThat(view.media().sticker()).isTrue();
+    assertThat(view.sticker()).isTrue();
     ArgumentCaptor<PushService.Notification> pushed =
         ArgumentCaptor.forClass(PushService.Notification.class);
     verify(push).sendTo(eq(1L), pushed.capture());
     assertThat(pushed.getValue().body()).isEqualTo("sticker");
+
+    // The same picture sent as a picture is a photo, whatever the tray says.
+    RoomService.MessageView asPhoto = service.send(WIFE, UUID.randomUUID(), "", 6L);
+    assertThat(asPhoto.sticker()).isFalse();
+    assertThat(RoomService.preview(asPhoto)).isEqualTo("📷 photo");
+    // And a picture that is not in the tray cannot be sent as one.
+    when(mediaService.find(4L)).thenReturn(Optional.of(picture(4L, 2L, false)));
+    when(messages.existsByMediaId(4L)).thenReturn(false);
+    assertThatThrownBy(() -> service.send(WIFE, UUID.randomUUID(), "", 4L, true))
+        .isInstanceOf(BadRequestException.class);
   }
 
   @Test
@@ -462,7 +473,7 @@ class ChatServiceTest {
     MediaService.MediaView clip =
         new MediaService.MediaView(1, MediaKind.VIDEO, "video/mp4", 9, 1, 1, 100, true, false);
     RoomService.MessageView withCaption =
-        new RoomService.MessageView(1, 1, "the dog", "t", null, "c", List.of(), clip);
+        new RoomService.MessageView(1, 1, "the dog", "t", null, "c", List.of(), clip, false);
     assertThat(RoomService.preview(withCaption)).isEqualTo("🎥 video · the dog");
   }
 }
