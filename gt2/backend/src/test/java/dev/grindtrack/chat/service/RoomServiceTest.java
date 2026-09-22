@@ -475,5 +475,12 @@ class ChatServiceTest {
     RoomService.MessageView withCaption =
         new RoomService.MessageView(1, 1, "the dog", "t", null, "c", List.of(), clip, false);
     assertThat(RoomService.preview(withCaption)).isEqualTo("🎥 video · the dog");
+
+    MediaService.MediaView voice =
+        new MediaService.MediaView(
+            2, MediaKind.AUDIO, "audio/webm", 9, null, null, 7300, false, false);
+    RoomService.MessageView spoken =
+        new RoomService.MessageView(2, 1, "", "t", null, "c", List.of(), voice, false);
+    assertThat(RoomService.preview(spoken)).isEqualTo("🎤 voice message");
   }
 }

@@ -13,7 +13,6 @@ import dev.grindtrack.chat.domain.ChatMessage;
 import dev.grindtrack.chat.domain.ChatMessageRepository;
 import dev.grindtrack.chat.domain.ChatReaction;
 import dev.grindtrack.chat.domain.ChatReactionRepository;
-import dev.grindtrack.chat.domain.MediaKind;
 import dev.grindtrack.push.service.PushService;
 import dev.grindtrack.web.BadRequestException;
 import java.time.Duration;
@@ -354,7 +353,11 @@ public class RoomService {
     String what =
         view.sticker()
             ? "sticker"
-            : view.media().kind() == MediaKind.IMAGE ? "📷 photo" : "🎥 video";
+            : switch (view.media().kind()) {
+              case IMAGE -> "📷 photo";
+              case VIDEO -> "🎥 video";
+              case AUDIO -> "🎤 voice message";
+            };
     return words.isEmpty() ? what : what + " · " + words;
   }
 

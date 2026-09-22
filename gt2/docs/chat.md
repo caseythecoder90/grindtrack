@@ -191,6 +191,23 @@ The message's `media` carries the shape, so the thread lays out before anything 
 message with a picture removes the objects from the bucket too — best effort: a stranded object is
 a log line, not an unsend that did not happen.
 
+## Voice messages
+
+The microphone button in the composer records; the bar that replaces the attachment shows the
+clock, *cancel* and *send*, and *send* stops the recording and sends it as its own message the
+moment it ends — no caption, because a voice message is the whole message. `VoiceRecorder` in
+`media.ts` is the browser's `MediaRecorder` on `getUserMedia({audio: true})`: Opus in WebM on
+Chrome and Android, AAC in MP4 on an iPhone (iOS 14.3 and later), whichever the browser says it
+can make; the server takes both (`audio/webm`, `audio/mp4`, and MP3, OGG, AAC, WAV besides), with
+the codec parameter a recorder appends stripped before the type is checked. Ten minutes at most;
+under half a second is not sent. The upload is the same two-step as a picture, kind `AUDIO`, no
+poster, the length in `durationMs`.
+
+In the thread a voice message is a play button, a bar that fills and the time, drawn over an
+`audio` element rather than the browser's own controls, which are a different size on every
+phone and fit in no bubble. The push says `🎤 voice message`. Recording needs the app open in the
+foreground; a phone that locks mid-recording ends it.
+
 ## Stickers and emoji
 
 Emoji are text: whatever the keyboard types is in the message, and a message that is only a few
@@ -225,7 +242,7 @@ All under `/api/chat`, owner or partner. Exact shapes in [api.md](api.md#chat-au
 | `POST /cursor` | `{deliveredUpTo?, readUpTo?}` — forward only, clamped to the newest message |
 | `GET /ws` | The socket |
 | `GET /media/status` | Whether there is a bucket, and how big one upload may be |
-| `POST /media` | The upload, before the message: the file, the poster, the shape |
+| `POST /media` | The upload, before the message: the file (a photo, a clip, or a voice recording), the poster, the shape or the length |
 | `GET /media/{id}`, `/poster` | A 302 to a link signed for ten minutes |
 | `GET /media/stickers` | The tray |
 | `PUT` / `DELETE /media/{id}/sticker` | Into the tray, out of it |
@@ -274,4 +291,4 @@ between two phones is the live check; if it does not arrive, `kubectl logs` for 
 
 ## Not yet
 
-Calls. Edit. Search. GIF search (a Tenor key). A third person.
+Calls. Edit. Search. GIF search (a Tenor key). Video notes. A third person.

@@ -54,6 +54,18 @@ public class MediaService {
       Map.of("image/jpeg", ".jpg", "image/png", ".png", "image/webp", ".webp", "image/gif", ".gif");
   static final Map<String, String> VIDEO_TYPES =
       Map.of("video/mp4", ".mp4", "video/quicktime", ".mov", "video/webm", ".webm");
+
+  /** What a phone's recorder produces: Opus in WebM (Chrome, Android), AAC in MP4 (iPhone). */
+  static final Map<String, String> AUDIO_TYPES =
+      Map.of(
+          "audio/webm", ".webm",
+          "audio/mp4", ".m4a",
+          "audio/x-m4a", ".m4a",
+          "audio/aac", ".aac",
+          "audio/mpeg", ".mp3",
+          "audio/ogg", ".ogg",
+          "audio/wav", ".wav");
+
   static final long MAX_POSTER_BYTES = 2L * 1024 * 1024;
   static final long DEFAULT_MAX_BYTES = 100L * 1024 * 1024;
   static final Duration LINK_TTL = Duration.ofMinutes(10);
@@ -130,7 +142,7 @@ public class MediaService {
     if (file == null || file.isEmpty()) {
       throw new BadRequestException("a photo or a video is needed");
     }
-    String contentType = file.getContentType() == null ? "" : file.getContentType().toLowerCase();
+    String contentType = bareType(file.getContentType());
     MediaKind kind = kindOf(contentType);
     if (file.getSize() > maxBytes()) {
       throw new BadRequestException(
@@ -256,6 +268,18 @@ public class MediaService {
     return props.maxSize() == null ? DEFAULT_MAX_BYTES : props.maxSize().toBytes();
   }
 
+  /**
+   * The type without its parameters: a recorder says {@code audio/webm;codecs=opus}, and the codecs
+   * are its business.
+   */
+  static String bareType(String contentType) {
+    if (contentType == null) {
+      return "";
+    }
+    int semi = contentType.indexOf(';');
+    return (semi < 0 ? contentType : contentType.substring(0, semi)).trim().toLowerCase();
+  }
+
   static MediaKind kindOf(String contentType) {
     if (IMAGE_TYPES.containsKey(contentType)) {
       return MediaKind.IMAGE;
@@ -263,12 +287,20 @@ public class MediaService {
     if (VIDEO_TYPES.containsKey(contentType)) {
       return MediaKind.VIDEO;
     }
+    if (AUDIO_TYPES.containsKey(contentType)) {
+      return MediaKind.AUDIO;
+    }
     throw new BadRequestException(
-        "the chat takes JPEG, PNG, WebP and GIF photos, and MP4, MOV and WebM video");
+        "the chat takes JPEG, PNG, WebP and GIF photos, MP4, MOV and WebM video, and a recorded"
+            + " voice message");
   }
 
   static String extensionFor(MediaKind kind, String contentType) {
-    return kind == MediaKind.IMAGE ? IMAGE_TYPES.get(contentType) : VIDEO_TYPES.get(contentType);
+    return switch (kind) {
+      case IMAGE -> IMAGE_TYPES.get(contentType);
+      case VIDEO -> VIDEO_TYPES.get(contentType);
+      case AUDIO -> AUDIO_TYPES.get(contentType);
+    };
   }
 
   /**

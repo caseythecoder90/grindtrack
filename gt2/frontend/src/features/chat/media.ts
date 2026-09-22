@@ -9,7 +9,7 @@
  * with one frame drawn to a small JPEG as its poster.
  */
 
-export type PreparedKind = "image" | "video";
+export type PreparedKind = "image" | "video" | "audio";
 
 export interface Prepared {
   kind: PreparedKind;
@@ -126,6 +126,118 @@ async function prepareVideo(file: File, maxBytes: number): Promise<Prepared> {
   } finally {
     // The preview keeps the file's URL only when there was no poster to show instead.
   }
+}
+
+// ---- voice messages ----------------------------------------------------------------------
+
+/** Whether this browser can record: a microphone API and a recorder. iOS has both since 14.3. */
+export function canRecord(): boolean {
+  return (
+    typeof navigator !== "undefined" &&
+    !!navigator.mediaDevices?.getUserMedia &&
+    typeof MediaRecorder !== "undefined"
+  );
+}
+
+/** The recorder's container, whichever this browser has: Opus in WebM, else AAC in MP4. */
+function recorderType(): string | undefined {
+  const wanted = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"];
+  return wanted.find((t) => MediaRecorder.isTypeSupported(t));
+}
+
+function audioFilename(type: string): string {
+  const bare = type.split(";")[0].trim().toLowerCase();
+  if (bare === "audio/mp4" || bare === "audio/x-m4a") return "voice.m4a";
+  if (bare === "audio/ogg") return "voice.ogg";
+  if (bare === "audio/mpeg") return "voice.mp3";
+  if (bare === "audio/wav") return "voice.wav";
+  return "voice.webm";
+}
+
+/** What a recording becomes: a voice message, sent as it is, with its length. */
+export function prepareAudio(blob: Blob, durationMs: number): Prepared {
+  return {
+    kind: "audio",
+    file: blob,
+    filename: audioFilename(blob.type),
+    poster: null,
+    width: 0,
+    height: 0,
+    durationMs,
+    previewUrl: URL.createObjectURL(blob),
+  };
+}
+
+/**
+ * One recording: the microphone opened on start, chunks kept as they come, the stream let go on
+ * stop or cancel. The longest a voice message gets is ten minutes, which is longer than anyone
+ * should be talking into a phone.
+ */
+export class VoiceRecorder {
+  private recorder: MediaRecorder | null = null;
+  private stream: MediaStream | null = null;
+  private chunks: Blob[] = [];
+  private startedAt = 0;
+  static readonly MAX_MS = 10 * 60 * 1000;
+
+  async start(): Promise<void> {
+    this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const type = recorderType();
+    this.recorder = new MediaRecorder(this.stream, type ? { mimeType: type } : undefined);
+    this.chunks = [];
+    this.recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) this.chunks.push(e.data);
+    };
+    this.recorder.start(1000);
+    this.startedAt = Date.now();
+  }
+
+  elapsedMs(): number {
+    return this.startedAt ? Date.now() - this.startedAt : 0;
+  }
+
+  /** Stops, and hands back the recording. */
+  stop(): Promise<Prepared> {
+    return new Promise((resolve, reject) => {
+      const r = this.recorder;
+      if (!r) {
+        reject(new Error("nothing is recording"));
+        return;
+      }
+      const durationMs = this.elapsedMs();
+      r.onstop = () => {
+        const type = r.mimeType || this.chunks[0]?.type || "audio/webm";
+        const blob = new Blob(this.chunks, { type });
+        this.release();
+        if (blob.size === 0) reject(new Error("nothing was recorded — is the microphone allowed?"));
+        else resolve(prepareAudio(blob, durationMs));
+      };
+      r.stop();
+    });
+  }
+
+  cancel(): void {
+    try {
+      this.recorder?.stop();
+    } catch {
+      // already stopped
+    }
+    this.release();
+  }
+
+  private release(): void {
+    this.stream?.getTracks().forEach((t) => t.stop());
+    this.stream = null;
+    this.recorder = null;
+    this.chunks = [];
+    this.startedAt = 0;
+  }
+}
+
+/** "0:07", "12:03". */
+export function clock(ms: number): string {
+  const s = Math.max(0, Math.round(ms / 1000));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
 function scaleTo(width: number, height: number, edge: number): { width: number; height: number } {

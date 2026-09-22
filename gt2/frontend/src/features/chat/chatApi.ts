@@ -17,7 +17,7 @@ export interface Reaction {
   emoji: string;
 }
 
-export type MediaKind = "IMAGE" | "VIDEO";
+export type MediaKind = "IMAGE" | "VIDEO" | "AUDIO";
 
 /** A photo or clip in the bucket. No link: the bytes are asked for by id, see {@link mediaUrl}. */
 export interface MediaView {

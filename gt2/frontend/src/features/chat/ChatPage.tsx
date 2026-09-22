@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { errorMessage } from "../../lib/api";
 import { posterUrl, type ChatMessage } from "./chatApi";
 import { chatStore, useChat } from "./chatStore";
-import { prepare, type Prepared } from "./media";
+import { canRecord, clock, prepare, VoiceRecorder, type Prepared } from "./media";
 import Message, { type Receipt } from "./Message";
 
 /** Within this many pixels of the bottom counts as reading the newest, so new ones scroll into view. */
@@ -34,6 +34,9 @@ export default function ChatPage() {
   const [preparing, setPreparing] = useState(false);
   const [attachError, setAttachError] = useState("");
   const [trayOpen, setTrayOpen] = useState(false);
+  /** Recording: the recorder, and the clock the bar shows. */
+  const recorder = useRef<VoiceRecorder | null>(null);
+  const [recordingMs, setRecordingMs] = useState<number | null>(null);
   const box = useRef<HTMLTextAreaElement>(null);
   const picker = useRef<HTMLInputElement>(null);
   const foot = useRef<HTMLDivElement>(null);
@@ -110,6 +113,60 @@ export default function ChatPage() {
     } finally {
       setPreparing(false);
       if (picker.current) picker.current.value = "";
+    }
+  }
+
+  // The clock on the recording bar, once a second, and the ten-minute stop.
+  useEffect(() => {
+    if (recordingMs === null) return;
+    const tick = window.setInterval(() => {
+      const r = recorder.current;
+      if (!r) return;
+      const ms = r.elapsedMs();
+      setRecordingMs(ms);
+      if (ms >= VoiceRecorder.MAX_MS) void finishRecording();
+    }, 500);
+    return () => window.clearInterval(tick);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recordingMs !== null]);
+
+  // Leaving the page mid-recording lets the microphone go.
+  useEffect(() => () => recorder.current?.cancel(), []);
+
+  async function startRecording() {
+    setAttachError("");
+    const r = new VoiceRecorder();
+    try {
+      await r.start();
+      recorder.current = r;
+      setRecordingMs(0);
+    } catch {
+      setAttachError("the microphone is not available — allow it for this site and try again");
+    }
+  }
+
+  function cancelRecording() {
+    recorder.current?.cancel();
+    recorder.current = null;
+    setRecordingMs(null);
+  }
+
+  /** Stop and send: a voice message is its own message, sent the moment it ends. */
+  async function finishRecording() {
+    const r = recorder.current;
+    if (!r) return;
+    recorder.current = null;
+    setRecordingMs(null);
+    try {
+      const voice = await r.stop();
+      if ((voice.durationMs ?? 0) < 500) {
+        URL.revokeObjectURL(voice.previewUrl);
+        setAttachError("that was too short to send");
+        return;
+      }
+      void chatStore.send("", voice);
+    } catch (e) {
+      setAttachError(errorMessage(e, "could not record"));
     }
   }
 
@@ -200,8 +257,12 @@ export default function ChatPage() {
         {rows}
         {view.pending.map((p) => (
           <div key={p.clientId} className="chat-msg mine pending">
-            <div className={"bubble" + (p.sticker ? " sticker" : p.preview ? " media" : "")}>
-              {p.preview && <img className="chat-media" src={p.preview} alt="" />}
+            <div className={"bubble" + (p.sticker ? " sticker" : p.attachment?.kind === "audio" ? " voice" : p.preview ? " media" : "")}>
+              {p.attachment?.kind === "audio" ? (
+                <span className="chat-voice-pending">🎤 voice message · {clock(p.attachment.durationMs ?? 0)}</span>
+              ) : (
+                p.preview && <img className="chat-media" src={p.preview} alt="" />
+              )}
               {p.body && <div className={p.preview ? "chat-caption" : undefined}>{p.body}</div>}
             </div>
             <div className="chat-meta">
@@ -251,11 +312,20 @@ export default function ChatPage() {
       )}
 
       <div className="composer chat-composer">
+        {recordingMs !== null && (
+          <div className="chat-recording" role="status">
+            <span className="dot" aria-hidden="true" />
+            <span className="clock">{clock(recordingMs)}</span>
+            <span className="hint">recording… tap send when you are done</span>
+            <button type="button" className="linkish" onClick={cancelRecording}>cancel</button>
+            <button type="button" className="rec-send" onClick={() => void finishRecording()}>send</button>
+          </div>
+        )}
         {attachment && (
           <div className="chat-attach">
             <img src={attachment.previewUrl} alt="" />
             <span className="hint">
-              {attachment.kind === "video" ? "video clip" : "photo"}
+              {attachment.kind === "video" ? "video clip" : attachment.kind === "audio" ? "voice message" : "photo"}
               {attachment.durationMs ? ` · ${Math.round(attachment.durationMs / 1000)} s` : ""}
             </span>
             <button
@@ -311,6 +381,20 @@ export default function ChatPage() {
                   hidden
                   onChange={(e) => void pick(e.target.files?.[0])}
                 />
+                {canRecord() && recordingMs === null && (
+                  <button
+                    type="button"
+                    className="tool"
+                    aria-label="record a voice message"
+                    onClick={() => void startRecording()}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <rect x="9" y="3" width="6" height="11" rx="3" />
+                      <path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6" />
+                    </svg>
+                  </button>
+                )}
                 <button
                   type="button"
                   className="tool"
