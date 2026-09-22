@@ -171,8 +171,9 @@ existed the place was counted from `bible_plan_start`; the first read after
 the change starts the cursor where that count was, so nobody's place jumps.
 The plan can be restarted from the your-books screen.
 
-**The pencil: highlights and notes.** Tap a paragraph in the reader and the bar offers four
-colours and a note; hold to select words first and the highlight is on those words, with their
+**The pencil: highlights and notes.** Tap a paragraph — in today's pages or in any chapter; the
+two share one component, `Pencil` — and the bar offers four colours and a note; select words
+first (hold on a phone, drag with a mouse) and the highlight is on those words, with their
 offsets into the paragraph, otherwise it is the whole paragraph. A note shows under its
 paragraph, in the colour of its highlight if it has one, and can stand alone. A tap on a
 highlight offers its note and its removal. "Your marks" under the contents lists every one in
@@ -180,8 +181,12 @@ reading order by chapter, and opens the chapter at the paragraph. Marks are on t
 the imported text row (`recovery_marks.slot`), because an import replaces the text and its
 paragraphs: afterwards every mark looks for its words again — on the same printed page first,
 then anywhere — and moves to where they now are; one whose words are not in the new text keeps
-its old place and the import report says how many. Endpoints under `/book/marks`; the reader is
-`BookReader`, the list `MarksCard` in `RecoveryPage`.
+its old place and the import report says how many. Endpoints under `/book/marks`; the paragraphs
+and the bar are `Pencil`, used by `BookReader` and by today's `ReadCard`; the list is `MarksCard`
+in `RecoveryPage`. At first the pencil was only in the chapter reader, and today's pages — where
+the read view opens — had none, so nothing could be highlighted where the reading is. A mouse
+drag that selects words also ends in a click on the paragraph; that click is taken as the end of
+the selecting, not as a tap that closes the bar.
 
 **Reading from anywhere.** The read view has a switch at the top — the book
 on the plan, or the Bible. The Bible side is the sixty-six books, a book's
