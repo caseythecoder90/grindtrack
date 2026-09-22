@@ -123,6 +123,7 @@ send: the message is already in the room. With push off (no VAPID pair) nothing 
 | `chatSocket.ts` | the socket, and its coming back |
 | `chatApi.ts` | the requests, and the upload with its progress |
 | `media.ts` | what the phone does to a photo or a clip before it is sent: resized, upright, the EXIF gone, a poster made; and the big-emoji test |
+| `ChatSearch.tsx` | the panel: search, the pictures, the links; a hit opens the thread around its message |
 | `ChatPage.tsx` | the room: the thread as the page, a sticky composer like the ask tab, "earlier messages" at the top, day lines between days, the receipt under my last message |
 | `Message.tsx` | one bubble; its reactions as chips; tapped, a row of six reactions and, for mine, unsend |
 
@@ -208,6 +209,22 @@ In the thread a voice message is a play button, a bar that fills and the time, d
 phone and fit in no bubble. The push says `🎤 voice message`. Recording needs the app open in the
 foreground; a phone that locks mid-recording ends it.
 
+## Search, pictures, links
+
+The magnifier in the room's head opens one panel in place of the thread, with three tabs. **Search**
+is words: a plain substring match, case-blind, so a half-typed word and an emoji both find their
+messages; the newest forty, each with who and when and the words lit; unsent messages are not
+there. **Media** is every picture, clip and recording sent, newest first, as a grid of posters.
+**Links** is every message with `http` in it, newest first, the links live and *in the thread* beside
+them.
+
+A hit opens the thread **around** its message: `GET /messages?around=<id>` answers the twenty-five
+before, the message, and the twenty-five after, with `hasMore` (older) and `hasNewer` (the thread
+goes on). The page replaces what the store holds; *earlier messages* and *newer messages* load out
+from it, and *back to the latest* is `load()` again. The message opened is lit for a moment. A
+message that arrives over the socket meanwhile is merged where its id falls, which is after a gap
+until *newer messages* has been pressed enough times — the price of one contiguous list.
+
 ## Stickers and emoji
 
 Emoji are text: whatever the keyboard types is in the message, and a message that is only a few
@@ -235,7 +252,10 @@ All under `/api/chat`, owner or partner. Exact shapes in [api.md](api.md#chat-au
 | Method and path | Does |
 |---|---|
 | `GET /` | Who is in the room, my cursor and theirs, how many are unread for me, the newest id |
-| `GET /messages` | The newest fifty, oldest first within the page; `?before=<id>` the page above; `?after=<id>` everything since, up to five hundred, with `hasMore` |
+| `GET /messages` | The newest fifty, oldest first within the page; `?before=<id>` the page above; `?after=<id>` everything since, up to five hundred, with `hasMore`; `?around=<id>` the thread opened at a message, with `hasNewer` |
+| `GET /messages/search?q=` | Messages with these words, newest first, forty at most |
+| `GET /messages/media` | The pictures, clips and recordings sent, newest first, sixty at most |
+| `GET /messages/links` | The messages with a link in them, newest first, a hundred at most |
 | `POST /messages` | `{clientId, body}` — the message; the same `clientId` again is the same message |
 | `DELETE /messages/{id}` | Unsend my own; 404 for anyone else's |
 | `PUT` / `DELETE /messages/{id}/reactions/{emoji}` | On and off; the message as it now stands |
@@ -291,4 +311,4 @@ between two phones is the live check; if it does not arrive, `kubectl logs` for 
 
 ## Not yet
 
-Calls. Edit. Search. GIF search (a Tenor key). Video notes. A third person.
+Calls. Edit. GIF search (a Tenor key). Video notes. A third person.

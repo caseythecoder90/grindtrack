@@ -20,6 +20,8 @@ interface Props {
   onReact: (emoji: string) => void;
   onUnsend: () => void;
   onKeepSticker: (on: boolean) => void;
+  /** Just opened from the search: lit for a moment. */
+  focus?: boolean;
 }
 
 function timeOf(iso: string): string {
@@ -182,6 +184,7 @@ export default function Message({
   onReact,
   onUnsend,
   onKeepSticker,
+  focus = false,
 }: Props) {
   const [lightbox, setLightbox] = useState(false);
   const unsent = message.deletedAt !== null;
@@ -205,7 +208,7 @@ export default function Message({
     (big ? " big" : "");
 
   return (
-    <div className={"chat-msg " + (mine ? "mine" : "theirs")}>
+    <div id={"msg-" + message.id} className={"chat-msg " + (mine ? "mine" : "theirs") + (focus ? " focus" : "")}>
       <div
         className={bubbleClass}
         role="button"

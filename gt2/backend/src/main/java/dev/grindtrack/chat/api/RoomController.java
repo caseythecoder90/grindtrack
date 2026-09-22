@@ -35,6 +35,8 @@ import org.springframework.web.multipart.MultipartFile;
 @RequestMapping("/api/chat")
 public class RoomController {
 
+  private static final int MAX_QUERY_CHARS = 120;
+
   static final int MAX_BODY_CHARS = 4000;
 
   private final RoomService chat;
@@ -55,8 +57,32 @@ public class RoomController {
    */
   @GetMapping("/messages")
   public RoomService.Page messages(
-      @RequestParam(required = false) Long before, @RequestParam(required = false) Long after) {
-    return chat.history(before, after);
+      @RequestParam(required = false) Long before,
+      @RequestParam(required = false) Long after,
+      @RequestParam(required = false) Long around) {
+    return chat.history(before, after, around);
+  }
+
+  /** The conversation searched: forty hits at most, newest first. Two characters is a word. */
+  @GetMapping("/messages/search")
+  public List<RoomService.MessageView> search(@RequestParam String q) {
+    String query = Requests.requireText(q, "search needs a word", MAX_QUERY_CHARS);
+    if (query.length() < 2) {
+      throw new BadRequestException("search needs a word");
+    }
+    return chat.search(query);
+  }
+
+  /** The pictures, clips and recordings sent, newest first. */
+  @GetMapping("/messages/media")
+  public List<RoomService.MessageView> media() {
+    return chat.media();
+  }
+
+  /** The messages with a link in them, newest first. */
+  @GetMapping("/messages/links")
+  public List<RoomService.MessageView> links() {
+    return chat.links();
   }
 
   /**

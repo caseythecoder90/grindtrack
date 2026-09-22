@@ -3,6 +3,7 @@ import { errorMessage } from "../../lib/api";
 import { posterUrl, type ChatMessage } from "./chatApi";
 import { chatStore, useChat } from "./chatStore";
 import { canRecord, clock, prepare, VoiceRecorder, type Prepared } from "./media";
+import ChatSearch from "./ChatSearch";
 import Message, { type Receipt } from "./Message";
 
 /** Within this many pixels of the bottom counts as reading the newest, so new ones scroll into view. */
@@ -34,6 +35,7 @@ export default function ChatPage() {
   const [preparing, setPreparing] = useState(false);
   const [attachError, setAttachError] = useState("");
   const [trayOpen, setTrayOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   /** Recording: the recorder, and the clock the bar shows. */
   const recorder = useRef<VoiceRecorder | null>(null);
   const [recordingMs, setRecordingMs] = useState<number | null>(null);
@@ -68,11 +70,21 @@ export default function ChatPage() {
   const lastIsMine = !!last && !!view.me && last.senderId === view.me.id;
   const pendingCount = view.pending.length;
   useEffect(() => {
-    if (!view.loaded) return;
+    if (!view.loaded || view.focusId !== null) return;
     if (nearBottom.current || lastIsMine || pendingCount > 0) {
       foot.current?.scrollIntoView({ block: "end" });
     }
-  }, [view.loaded, lastId, lastIsMine, pendingCount]);
+  }, [view.loaded, lastId, lastIsMine, pendingCount, view.focusId]);
+
+  // A message just opened from the search: bring it into view, lit, then let the light fade.
+  const focusId = view.focusId;
+  useEffect(() => {
+    if (focusId === null) return;
+    const el = document.getElementById("msg-" + focusId);
+    el?.scrollIntoView({ block: "center" });
+    const t = window.setTimeout(() => chatStore.clearFocus(), 2500);
+    return () => window.clearTimeout(t);
+  }, [focusId]);
 
   // A preview that was never sent still holds memory until it is let go.
   useEffect(() => {
@@ -212,6 +224,7 @@ export default function ChatPage() {
           setOpenId(null);
           if (m.media) void chatStore.keepSticker(m.media.id, on);
         }}
+        focus={m.id === view.focusId}
       />,
     );
   }
@@ -224,8 +237,35 @@ export default function ChatPage() {
     <section className="chat" aria-label="chat">
       <div className="chat-head">
         <span>{view.them ? `with ${view.them.username}` : "the room"}</span>
-        <span className={view.typing ? "live" : ""}>{view.typing ? "typing…" : live}</span>
+        <span className="chat-head-right">
+          <span className={view.typing ? "live" : ""}>{view.typing ? "typing…" : live}</span>
+          <button
+            type="button"
+            className="chat-head-search"
+            aria-label="search the conversation"
+            aria-pressed={searchOpen}
+            onClick={() => setSearchOpen((o) => !o)}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M20 20l-3.5-3.5" />
+            </svg>
+          </button>
+        </span>
       </div>
+
+      {searchOpen && (
+        <ChatSearch
+          me={view.me}
+          them={view.them}
+          onClose={() => setSearchOpen(false)}
+          onJump={(id) => {
+            setSearchOpen(false);
+            void chatStore.jumpTo(id);
+          }}
+        />
+      )}
 
       {!view.loaded && !view.error && <p className="muted">opening…</p>}
       {view.error && (
@@ -242,7 +282,7 @@ export default function ChatPage() {
           you talk.
         </p>
       )}
-      {view.hasMore && (
+      {!searchOpen && view.hasMore && (
         <button
           type="button"
           className="linkish chat-older"
@@ -253,7 +293,7 @@ export default function ChatPage() {
         </button>
       )}
 
-      <div className="chat-thread">
+      <div className="chat-thread" hidden={searchOpen}>
         {rows}
         {view.pending.map((p) => (
           <div key={p.clientId} className="chat-msg mine pending">
@@ -287,6 +327,16 @@ export default function ChatPage() {
         ))}
         <div ref={foot} />
       </div>
+      {!searchOpen && view.hasNewer && (
+        <div className="chat-newer">
+          <button type="button" className="linkish" disabled={view.loadingNewer} onClick={() => void chatStore.loadNewer()}>
+            {view.loadingNewer ? "loading…" : "newer messages"}
+          </button>
+          <button type="button" className="linkish" onClick={() => void chatStore.load()}>
+            back to the latest ›
+          </button>
+        </div>
+      )}
 
       {trayOpen && view.mediaOn && (
         <div className="chat-tray" role="group" aria-label="stickers">

@@ -87,18 +87,19 @@ class RoomControllerTest {
 
   @Test
   void historyPassesBeforeAndAfterThrough() throws Exception {
-    when(chat.history(5L, null)).thenReturn(new RoomService.Page(List.of(view(4, "a")), false));
+    when(chat.history(5L, null, null))
+        .thenReturn(new RoomService.Page(List.of(view(4, "a")), false));
 
     mvc.perform(get("/api/chat/messages").param("before", "5").principal(CASEY))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.messages[0].id").value(4))
         .andExpect(jsonPath("$.hasMore").value(false));
-    verify(chat).history(5L, null);
+    verify(chat).history(5L, null, null);
 
-    when(chat.history(null, 9L)).thenReturn(new RoomService.Page(List.of(), false));
+    when(chat.history(null, 9L, null)).thenReturn(new RoomService.Page(List.of(), false));
     mvc.perform(get("/api/chat/messages").param("after", "9").principal(CASEY))
         .andExpect(status().isOk());
-    verify(chat).history(null, 9L);
+    verify(chat).history(null, 9L, null);
   }
 
   @Test
@@ -113,6 +114,29 @@ class RoomControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.id").value(10))
         .andExpect(jsonPath("$.body").value("hello"));
+  }
+
+  @Test
+  void theThreadOpensAroundAMessageAndIsSearchedWithAWord() throws Exception {
+    when(chat.history(null, null, 7L))
+        .thenReturn(new RoomService.Page(List.of(view(7, "here")), true, true));
+    mvc.perform(get("/api/chat/messages").param("around", "7").principal(CASEY))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.hasNewer").value(true))
+        .andExpect(jsonPath("$.messages[0].id").value(7));
+
+    when(chat.search("dog")).thenReturn(List.of(view(3, "the dog")));
+    mvc.perform(get("/api/chat/messages/search").param("q", "dog").principal(CASEY))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[0].body").value("the dog"));
+    mvc.perform(get("/api/chat/messages/search").param("q", "d").principal(CASEY))
+        .andExpect(status().isBadRequest());
+
+    when(chat.links()).thenReturn(List.of(view(2, "see https://x.y")));
+    mvc.perform(get("/api/chat/messages/links").principal(CASEY))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[0].id").value(2));
+    mvc.perform(get("/api/chat/messages/media").principal(CASEY)).andExpect(status().isOk());
   }
 
   @Test

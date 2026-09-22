@@ -60,6 +60,8 @@ export interface RoomState {
 export interface Page {
   /** Oldest first within the page. */
   messages: ChatMessage[];
+  /** For a page opened around a message: whether the thread goes on past it. */
+  hasNewer: boolean;
   hasMore: boolean;
 }
 
@@ -75,13 +77,24 @@ const BASE = "/api/chat";
 export const getRoom = () => api<RoomState>(BASE);
 
 /** No argument: the newest page. `before`: the page above it. `after`: everything since. */
-export const getMessages = (query: { before?: number; after?: number }) => {
+export const getMessages = (query: { before?: number; after?: number; around?: number }) => {
   const params = new URLSearchParams();
   if (query.before !== undefined) params.set("before", String(query.before));
   if (query.after !== undefined) params.set("after", String(query.after));
+  if (query.around !== undefined) params.set("around", String(query.around));
   const qs = params.toString();
   return api<Page>(`${BASE}/messages${qs ? "?" + qs : ""}`);
 };
+
+/** Messages with these words, newest first, forty at most. */
+export const searchMessages = (q: string) =>
+  api<ChatMessage[]>(`${BASE}/messages/search?q=${encodeURIComponent(q)}`);
+
+/** The pictures, clips and recordings sent, newest first. */
+export const getMediaMessages = () => api<ChatMessage[]>(`${BASE}/messages/media`);
+
+/** The messages with a link in them, newest first. */
+export const getLinkMessages = () => api<ChatMessage[]>(`${BASE}/messages/links`);
 
 export const sendMessage = (clientId: string, body: string, mediaId?: number, sticker = false) =>
   api<ChatMessage>(

@@ -483,4 +483,34 @@ class ChatServiceTest {
         new RoomService.MessageView(2, 1, "", "t", null, "c", List.of(), voice, false);
     assertThat(RoomService.preview(spoken)).isEqualTo("🎤 voice message");
   }
+
+  @Test
+  void theThreadOpensAroundAMessageWithWhatIsBeforeAndAfterIt() {
+    List<ChatMessage> before = new ArrayList<>();
+    for (long id = 40; id > 15; id--) {
+      before.add(message(id, 1L, "m" + id));
+    }
+    List<ChatMessage> from = new ArrayList<>();
+    for (long id = 41; id <= 66; id++) {
+      from.add(message(id, 1L, "m" + id));
+    }
+    when(messages.findTop25ByIdLessThanOrderByIdDesc(41L)).thenReturn(before);
+    when(messages.findTop26ByIdGreaterThanEqualOrderByIdAsc(41L)).thenReturn(from);
+
+    RoomService.Page page = service.history(null, null, 41L);
+
+    assertThat(page.messages()).hasSize(50);
+    assertThat(page.messages().get(0).id()).isEqualTo(16);
+    assertThat(page.messages().get(25).id()).isEqualTo(41);
+    assertThat(page.messages().get(49).id()).isEqualTo(65);
+    assertThat(page.hasMore()).isTrue();
+    assertThat(page.hasNewer()).isTrue();
+
+    when(messages.findTop26ByIdGreaterThanEqualOrderByIdAsc(41L)).thenReturn(from.subList(0, 3));
+    when(messages.findTop25ByIdLessThanOrderByIdDesc(41L)).thenReturn(before.subList(0, 2));
+    RoomService.Page end = service.history(null, null, 41L);
+    assertThat(end.messages()).hasSize(5);
+    assertThat(end.hasMore()).isFalse();
+    assertThat(end.hasNewer()).isFalse();
+  }
 }
