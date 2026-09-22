@@ -125,6 +125,27 @@ export interface Reading {
   chapters: Chapter[];
 }
 
+/**
+ * A highlight, a note, or both, on a paragraph: the whole of it (start and end null) or the words
+ * between two offsets into it. A colour of null is a note alone.
+ */
+export interface Mark {
+  id: number;
+  seq: number;
+  chapterNo: number;
+  chapterTitle: string;
+  pageLabel: string | null;
+  start: number | null;
+  end: number | null;
+  quote: string;
+  color: MarkColor | null;
+  note: string | null;
+  createdAt: string;
+}
+
+export type MarkColor = "yellow" | "green" | "blue" | "pink";
+export const MARK_COLORS: MarkColor[] = ["yellow", "green", "blue", "pink"];
+
 export interface ChapterText {
   no: number;
   title: string;
@@ -132,6 +153,7 @@ export interface ChapterText {
   prevNo: number | null;
   nextNo: number | null;
   cursor: number;
+  marks: Mark[];
 }
 
 export interface Settings {
@@ -264,6 +286,26 @@ export const searchBook = (q: string) =>
 
 export const findPage = (label: string) =>
   api<PagePlace>(`${BASE}/book/page/${encodeURIComponent(label)}`);
+
+// ---- highlights and notes ----
+
+export const getMarks = () => api<Mark[]>(`${BASE}/book/marks`);
+
+export const addMark = (body: {
+  seq: number;
+  start?: number | null;
+  end?: number | null;
+  color?: MarkColor | null;
+  note?: string | null;
+}) => api<Mark>(`${BASE}/book/marks`, jsonInit("POST", body));
+
+/** Answers the mark, or null once neither a colour nor a note is left and it is gone. */
+export const updateMark = (
+  id: number,
+  body: { color?: MarkColor | null; clearColor?: boolean; note?: string | null; clearNote?: boolean },
+) => api<Mark | null>(`${BASE}/book/marks/${id}`, jsonInit("PATCH", body));
+
+export const deleteMark = (id: number) => api(`${BASE}/book/marks/${id}`, { method: "DELETE" });
 
 export const savePlace = (seq: number) =>
   api(`${BASE}/book/place`, jsonInit("PUT", { seq }));

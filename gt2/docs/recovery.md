@@ -171,6 +171,18 @@ existed the place was counted from `bible_plan_start`; the first read after
 the change starts the cursor where that count was, so nobody's place jumps.
 The plan can be restarted from the your-books screen.
 
+**The pencil: highlights and notes.** Tap a paragraph in the reader and the bar offers four
+colours and a note; hold to select words first and the highlight is on those words, with their
+offsets into the paragraph, otherwise it is the whole paragraph. A note shows under its
+paragraph, in the colour of its highlight if it has one, and can stand alone. A tap on a
+highlight offers its note and its removal. "Your marks" under the contents lists every one in
+reading order by chapter, and opens the chapter at the paragraph. Marks are on the book, not on
+the imported text row (`recovery_marks.slot`), because an import replaces the text and its
+paragraphs: afterwards every mark looks for its words again — on the same printed page first,
+then anywhere — and moves to where they now are; one whose words are not in the new text keeps
+its old place and the import report says how many. Endpoints under `/book/marks`; the reader is
+`BookReader`, the list `MarksCard` in `RecoveryPage`.
+
 **Reading from anywhere.** The read view has a switch at the top — the book
 on the plan, or the Bible. The Bible side is the sixty-six books, a book's
 chapters as a grid of numbers, and a chapter set like a page with the
@@ -210,6 +222,7 @@ Migrations `033-recovery.sql`, `034-recovery-pages.sql` and `035-recovery-search
 | `recovery_sessions` | one meditation | `started_at`, `minutes`, `completed` |
 | `recovery_days` | one day's marks | `day` (pk), `read_done`, `read_from`/`read_to` (the part that was read, so it stays on screen after the cursor moved), `meditated` |
 | `bible_verses` | one verse | `book` (USFM code), `book_ord`, `chapter`, `verse`, `para`, `text`; seeded once from the resource; a GIN full-text index for search |
+| `recovery_marks` | one highlight, note, or both | `slot`, `seq`, `page_label`, `start_off`/`end_off` (null: the whole paragraph), `quote` (the words, for finding them again), `color` (null: a note alone), `note` |
 | `bible_notes` | one passage explained | `passage_key` ("JHN 3:16-21"), `body`, `model`, `created_at`; written by the model on the first ask and kept |
 | `recovery_people` | someone to keep in touch with | `name`, `role` (`sponsor`, `prospect`, `friend`), `cadence_days`, `note`, `archived` |
 | `recovery_contacts` | one call | `person_id`, `at`, `note` |
@@ -233,6 +246,10 @@ All under `/api/recovery`, same auth as everything else.
 | `GET /book/search?q=` | Full-text search; forty hits with page, chapter and snippet |
 | `GET /book/page/{label}` | Where a printed page begins |
 | `PUT /book/place` | Where the reader is |
+| `GET /book/marks` | Every highlight and note, in reading order, with its chapter |
+| `POST /book/marks` | `{seq, start?, end?, color?, note?}` — a highlight, a note, or both, on a paragraph or on words in it |
+| `PATCH /book/marks/{id}` | `{color?, clearColor?, note?, clearNote?}`; with neither left the mark is removed (204) |
+| `DELETE /book/marks/{id}` | Removes one |
 | `PUT /settings` | `pagesPerDay`, `meditationMinutes` |
 | `POST /sessions` | Logs a meditation `{minutes, completed}`; only a completed one marks the day |
 | `GET /journal?before=` | Entries newest first, 50 at a time |
@@ -290,7 +307,7 @@ reference, not the text.
 | The number | `Milestones.java` | Day one is the date; the next milestone |
 | Everything else | `RecoveryService.java` | The today view, the cursor and the carry-over, the reader, the imports and the stored files, the people, the push lines |
 | The pushes | `RecoveryReadingScheduler.java`, `PeopleReminderScheduler.java` + `PushService.Notification.readings` / `peopleToCall` | Same shape as the todo reminder |
-| The page | `frontend/src/features/recovery/` | `RecoveryPage` (views and columns), `BookSearch` (search and go to page), `BookReader` (any chapter, a hit lit, mark read to here), `BibleBrowser` (the books, a chapter, one box for a reference or words), `Verses` (verses set like a page, shared by the passage card and the chapter), `PeoplePanel`, `MeditationTimer` (+ `bell.ts`), `JournalComposer` (the ask tab's composer with `useSpeech`), `LibraryPanel` |
+| The page | `frontend/src/features/recovery/` | `RecoveryPage` (views and columns), `BookSearch` (search and go to page), `BookReader` (any chapter, a hit lit, mark read to here, the pencil: highlights on words or paragraphs, notes), `BibleBrowser` (the books, a chapter, one box for a reference or words), `Verses` (verses set like a page, shared by the passage card and the chapter), `PeoplePanel`, `MeditationTimer` (+ `bell.ts`), `JournalComposer` (the ask tab's composer with `useSpeech`), `LibraryPanel` |
 
 ## Decisions taken
 

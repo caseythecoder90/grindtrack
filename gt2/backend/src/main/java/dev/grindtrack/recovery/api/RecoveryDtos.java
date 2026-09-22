@@ -34,4 +34,13 @@ public final class RecoveryDtos {
 
   /** Where the reader is: a paragraph seq. */
   public record PlaceRequest(Integer seq) {}
+
+  /**
+   * @param start offset into the paragraph where the marked words begin; null with {@code end} null
+   *     marks the whole paragraph
+   */
+  public record MarkRequest(Integer seq, Integer start, Integer end, String color, String note) {}
+
+  public record MarkUpdateRequest(
+      String color, Boolean clearColor, String note, Boolean clearNote) {}
 }
