@@ -28,6 +28,8 @@ export interface Pending {
   error: string;
   /** The picture or clip going with it, until the upload is done. */
   attachment: Prepared | null;
+  /** Sent from the tray, to show small and without a bubble. */
+  sticker: boolean;
   /** A sticker from the tray, or the id the upload came back with. */
   mediaId: number | null;
   /** The thumbnail to show meanwhile, and the upload's progress. */
@@ -344,6 +346,7 @@ export class ChatStore {
       failed: false,
       error: "",
       attachment,
+      sticker: false,
       mediaId: null,
       preview: attachment?.previewUrl ?? null,
       progress: 0,
@@ -362,6 +365,7 @@ export class ChatStore {
       failed: false,
       error: "",
       attachment: null,
+      sticker: true,
       mediaId: sticker.id,
       preview: posterUrl(sticker.id),
       progress: 1,
@@ -404,7 +408,9 @@ export class ChatStore {
         item = this.state.pending.find((p) => p.clientId === clientId);
         if (!item) return; // discarded meanwhile
       }
-      this.merge([await sendMessage(clientId, item.body, item.mediaId ?? undefined)]);
+      this.merge([
+        await sendMessage(clientId, item.body, item.mediaId ?? undefined, item.sticker),
+      ]);
     } catch (e) {
       this.patchPending(clientId, { failed: true, error: errorMessage(e, "could not send that") });
     }

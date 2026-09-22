@@ -179,7 +179,9 @@ same reason.
 **What the phone does first** (`media.ts`): a photo is redrawn at most 2000 px on its long side and
 saved as a JPEG — an iPhone photo goes from ten megabytes to under one, orientation is applied, and
 the EXIF block with the GPS position in it is gone, which is the right default for a picture leaving
-your network. A poster of at most 480 px is made for the thread. A GIF is kept as it is, so it still
+your network. A poster of at most 1200 px is made for the thread (480 at first: the thread draws it
+up to 340 CSS pixels wide, a thousand device pixels on a phone, and it was upscaled more than twice
+and looked it). A GIF is kept as it is, so it still
 moves. A clip is sent as it is (no transcoding on a phone), with a frame from half a second in as
 its poster. An iPhone records HEVC, which Chrome on Windows may not play; Settings → Camera →
 Formats → *Most Compatible* if that matters.
@@ -192,11 +194,20 @@ a log line, not an unsend that did not happen.
 ## Stickers and emoji
 
 Emoji are text: whatever the keyboard types is in the message, and a message that is only a few
-emoji is shown big, the way every chat shows them. Reactions are the six on a tap.
+emoji is shown big, the way every chat shows them. Reactions are the six on a tap. A link in the
+words is live (`http://` or `https://`, up to the next space, without the full stop a sentence
+ends on); it opens in a new tab and does not open the message's actions.
 
 A **sticker** is any picture in the room that either of you kept: tap a picture, *keep as sticker*,
 and it is in the tray — shared, because the room is — to send again with a tap. Sending one is a
-message with that picture's id and no upload; it shows small and without a bubble. Unsending such a
+message with that picture's id, `sticker: true` and no upload; it shows small and without a bubble.
+The flag is the message's (`chat_messages.sticker`, migration 041), not the picture's: the photo
+it first arrived on stays a photo, and the same picture is a sticker only on the messages sent
+from the tray.
+
+Tapping a picture opens the message's actions, like any bubble — *open* among them shows it
+full-size — rather than the picture itself, because a picture with no caption is otherwise a
+bubble whose only tappable part is its four-pixel rim, and *keep as sticker* was unreachable. Unsending such a
 message leaves the sticker; *drop sticker* takes it out of the tray, and a picture no message shows
 any more is removed from the bucket then. Nothing here needs a key or a service.
 

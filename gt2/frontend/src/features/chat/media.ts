@@ -25,9 +25,14 @@ export interface Prepared {
 }
 
 const MAX_IMAGE_EDGE = 2000;
-const POSTER_EDGE = 480;
+/**
+ * The thread draws a poster up to 340 CSS pixels wide, which on a phone is a thousand device
+ * pixels; 480 was upscaled more than twice and looked it. 1200 is sharp there and still a few
+ * hundred kilobytes.
+ */
+const POSTER_EDGE = 1200;
 const JPEG_QUALITY = 0.85;
-const POSTER_QUALITY = 0.8;
+const POSTER_QUALITY = 0.82;
 
 export async function prepare(file: File, maxBytes: number): Promise<Prepared> {
   if (file.type.startsWith("image/")) return prepareImage(file, maxBytes);

@@ -43,6 +43,8 @@ export interface ChatMessage {
   clientId: string;
   reactions: Reaction[];
   media: MediaView | null;
+  /** Sent from the tray: shown small and without a bubble. */
+  sticker: boolean;
 }
 
 export interface RoomState {
@@ -81,8 +83,11 @@ export const getMessages = (query: { before?: number; after?: number }) => {
   return api<Page>(`${BASE}/messages${qs ? "?" + qs : ""}`);
 };
 
-export const sendMessage = (clientId: string, body: string, mediaId?: number) =>
-  api<ChatMessage>(`${BASE}/messages`, jsonInit("POST", { clientId, body, mediaId: mediaId ?? null }));
+export const sendMessage = (clientId: string, body: string, mediaId?: number, sticker = false) =>
+  api<ChatMessage>(
+    `${BASE}/messages`,
+    jsonInit("POST", { clientId, body, mediaId: mediaId ?? null, sticker }),
+  );
 
 export const unsendMessage = (id: number) =>
   api<ChatMessage>(`${BASE}/messages/${id}`, { method: "DELETE" });

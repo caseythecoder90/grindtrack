@@ -31,12 +31,36 @@ function ratio(media: MediaView): string | undefined {
   return media.width && media.height ? `${media.width} / ${media.height}` : undefined;
 }
 
+/** Anything that starts http(s):// up to the next space, without the punctuation a sentence ends on. */
+const URL_RE = /(https?:\/\/[^\s<>]+?)(?=[.,;:!?)\]'"]*(?:\s|$))/g;
+
+/** The words with their links live: a tap opens the page, not the message's actions. */
+function Linked({ text }: { text: string }) {
+  const parts = text.split(URL_RE);
+  if (parts.length === 1) return <>{text}</>;
+  return (
+    <>
+      {parts.map((part, i) =>
+        i % 2 === 1 ? (
+          <a key={i} href={part} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
+            {part}
+          </a>
+        ) : (
+          <span key={i}>{part}</span>
+        ),
+      )}
+    </>
+  );
+}
+
 /**
- * A picture in the thread. The poster (small) is what the thread shows; a tap opens the full one.
- * A picture that fails to load is asked for once more after renewing the session — the img tag
- * cannot refresh a lapsed cookie by itself, and that is the one way it fails.
+ * A picture in the thread: the poster is what loads. A tap opens the message's actions like any
+ * other bubble — "open" among them shows the full picture — so a picture with no caption is not
+ * a bubble whose only tappable part is its rim. A picture that fails to load is asked for once
+ * more after renewing the session — the img tag cannot refresh a lapsed cookie by itself, and
+ * that is the one way it fails.
  */
-function Picture({ media, onOpen }: { media: MediaView; onOpen: () => void }) {
+function Picture({ media }: { media: MediaView }) {
   const [retry, setRetry] = useState(0);
   const src = posterUrl(media.id) + (retry ? `?r=${retry}` : "");
   return (
@@ -46,10 +70,6 @@ function Picture({ media, onOpen }: { media: MediaView; onOpen: () => void }) {
       alt=""
       loading="lazy"
       style={{ aspectRatio: ratio(media) }}
-      onClick={(e) => {
-        e.stopPropagation();
-        onOpen();
-      }}
       onError={() => {
         if (retry > 0) return;
         void keepSessionAlive().finally(() => setRetry(1));
@@ -93,7 +113,7 @@ export default function Message({
   const [lightbox, setLightbox] = useState(false);
   const unsent = message.deletedAt !== null;
   const media = unsent ? null : message.media;
-  const asSticker = !!media && media.sticker && message.body === "";
+  const asSticker = !!media && message.sticker;
   const big = !media && !unsent && isBigEmoji(message.body);
   const counts = new Map<string, { n: number; mine: boolean }>();
   for (const r of message.reactions) {
@@ -126,12 +146,12 @@ export default function Message({
         }}
       >
         {unsent && "unsent"}
-        {media && media.kind === "IMAGE" && (
-          <Picture media={media} onOpen={() => setLightbox(true)} />
-        )}
+        {media && media.kind === "IMAGE" && <Picture media={media} />}
         {media && media.kind === "VIDEO" && <Clip media={media} />}
         {!unsent && message.body && (
-          <div className={media ? "chat-caption" : undefined}>{message.body}</div>
+          <div className={media ? "chat-caption" : undefined}>
+            <Linked text={message.body} />
+          </div>
         )}
       </div>
       {counts.size > 0 && (
@@ -158,9 +178,14 @@ export default function Message({
             </button>
           ))}
           {media && media.kind === "IMAGE" && (
-            <button type="button" className="word" onClick={() => onKeepSticker(!media.sticker)}>
-              {media.sticker ? "drop sticker" : "keep as sticker"}
-            </button>
+            <>
+              <button type="button" className="word" onClick={() => setLightbox(true)}>
+                open
+              </button>
+              <button type="button" className="word" onClick={() => onKeepSticker(!media.sticker)}>
+                {media.sticker ? "drop sticker" : "keep as sticker"}
+              </button>
+            </>
           )}
           {mine && (
             <button type="button" className="word" onClick={onUnsend}>

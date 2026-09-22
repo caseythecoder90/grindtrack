@@ -1,6 +1,7 @@
 package dev.grindtrack.chat.api;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
@@ -56,7 +57,7 @@ class RoomControllerTest {
 
   private static RoomService.MessageView view(long id, String body) {
     return new RoomService.MessageView(
-        id, 1L, body, "2026-09-19T08:00:00Z", null, CLIENT_ID.toString(), List.of(), null);
+        id, 1L, body, "2026-09-19T08:00:00Z", null, CLIENT_ID.toString(), List.of(), null, false);
   }
 
   private static MediaService.MediaView picture(long id) {
@@ -102,7 +103,7 @@ class RoomControllerTest {
 
   @Test
   void sendingTakesAClientIdAndSomeWords() throws Exception {
-    when(chat.send(CASEY, CLIENT_ID, "hello", null)).thenReturn(view(10, "hello"));
+    when(chat.send(CASEY, CLIENT_ID, "hello", null, false)).thenReturn(view(10, "hello"));
 
     mvc.perform(
             post("/api/chat/messages")
@@ -116,7 +117,7 @@ class RoomControllerTest {
 
   @Test
   void withAPictureTheWordsMayBeNone() throws Exception {
-    when(chat.send(CASEY, CLIENT_ID, "", 4L)).thenReturn(view(10, ""));
+    when(chat.send(CASEY, CLIENT_ID, "", 4L, false)).thenReturn(view(10, ""));
 
     mvc.perform(
             post("/api/chat/messages")
@@ -124,7 +125,7 @@ class RoomControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"clientId\":\"" + CLIENT_ID + "\",\"body\":\"\",\"mediaId\":4}"))
         .andExpect(status().isOk());
-    verify(chat).send(CASEY, CLIENT_ID, "", 4L);
+    verify(chat).send(CASEY, CLIENT_ID, "", 4L, false);
   }
 
   @Test
@@ -145,7 +146,7 @@ class RoomControllerTest {
                 .content("{\"clientId\":\"" + CLIENT_ID + "\",\"body\":\"   \"}"))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.error").value("a message needs some words (max 4000 chars)"));
-    verify(chat, never()).send(any(), any(), any(), any());
+    verify(chat, never()).send(any(), any(), any(), any(), anyBoolean());
   }
 
   @Test
@@ -153,7 +154,15 @@ class RoomControllerTest {
     when(chat.unsend(CASEY, 4L))
         .thenReturn(
             new RoomService.MessageView(
-                4L, 1L, "", "2026-09-19T08:00:00Z", "2026-09-19T08:01:00Z", "x", List.of(), null));
+                4L,
+                1L,
+                "",
+                "2026-09-19T08:00:00Z",
+                "2026-09-19T08:01:00Z",
+                "x",
+                List.of(),
+                null,
+                false));
 
     mvc.perform(delete("/api/chat/messages/4").principal(CASEY))
         .andExpect(status().isOk())
