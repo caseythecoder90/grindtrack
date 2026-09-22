@@ -1509,6 +1509,46 @@ button.rec-chap.open { background: var(--rec-bg); }
 .rec-hit-text { font-family: Georgia, "Times New Roman", serif; font-size: 14.5px; line-height: 1.45; }
 .rec-hit mark, .rec-reader mark { background: rgba(154, 216, 200, 0.28); color: inherit; border-radius: 2px; padding: 0 1px; }
 .rec-reader .rec-pline.hit { background: rgba(154, 216, 200, 0.12); border-left-color: var(--rec); }
+/* --- the pencil: highlights and notes in the book --- */
+.rec-reader .rec-pline.hl-yellow { background: rgba(255, 214, 10, 0.2); }
+.rec-reader .rec-pline.hl-green { background: rgba(80, 200, 120, 0.2); }
+.rec-reader .rec-pline.hl-blue { background: rgba(90, 160, 255, 0.2); }
+.rec-reader .rec-pline.hl-pink { background: rgba(255, 120, 170, 0.22); }
+.rec-reader mark.hl { color: inherit; padding: 0 1px; border-radius: 2px; cursor: pointer; }
+.rec-reader mark.hl.yellow { background: rgba(255, 214, 10, 0.45); }
+.rec-reader mark.hl.green { background: rgba(80, 200, 120, 0.45); }
+.rec-reader mark.hl.blue { background: rgba(90, 160, 255, 0.45); }
+.rec-reader mark.hl.pink { background: rgba(255, 120, 170, 0.45); }
+.rec-mark-note { margin: 4px 0 6px; padding: 6px 10px; border-left: 2px solid var(--line2); font-family: var(--sans); font-size: 13.5px; line-height: 1.45; }
+.rec-mark-note.yellow { border-left-color: rgba(255, 214, 10, 0.8); }
+.rec-mark-note.green { border-left-color: rgba(80, 200, 120, 0.8); }
+.rec-mark-note.blue { border-left-color: rgba(90, 160, 255, 0.8); }
+.rec-mark-note.pink { border-left-color: rgba(255, 120, 170, 0.8); }
+.rec-mark-note .txt { white-space: pre-line; margin-top: 2px; }
+.rec-mark-note-actions { display: flex; gap: 10px; margin-top: 2px; }
+.rec-markbar { display: flex; flex-direction: column; gap: 8px; margin: 6px 0 10px; padding: 8px 10px; background: var(--panel2); border: 1px solid var(--line2); border-radius: 10px; font-family: var(--sans); }
+.rec-hl-chips { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.rec-hl-chip { width: 26px; height: 26px; min-height: 0; padding: 0; border-radius: 50%; border: 1px solid var(--line); }
+.rec-hl-chip.yellow { background: rgb(255, 214, 10); }
+.rec-hl-chip.green { background: rgb(80, 200, 120); }
+.rec-hl-chip.blue { background: rgb(90, 160, 255); }
+.rec-hl-chip.pink { background: rgb(255, 120, 170); }
+.rec-mark-edit { display: flex; flex-direction: column; gap: 6px; }
+.rec-mark-edit textarea { width: 100%; min-height: 72px; font: inherit; font-size: 15px; padding: 8px; border-radius: 8px; }
+.rec-marks { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
+.rec-marks-chapter { margin: 8px 0 2px; }
+.rec-mark { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; padding: 8px 8px 8px 10px; border: none; border-left: 3px solid var(--line2); border-radius: 0 6px 6px 0; background: none; text-align: left; color: var(--text); font-family: var(--sans); }
+.rec-mark:hover { background: var(--panel2); }
+.rec-mark.yellow { border-left-color: rgba(255, 214, 10, 0.9); }
+.rec-mark.green { border-left-color: rgba(80, 200, 120, 0.9); }
+.rec-mark.blue { border-left-color: rgba(90, 160, 255, 0.9); }
+.rec-mark.pink { border-left-color: rgba(255, 120, 170, 0.9); }
+.rec-mark-quote { font-family: Georgia, "Times New Roman", serif; font-size: 14px; line-height: 1.4; }
+.rec-mark-text { font-size: 13px; color: var(--muted); }
+@media (pointer: coarse) {
+  .rec-hl-chip { width: 34px; height: 34px; }
+  .rec-hl-chips button:not(.rec-hl-chip):not(.linkish) { min-height: 40px; }
+}
 /* --- the Bible ------------------------------------------------------------- */
 .rec-shelf .seg { margin-bottom: 2px; }
 .rec-search-row.bible { grid-template-columns: minmax(0, 1fr) auto; }

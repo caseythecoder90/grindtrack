@@ -3,6 +3,8 @@ package dev.grindtrack.recovery.api;
 import dev.grindtrack.recovery.api.RecoveryDtos.ContactRequest;
 import dev.grindtrack.recovery.api.RecoveryDtos.JournalRequest;
 import dev.grindtrack.recovery.api.RecoveryDtos.JournalResponse;
+import dev.grindtrack.recovery.api.RecoveryDtos.MarkRequest;
+import dev.grindtrack.recovery.api.RecoveryDtos.MarkUpdateRequest;
 import dev.grindtrack.recovery.api.RecoveryDtos.PersonRequest;
 import dev.grindtrack.recovery.api.RecoveryDtos.PersonUpdateRequest;
 import dev.grindtrack.recovery.api.RecoveryDtos.PlaceRequest;
@@ -115,6 +117,42 @@ public class RecoveryController {
   @GetMapping("/book/page/{label}")
   public RecoveryService.PagePlace page(@PathVariable String label) {
     return recovery.page(label).orElseThrow(() -> new NoSuchElementException("page " + label));
+  }
+
+  // ---- highlights and notes ----
+
+  @GetMapping("/book/marks")
+  public List<RecoveryService.MarkView> marks() {
+    return recovery.marks();
+  }
+
+  @PostMapping("/book/marks")
+  public RecoveryService.MarkView addMark(@RequestBody MarkRequest body) {
+    if (body.seq() == null || body.seq() < 0) {
+      throw new BadRequestException("seq is required");
+    }
+    return recovery.addMark(body.seq(), body.start(), body.end(), body.color(), body.note());
+  }
+
+  /** A mark with neither a colour nor a note left is removed; the answer is then empty (204). */
+  @PatchMapping("/book/marks/{id}")
+  public org.springframework.http.ResponseEntity<RecoveryService.MarkView> updateMark(
+      @PathVariable long id, @RequestBody MarkUpdateRequest body) {
+    return recovery
+        .updateMark(
+            id,
+            body.color(),
+            Boolean.TRUE.equals(body.clearColor()),
+            body.note(),
+            Boolean.TRUE.equals(body.clearNote()))
+        .map(org.springframework.http.ResponseEntity::ok)
+        .orElseGet(() -> org.springframework.http.ResponseEntity.noContent().build());
+  }
+
+  @DeleteMapping("/book/marks/{id}")
+  public Responses.Deleted deleteMark(@PathVariable long id) {
+    recovery.deleteMark(id);
+    return Responses.Deleted.of(id);
   }
 
   @PutMapping("/book/place")

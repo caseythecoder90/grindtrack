@@ -563,6 +563,7 @@ Schema **`grindtrack`**; Hibernate is `validate`-only, so Liquibase is the singl
 | 037 | `bible-browse.sql` | `recovery_settings.bible_cursor` / `bible_shown_on` (the passage is a cursor, not a date), a GIN full-text index over `bible_verses.text`, and `bible_notes` (a passage explained, kept by passage) |
 | 038–040 | `roles.sql`, `chat.sql`, `chat-media.sql` | the partner role; the chat's messages, reactions, cursors and media — see [chat.md](chat.md#data-model) |
 | 041 | `chat-sticker-messages.sql` | `chat_messages.sticker`: sent from the tray, so a kept photo's first message stays a photo |
+| 042 | `recovery-marks.sql` | `recovery_marks`: highlights and notes in the book, on a paragraph or on words in it, keyed by slot so they survive an import |
 
 - Every changeset has a `--rollback` (018's is a documented no-op — the values it cleared were
   wrong and there is nothing to restore them to). Time columns are `TIMESTAMPTZ DEFAULT now()`.

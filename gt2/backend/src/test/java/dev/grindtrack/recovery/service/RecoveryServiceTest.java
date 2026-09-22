@@ -1,6 +1,7 @@
 package dev.grindtrack.recovery.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
@@ -21,6 +22,8 @@ import dev.grindtrack.recovery.domain.RecoveryDailyEntryRepository;
 import dev.grindtrack.recovery.domain.RecoveryDay;
 import dev.grindtrack.recovery.domain.RecoveryDayRepository;
 import dev.grindtrack.recovery.domain.RecoveryFileRepository;
+import dev.grindtrack.recovery.domain.RecoveryMark;
+import dev.grindtrack.recovery.domain.RecoveryMarkRepository;
 import dev.grindtrack.recovery.domain.RecoveryParagraph;
 import dev.grindtrack.recovery.domain.RecoveryParagraphRepository;
 import dev.grindtrack.recovery.domain.RecoverySettings;
@@ -28,10 +31,12 @@ import dev.grindtrack.recovery.domain.RecoverySettingsRepository;
 import dev.grindtrack.recovery.domain.RecoveryText;
 import dev.grindtrack.recovery.domain.RecoveryTextRepository;
 import dev.grindtrack.recovery.domain.TextSlot;
+import dev.grindtrack.web.BadRequestException;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -52,6 +57,8 @@ class RecoveryServiceTest {
   private PersonRepository people;
   private ContactRepository contacts;
   private BibleService bible;
+  private RecoveryMarkRepository markRows;
+  private final List<RecoveryMark> markList = new ArrayList<>();
   private RecoverySettings settings;
   private final Map<LocalDate, RecoveryDay> dayRows = new HashMap<>();
   private RecoveryService service;
@@ -65,6 +72,36 @@ class RecoveryServiceTest {
     people = mock(PersonRepository.class);
     contacts = mock(ContactRepository.class);
     bible = mock(BibleService.class);
+    markRows = mock(RecoveryMarkRepository.class);
+    when(markRows.save(any()))
+        .thenAnswer(
+            inv -> {
+              RecoveryMark m = inv.getArgument(0);
+              if (m.getId() == null) {
+                ReflectionTestUtils.setField(m, "id", (long) (markList.size() + 1));
+                markList.add(m);
+              }
+              return m;
+            });
+    when(markRows.findBySlotOrderBySeqAscStartOffAscIdAsc(any()))
+        .thenAnswer(inv -> List.copyOf(markList));
+    when(markRows.findBySlotAndSeqBetweenOrderBySeqAscStartOffAscIdAsc(any(), anyInt(), anyInt()))
+        .thenAnswer(
+            inv ->
+                markList.stream()
+                    .filter(m -> m.getSeq() >= inv.<Integer>getArgument(1))
+                    .filter(m -> m.getSeq() <= inv.<Integer>getArgument(2))
+                    .toList());
+    org.mockito.Mockito.doAnswer(
+            inv -> {
+              markList.remove(inv.<RecoveryMark>getArgument(0));
+              return null;
+            })
+        .when(markRows)
+        .delete(any(RecoveryMark.class));
+    when(markRows.findById(any()))
+        .thenAnswer(
+            inv -> markList.stream().filter(m -> m.getId().equals(inv.getArgument(0))).findFirst());
     RecoverySettingsRepository settingsRows = mock(RecoverySettingsRepository.class);
     settings = new RecoverySettings();
     when(settingsRows.findById(RecoverySettings.THE_ROW)).thenReturn(Optional.of(settings));
@@ -94,6 +131,7 @@ class RecoveryServiceTest {
             mock(MeditationSessionRepository.class),
             days,
             mock(RecoveryFileRepository.class),
+            markRows,
             people,
             contacts,
             bible,
@@ -375,5 +413,83 @@ class RecoveryServiceTest {
     // A word the paragraph carries only in a stemmed form still lands somewhere near it.
     assertThat(RecoveryService.snippet(body, List.of("protections"))).contains("protection");
     assertThat(RecoveryService.snippet("short", List.of("zzz"))).isEqualTo("short");
+  }
+
+  @Test
+  void aMarkIsAHighlightANoteOrBothOnAParagraphOrOnWordsInIt() {
+    when(texts.findBySlot(TextSlot.BIG_BOOK)).thenReturn(Optional.of(book(100)));
+    RecoveryParagraph p = para(12, 3, 100);
+    ReflectionTestUtils.setField(
+        p, "body", "Half measures availed us nothing. We stood at the turning point.");
+    ReflectionTestUtils.setField(p, "pageLabel", "59");
+    when(paragraphs.findByTextIdAndSeq(7L, 12)).thenReturn(Optional.of(p));
+
+    RecoveryService.MarkView whole = service.addMark(12, null, null, "yellow", null);
+    assertThat(whole.quote()).startsWith("Half measures");
+    assertThat(whole.start()).isNull();
+    assertThat(whole.pageLabel()).isEqualTo("59");
+    assertThat(whole.chapterNo()).isEqualTo(3);
+
+    RecoveryService.MarkView words = service.addMark(12, 0, 13, null, "the sponsor's line");
+    assertThat(words.quote()).isEqualTo("Half measures");
+    assertThat(words.color()).isNull();
+    assertThat(words.note()).isEqualTo("the sponsor's line");
+
+    assertThatThrownBy(() -> service.addMark(12, null, null, null, null))
+        .isInstanceOf(BadRequestException.class);
+    assertThatThrownBy(() -> service.addMark(12, null, null, "red", null))
+        .isInstanceOf(BadRequestException.class);
+    assertThatThrownBy(() -> service.addMark(12, 5, 500, "yellow", null))
+        .isInstanceOf(BadRequestException.class);
+    assertThatThrownBy(() -> service.addMark(99, null, null, "yellow", null))
+        .isInstanceOf(BadRequestException.class);
+
+    assertThat(service.marks()).hasSize(2);
+    // Clearing the last of colour and note removes the mark.
+    assertThat(service.updateMark(whole.id(), null, true, "now a note", false))
+        .hasValueSatisfying(m -> assertThat(m.note()).isEqualTo("now a note"));
+    assertThat(service.updateMark(whole.id(), null, false, null, true)).isEmpty();
+    assertThat(service.marks()).hasSize(1);
+  }
+
+  @Test
+  void afterAnImportAMarkFindsItsWordsAgainOnTheSamePageFirst() {
+    RecoveryMark onPage =
+        new RecoveryMark(TextSlot.BIG_BOOK, 12, "59", 0, 13, "Half measures", "yellow", null);
+    RecoveryMark elsewhere =
+        new RecoveryMark(
+            TextSlot.BIG_BOOK, 40, "84", null, null, "We will not regret the past", "green", null);
+    RecoveryMark gone =
+        new RecoveryMark(
+            TextSlot.BIG_BOOK,
+            50,
+            "90",
+            null,
+            null,
+            "words that are not in the new text",
+            null,
+            "?");
+    markList.addAll(List.of(onPage, elsewhere, gone));
+
+    RecoveryParagraph decoy = para(3, 1, 10);
+    ReflectionTestUtils.setField(decoy, "body", "Half measures, again, on another page.");
+    ReflectionTestUtils.setField(decoy, "pageLabel", "20");
+    RecoveryParagraph home = para(15, 3, 10);
+    ReflectionTestUtils.setField(home, "body", "It says: Half measures availed us nothing.");
+    ReflectionTestUtils.setField(home, "pageLabel", "59");
+    RecoveryParagraph moved = para(44, 6, 10);
+    ReflectionTestUtils.setField(
+        moved, "body", "We will not regret the past nor wish to shut the door on it.");
+    ReflectionTestUtils.setField(moved, "pageLabel", "83");
+
+    int lost = service.reanchor(List.of(decoy, home, moved));
+
+    assertThat(lost).isEqualTo(1);
+    assertThat(onPage.getSeq()).isEqualTo(15);
+    assertThat(onPage.getStartOff()).isEqualTo(9);
+    assertThat(onPage.getEndOff()).isEqualTo(22);
+    assertThat(elsewhere.getSeq()).isEqualTo(44);
+    assertThat(elsewhere.getPageLabel()).isEqualTo("83");
+    assertThat(gone.getSeq()).isEqualTo(50);
   }
 }

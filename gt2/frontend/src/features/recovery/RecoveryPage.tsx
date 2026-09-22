@@ -16,6 +16,7 @@ import {
   explainPassage,
   finishReading,
   getJournal,
+  getMarks,
   getPeople,
   getToday,
   logSession,
@@ -24,6 +25,7 @@ import {
   updateSettings,
   type DailyEntry,
   type JournalEntry,
+  type Mark,
   type Passage,
   type Person,
   type Reading,
@@ -106,6 +108,7 @@ export default function RecoveryPage() {
   const [view, setView] = useState<View>("today");
   const [data, setData] = useState<RecoveryToday | null>(null);
   const [people, setPeople] = useState<Person[]>([]);
+  const [marks, setMarks] = useState<Mark[]>([]);
   const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [exhausted, setExhausted] = useState(false);
   const [error, setError] = useState("");
@@ -137,6 +140,14 @@ export default function RecoveryPage() {
     }
   }, []);
 
+  const loadMarks = useCallback(async () => {
+    try {
+      setMarks(await getMarks());
+    } catch {
+      /* the list is the read view's; the today view must not wait on it */
+    }
+  }, []);
+
   const loadJournal = useCallback(async () => {
     try {
       const page = await getJournal();
@@ -151,13 +162,15 @@ export default function RecoveryPage() {
     load();
     loadPeople();
     loadJournal();
-  }, [load, loadPeople, loadJournal]);
+    loadMarks();
+  }, [load, loadPeople, loadJournal, loadMarks]);
 
   // Marked read on the phone, then opened on the laptop: the laptop should know.
   useAppResume(() => {
     load();
     loadPeople();
     loadJournal();
+    loadMarks();
   });
 
   function peopleChanged() {
@@ -368,6 +381,7 @@ export default function RecoveryPage() {
                   onOpen={(no) => open(no)}
                   onClose={() => setOpenChapter(null)}
                   onMarkRead={markTo}
+                  onMarksChanged={loadMarks}
                 />
               ) : (
                 <ReadCard
@@ -381,6 +395,7 @@ export default function RecoveryPage() {
                 />
               )}
               <Contents reading={reading} openChapter={openChapter} onOpen={(no) => open(no)} />
+              <MarksCard marks={marks} onOpen={(no, seq) => open(no, seq)} />
             </>
           ) : (
             data && (
@@ -674,6 +689,57 @@ function Contents({ reading, openChapter, onOpen }: {
           </button>
         ))}
       </div>
+    </div>
+  );
+}
+
+/** The first few words, for a list. */
+function clipWords(text: string, max: number): string {
+  const one = text.replace(/\s+/g, " ").trim();
+  return one.length <= max ? one : one.slice(0, max - 1).trimEnd() + "…";
+}
+
+/** Every highlight and note in the book, in reading order, by chapter: the pencil's index. */
+function MarksCard({ marks, onOpen }: { marks: Mark[]; onOpen: (no: number, seq: number) => void }) {
+  const [open, setOpen] = useState(false);
+  if (marks.length === 0) return null;
+  const notes = marks.filter((m) => m.note).length;
+  const highlights = marks.filter((m) => m.color).length;
+  const shown = open ? marks : marks.slice(0, 5);
+  let lastChapter = -1;
+  return (
+    <div className="rec-card">
+      <div className="rec-cardhead">
+        <span className="rec-lbl">your marks</span>
+        <span className="rec-note">
+          {highlights > 0 && `${highlights} highlight${highlights === 1 ? "" : "s"}`}
+          {highlights > 0 && notes > 0 && " · "}
+          {notes > 0 && `${notes} note${notes === 1 ? "" : "s"}`}
+        </span>
+      </div>
+      <div className="rec-marks">
+        {shown.map((m) => {
+          const head = m.chapterNo !== lastChapter;
+          lastChapter = m.chapterNo;
+          return (
+            <div key={m.id}>
+              {head && <div className="rec-note rec-marks-chapter">{m.chapterTitle}</div>}
+              <button type="button" className={"rec-mark" + (m.color ? " " + m.color : "")} onClick={() => onOpen(m.chapterNo, m.seq)}>
+                <span className="rec-mark-quote">“{clipWords(m.quote, 110)}”</span>
+                {m.note && <span className="rec-mark-text">{clipWords(m.note, 140)}</span>}
+                {m.pageLabel && <span className="rec-note">p. {m.pageLabel}</span>}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+      {marks.length > 5 && (
+        <div className="rec-foot right">
+          <button type="button" className="linkish" onClick={() => setOpen((o) => !o)}>
+            {open ? "fewer" : `all ${marks.length} ›`}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

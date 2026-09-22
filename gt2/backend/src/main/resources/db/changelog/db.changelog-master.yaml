@@ -81,3 +81,5 @@ databaseChangeLog:
       file: db/changelog/040-chat-media.sql
   - include:
       file: db/changelog/041-chat-sticker-messages.sql
+  - include:
+      file: db/changelog/042-recovery-marks.sql

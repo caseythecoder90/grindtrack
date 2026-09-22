@@ -17,6 +17,8 @@ import dev.grindtrack.recovery.domain.RecoveryDay;
 import dev.grindtrack.recovery.domain.RecoveryDayRepository;
 import dev.grindtrack.recovery.domain.RecoveryFile;
 import dev.grindtrack.recovery.domain.RecoveryFileRepository;
+import dev.grindtrack.recovery.domain.RecoveryMark;
+import dev.grindtrack.recovery.domain.RecoveryMarkRepository;
 import dev.grindtrack.recovery.domain.RecoveryParagraph;
 import dev.grindtrack.recovery.domain.RecoveryParagraphRepository;
 import dev.grindtrack.recovery.domain.RecoverySettings;
@@ -63,6 +65,7 @@ public class RecoveryService {
   private final MeditationSessionRepository sessions;
   private final RecoveryDayRepository days;
   private final RecoveryFileRepository files;
+  private final RecoveryMarkRepository marks;
   private final PersonRepository people;
   private final ContactRepository contacts;
   private final BibleService bible;
@@ -78,6 +81,7 @@ public class RecoveryService {
       MeditationSessionRepository sessions,
       RecoveryDayRepository days,
       RecoveryFileRepository files,
+      RecoveryMarkRepository marks,
       PersonRepository people,
       ContactRepository contacts,
       BibleService bible,
@@ -91,6 +95,7 @@ public class RecoveryService {
     this.sessions = sessions;
     this.days = days;
     this.files = files;
+    this.marks = marks;
     this.people = people;
     this.contacts = contacts;
     this.bible = bible;
@@ -160,7 +165,30 @@ public class RecoveryService {
 
   /** A chapter opened to read: its paragraphs, and its neighbours. */
   public record ChapterText(
-      int no, String title, List<Para> paragraphs, Integer prevNo, Integer nextNo, int cursor) {}
+      int no,
+      String title,
+      List<Para> paragraphs,
+      Integer prevNo,
+      Integer nextNo,
+      int cursor,
+      List<MarkView> marks) {}
+
+  /**
+   * A highlight or a note on a paragraph. {@code start}/{@code end} are offsets into the paragraph,
+   * null for the whole of it; {@code color} null is a note alone.
+   */
+  public record MarkView(
+      Long id,
+      int seq,
+      int chapterNo,
+      String chapterTitle,
+      String pageLabel,
+      Integer start,
+      Integer end,
+      String quote,
+      String color,
+      String note,
+      String createdAt) {}
 
   public record Settings(int pagesPerDay, int meditationMinutes) {}
 
@@ -450,13 +478,200 @@ public class RecoveryService {
         next = i + 1 < all.size() ? all.get(i + 1).getChapterNo() : null;
       }
     }
+    List<MarkView> inChapter =
+        marks
+            .findBySlotAndSeqBetweenOrderBySeqAscStartOffAscIdAsc(
+                TextSlot.BIG_BOOK, ps.get(0).getSeq(), ps.get(ps.size() - 1).getSeq())
+            .stream()
+            .map(m -> markView(m, no, ps.get(0).getChapterTitle()))
+            .toList();
     return new ChapterText(
         no,
         ps.get(0).getChapterTitle(),
         ps.stream().map(RecoveryService::para).toList(),
         prev,
         next,
-        settings().getReadCursor());
+        settings().getReadCursor(),
+        inChapter);
+  }
+
+  // ---- highlights and notes ---------------------------------------------------------------
+
+  static final java.util.Set<String> COLORS = java.util.Set.of("yellow", "green", "blue", "pink");
+  static final int MAX_NOTE_CHARS = 4000;
+
+  /** Every mark in the book, in reading order, each with its chapter — the notes view. */
+  @Transactional(readOnly = true)
+  public List<MarkView> marks() {
+    RecoveryText book = texts.findBySlot(TextSlot.BIG_BOOK).orElse(null);
+    if (book == null) {
+      return List.of();
+    }
+    List<MarkView> out = new ArrayList<>();
+    for (RecoveryMark m : marks.findBySlotOrderBySeqAscStartOffAscIdAsc(TextSlot.BIG_BOOK)) {
+      RecoveryParagraph p = paragraphs.findByTextIdAndSeq(book.getId(), m.getSeq()).orElse(null);
+      out.add(p == null ? markView(m, 0, "") : markView(m, p.getChapterNo(), p.getChapterTitle()));
+    }
+    return out;
+  }
+
+  /**
+   * A highlight, a note, or both, on a paragraph — on the whole of it, or on the run of words
+   * between {@code start} and {@code end}.
+   *
+   * @throws BadRequestException for a paragraph that is not there, offsets outside it, a colour
+   *     that is not one of the four, or neither a colour nor a note
+   * @throws NoSuchElementException when there is no book
+   */
+  @Transactional
+  public MarkView addMark(int seq, Integer start, Integer end, String color, String note) {
+    RecoveryText book =
+        texts
+            .findBySlot(TextSlot.BIG_BOOK)
+            .orElseThrow(() -> new NoSuchElementException("the book"));
+    RecoveryParagraph p =
+        paragraphs
+            .findByTextIdAndSeq(book.getId(), seq)
+            .orElseThrow(() -> new BadRequestException("no such paragraph"));
+    String tone =
+        color == null || color.isBlank() ? null : color.trim().toLowerCase(java.util.Locale.ROOT);
+    if (tone != null && !COLORS.contains(tone)) {
+      throw new BadRequestException("the colour is yellow, green, blue or pink");
+    }
+    String words = note == null || note.isBlank() ? null : note.trim();
+    if (words != null && words.length() > MAX_NOTE_CHARS) {
+      throw new BadRequestException("a note is at most " + MAX_NOTE_CHARS + " characters");
+    }
+    if (tone == null && words == null) {
+      throw new BadRequestException("a mark is a highlight, a note, or both");
+    }
+    String body = p.getBody();
+    Integer from = null;
+    Integer to = null;
+    if (start != null || end != null) {
+      if (start == null || end == null || start < 0 || end > body.length() || start >= end) {
+        throw new BadRequestException("the words marked must lie inside the paragraph");
+      }
+      from = start;
+      to = end;
+    }
+    String quote = from == null ? body : body.substring(from, to);
+    RecoveryMark saved =
+        marks.save(
+            new RecoveryMark(
+                TextSlot.BIG_BOOK, seq, p.getPageLabel(), from, to, quote, tone, words));
+    return markView(saved, p.getChapterNo(), p.getChapterTitle());
+  }
+
+  /**
+   * Change a mark's colour or note. Clearing both removes the mark.
+   *
+   * @throws NoSuchElementException for no such mark — a 404
+   */
+  @Transactional
+  public Optional<MarkView> updateMark(
+      long id, String color, boolean clearColor, String note, boolean clearNote) {
+    RecoveryMark m = marks.findById(id).orElseThrow(() -> new NoSuchElementException("mark " + id));
+    if (clearColor) {
+      m.setColor(null);
+    } else if (color != null && !color.isBlank()) {
+      String tone = color.trim().toLowerCase(java.util.Locale.ROOT);
+      if (!COLORS.contains(tone)) {
+        throw new BadRequestException("the colour is yellow, green, blue or pink");
+      }
+      m.setColor(tone);
+    }
+    if (clearNote) {
+      m.setNote(null);
+    } else if (note != null) {
+      String words = note.trim();
+      if (words.length() > MAX_NOTE_CHARS) {
+        throw new BadRequestException("a note is at most " + MAX_NOTE_CHARS + " characters");
+      }
+      m.setNote(words.isEmpty() ? null : words);
+    }
+    if (m.getColor() == null && m.getNote() == null) {
+      marks.delete(m);
+      return Optional.empty();
+    }
+    RecoveryText book = texts.findBySlot(TextSlot.BIG_BOOK).orElse(null);
+    RecoveryParagraph p =
+        book == null ? null : paragraphs.findByTextIdAndSeq(book.getId(), m.getSeq()).orElse(null);
+    return Optional.of(
+        p == null ? markView(m, 0, "") : markView(m, p.getChapterNo(), p.getChapterTitle()));
+  }
+
+  /**
+   * @throws NoSuchElementException for no such mark — a 404
+   */
+  @Transactional
+  public void deleteMark(long id) {
+    RecoveryMark m = marks.findById(id).orElseThrow(() -> new NoSuchElementException("mark " + id));
+    marks.delete(m);
+  }
+
+  /**
+   * After the book is imported afresh, every mark finds its paragraph again by its words: on the
+   * same printed page first, then anywhere. One that is nowhere keeps its old place and is counted,
+   * so the import report can say so.
+   *
+   * @return how many marks could not be placed
+   */
+  int reanchor(List<RecoveryParagraph> rows) {
+    List<RecoveryMark> all = marks.findBySlotOrderBySeqAscStartOffAscIdAsc(TextSlot.BIG_BOOK);
+    int lost = 0;
+    for (RecoveryMark m : all) {
+      RecoveryParagraph home = null;
+      for (RecoveryParagraph p : rows) {
+        if (m.getPageLabel() != null
+            && m.getPageLabel().equals(p.getPageLabel())
+            && p.getBody().contains(m.getQuote())) {
+          home = p;
+          break;
+        }
+      }
+      if (home == null) {
+        for (RecoveryParagraph p : rows) {
+          if (p.getBody().contains(m.getQuote())) {
+            home = p;
+            break;
+          }
+        }
+      }
+      if (home == null) {
+        lost++;
+        continue;
+      }
+      if (m.isWholeParagraph()) {
+        m.moveTo(home.getSeq(), home.getPageLabel(), null, null);
+      } else {
+        int at = home.getBody().indexOf(m.getQuote());
+        m.moveTo(home.getSeq(), home.getPageLabel(), at, at + m.getQuote().length());
+      }
+      marks.save(m);
+    }
+    if (lost > 0) {
+      log.warn(
+          "{} of {} marks in the book could not find their paragraph after the import",
+          lost,
+          all.size());
+    }
+    return lost;
+  }
+
+  private static MarkView markView(RecoveryMark m, int chapterNo, String chapterTitle) {
+    return new MarkView(
+        m.getId(),
+        m.getSeq(),
+        chapterNo,
+        chapterTitle,
+        m.getPageLabel(),
+        m.getStartOff(),
+        m.getEndOff(),
+        m.getQuote(),
+        m.getColor(),
+        m.getNote(),
+        m.getCreatedAt().toString());
   }
 
   /** A hit in the book: where it is, and a piece of the paragraph around the words. */
@@ -865,6 +1080,14 @@ public class RecoveryService {
                 p.pageSeq()));
       }
       paragraphs.saveAll(rows);
+      int lost = reanchor(rows);
+      if (lost > 0) {
+        warnings = new ArrayList<>(warnings);
+        warnings.add(
+            lost
+                + (lost == 1 ? " mark" : " marks")
+                + " could not find their paragraph in the new text and kept their old place");
+      }
     }
     return new ImportReport(
         dryRun,
