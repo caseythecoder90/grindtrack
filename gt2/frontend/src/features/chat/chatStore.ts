@@ -46,6 +46,11 @@ export interface ChatView {
   messages: ChatMessage[];
   hasMore: boolean;
   loadingOlder: boolean;
+  /** Opened around an old message: the thread goes on past what is loaded. */
+  hasNewer: boolean;
+  loadingNewer: boolean;
+  /** A message to scroll to and light up: a search hit just opened. */
+  focusId: number | null;
   pending: Pending[];
   mine: Cursor | null;
   theirs: Cursor | null;
@@ -67,6 +72,9 @@ const EMPTY: ChatView = {
   messages: [],
   hasMore: false,
   loadingOlder: false,
+  hasNewer: false,
+  loadingNewer: false,
+  focusId: null,
   pending: [],
   mine: null,
   theirs: null,
@@ -174,6 +182,8 @@ export class ChatStore {
         unread: room.unread,
         messages: page.messages,
         hasMore: page.hasMore,
+        hasNewer: false,
+        focusId: null,
       });
       this.acknowledge();
     } catch (e) {
@@ -232,6 +242,45 @@ export class ChatStore {
       this.set({ hasMore: page.hasMore, loadingOlder: false });
     } catch (e) {
       this.set({ loadingOlder: false, error: errorMessage(e, "could not load earlier messages") });
+    }
+  }
+
+  /**
+   * Open the thread around a message — a search hit, a picture from the panel. The page replaces
+   * what is loaded; "earlier" and "newer" load out from it, and {@link #load} is the way back to
+   * the latest.
+   */
+  async jumpTo(id: number): Promise<void> {
+    try {
+      const page = await getMessages({ around: id });
+      this.set({
+        messages: page.messages,
+        hasMore: page.hasMore,
+        hasNewer: page.hasNewer,
+        loadingOlder: false,
+        loadingNewer: false,
+        focusId: id,
+      });
+    } catch (e) {
+      this.set({ error: errorMessage(e, "could not open that message") });
+    }
+  }
+
+  clearFocus(): void {
+    if (this.state.focusId !== null) this.set({ focusId: null });
+  }
+
+  /** The page after the newest loaded, while the thread was opened around an old message. */
+  async loadNewer(): Promise<void> {
+    const { hasNewer, loadingNewer, messages } = this.state;
+    if (!hasNewer || loadingNewer || messages.length === 0) return;
+    this.set({ loadingNewer: true });
+    try {
+      const page = await getMessages({ after: messages[messages.length - 1].id });
+      this.merge(page.messages);
+      this.set({ hasNewer: page.hasMore, loadingNewer: false });
+    } catch (e) {
+      this.set({ loadingNewer: false, error: errorMessage(e, "could not load newer messages") });
     }
   }
 

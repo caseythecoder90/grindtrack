@@ -1627,6 +1627,43 @@ header .more { position: relative; }
 .chat-msg .bubble.sticker { background: none; border: none; padding: 0; }
 .chat-msg .bubble.sticker .chat-media { width: 150px; height: auto; max-height: none; object-fit: contain; border-radius: 8px; background: none; }
 .chat-msg .bubble.big { background: none; border: none; padding: 0 4px; font-size: 44px; line-height: 1.15; }
+/* --- searching the conversation, its pictures and its links --- */
+.chat-head-right { display: inline-flex; align-items: center; gap: 10px; }
+.chat-head-search { min-height: 0; width: 28px; height: 28px; padding: 0; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: none; border-color: transparent; color: var(--muted); }
+.chat-head-search:hover, .chat-head-search[aria-pressed="true"] { color: var(--text); border-color: var(--line); }
+.chat-search { display: flex; flex-direction: column; gap: 10px; min-height: 50vh; }
+.chat-search-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.chat-search .hint { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.chat-hits { display: flex; flex-direction: column; }
+.chat-hit { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; width: 100%; padding: 8px 6px; border: none; border-top: 1px solid var(--line2); background: none; border-radius: 0; text-align: left; font-family: var(--sans); color: var(--text); }
+.chat-hit:hover { background: var(--panel2); }
+.chat-hit-text { font-size: 14px; line-height: 1.4; }
+.chat-hit mark { background: rgba(127, 209, 255, 0.28); color: inherit; border-radius: 2px; padding: 0 1px; }
+.chat-link a { color: var(--cyan); overflow-wrap: anywhere; font-size: 14px; }
+.chat-mediagrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 4px; }
+.chat-mediacell { position: relative; min-height: 0; padding: 0; aspect-ratio: 1; border-radius: 6px; overflow: hidden; background: var(--panel); border-color: transparent; }
+.chat-mediacell img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.chat-mediacell-voice { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.chat-mediacell-badge { position: absolute; right: 6px; bottom: 4px; font-size: 12px; color: #fff; text-shadow: 0 0 4px rgba(0,0,0,.8); }
+.chat-newer { display: flex; justify-content: center; gap: 16px; padding: 6px 0 10px; }
+.chat-msg.focus .bubble { outline: 2px solid var(--cyan); outline-offset: 2px; transition: outline-color 1.5s ease 1s; }
+@media (pointer: coarse) { .chat-head-search { width: 36px; height: 36px; } }
+
+/* --- voice messages --- */
+.chat-msg .bubble.voice { padding: 8px 10px; min-width: 210px; max-width: min(100%, 300px); }
+.chat-voice { display: flex; align-items: center; gap: 10px; }
+.chat-voice-play { width: 34px; height: 34px; min-height: 0; padding: 0; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.chat-voice-bar { flex: 1; height: 6px; border-radius: 3px; background: var(--line); cursor: pointer; overflow: hidden; }
+.chat-voice-bar i { display: block; height: 100%; background: var(--cyan); border-radius: 3px; }
+.chat-voice-time { font-family: var(--mono); font-size: 11px; color: var(--muted); min-width: 34px; text-align: right; }
+.chat-voice-pending { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.chat-recording { display: flex; align-items: center; gap: 10px; padding: 4px 0 8px; }
+.chat-recording .dot { width: 10px; height: 10px; border-radius: 50%; background: #e0524f; animation: chat-rec-pulse 1s ease-in-out infinite; }
+.chat-recording .clock { font-family: var(--mono); font-size: 13px; }
+.chat-recording .hint { flex: 1; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.chat-recording .rec-send { min-height: 32px; padding: 4px 12px; }
+@keyframes chat-rec-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+@media (prefers-reduced-motion: reduce) { .chat-recording .dot { animation: none; } }
 .chat-msg .bubble a { color: inherit; text-decoration: underline; text-underline-offset: 2px; overflow-wrap: anywhere; }
 .chat-msg.pending .chat-media { max-height: 200px; }
 .chat-actions .word { font-family: var(--mono); font-size: 12px; color: var(--muted); }

@@ -212,6 +212,25 @@ class MediaServiceTest {
   }
 
   @Test
+  void aVoiceMessageIsAudioWhateverCodecTheRecorderNamed() {
+    MockMultipartFile opus =
+        new MockMultipartFile("file", "voice.webm", "audio/webm;codecs=opus", new byte[9]);
+    MediaService.MediaView view = service.upload(CASEY, opus, null, null, null, 7300);
+    assertThat(view.kind()).isEqualTo(MediaKind.AUDIO);
+    assertThat(view.contentType()).isEqualTo("audio/webm");
+    assertThat(view.durationMs()).isEqualTo(7300);
+    assertThat(view.hasPoster()).isFalse();
+    assertThat(store.objects.keySet()).singleElement().asString().endsWith(".webm");
+
+    MockMultipartFile aac = new MockMultipartFile("file", "voice.m4a", "audio/mp4", new byte[9]);
+    assertThat(service.upload(CASEY, aac, null, null, null, 900).kind()).isEqualTo(MediaKind.AUDIO);
+    assertThat(store.objects.keySet()).anySatisfy(k -> assertThat(k).endsWith(".m4a"));
+
+    assertThat(MediaService.bareType(" Audio/MP4 ; codecs=mp4a.40.2")).isEqualTo("audio/mp4");
+    assertThat(MediaService.bareType(null)).isEmpty();
+  }
+
+  @Test
   void aClipKeepsItsExtensionAndItsLengthAndNeedsNoPoster() {
     MockMultipartFile clip = new MockMultipartFile("file", "a.mov", "video/quicktime", new byte[9]);
 

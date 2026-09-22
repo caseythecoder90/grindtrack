@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { keepSessionAlive } from "../../lib/api";
 import { mediaUrl, posterUrl, type ChatMessage, type MediaView } from "./chatApi";
-import { isBigEmoji } from "./media";
+import { clock, isBigEmoji } from "./media";
 
 /** The reactions a tap offers. Anything else is a keyboard away in the box. */
 export const QUICK_REACTIONS = ["❤️", "😂", "👍", "😮", "😢", "🙏"];
@@ -20,6 +20,8 @@ interface Props {
   onReact: (emoji: string) => void;
   onUnsend: () => void;
   onKeepSticker: (on: boolean) => void;
+  /** Just opened from the search: lit for a moment. */
+  focus?: boolean;
 }
 
 function timeOf(iso: string): string {
@@ -78,6 +80,79 @@ function Picture({ media }: { media: MediaView }) {
   );
 }
 
+/**
+ * A voice message: play, a bar that fills, the time. The audio element is the player; this is only
+ * its face, because the browser's own controls are a different size on every phone and none of
+ * them fit in a bubble.
+ */
+function Voice({ media, mine }: { media: MediaView; mine: boolean }) {
+  const audio = useRef<HTMLAudioElement>(null);
+  const [playing, setPlaying] = useState(false);
+  const [at, setAt] = useState(0);
+  const [length, setLength] = useState(media.durationMs ? media.durationMs / 1000 : 0);
+
+  useEffect(() => {
+    const a = audio.current;
+    if (!a) return;
+    const onTime = () => setAt(a.currentTime);
+    const onMeta = () => {
+      if (Number.isFinite(a.duration) && a.duration > 0) setLength(a.duration);
+    };
+    const onEnd = () => {
+      setPlaying(false);
+      setAt(0);
+    };
+    a.addEventListener("timeupdate", onTime);
+    a.addEventListener("loadedmetadata", onMeta);
+    a.addEventListener("durationchange", onMeta);
+    a.addEventListener("ended", onEnd);
+    a.addEventListener("pause", () => setPlaying(false));
+    a.addEventListener("play", () => setPlaying(true));
+    return () => {
+      a.removeEventListener("timeupdate", onTime);
+      a.removeEventListener("loadedmetadata", onMeta);
+      a.removeEventListener("durationchange", onMeta);
+      a.removeEventListener("ended", onEnd);
+    };
+  }, []);
+
+  function toggle(e: React.MouseEvent) {
+    e.stopPropagation();
+    const a = audio.current;
+    if (!a) return;
+    if (a.paused) void a.play().catch(() => setPlaying(false));
+    else a.pause();
+  }
+
+  function seek(e: React.MouseEvent<HTMLDivElement>) {
+    e.stopPropagation();
+    const a = audio.current;
+    if (!a || !length) return;
+    const box = e.currentTarget.getBoundingClientRect();
+    const fraction = Math.min(1, Math.max(0, (e.clientX - box.left) / box.width));
+    a.currentTime = fraction * length;
+    setAt(a.currentTime);
+  }
+
+  const fraction = length > 0 ? Math.min(1, at / length) : 0;
+  return (
+    <div className={"chat-voice" + (mine ? " mine" : "")}>
+      <audio ref={audio} src={mediaUrl(media.id)} preload="metadata" />
+      <button type="button" className="chat-voice-play" aria-label={playing ? "pause" : "play"} onClick={toggle}>
+        {playing ? (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z" /></svg>
+        ) : (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg>
+        )}
+      </button>
+      <div className="chat-voice-bar" role="progressbar" aria-valuenow={Math.round(fraction * 100)} aria-valuemin={0} aria-valuemax={100} onClick={seek}>
+        <i style={{ width: `${fraction * 100}%` }} />
+      </div>
+      <span className="chat-voice-time">{playing || at > 0 ? clock(at * 1000) : clock(length * 1000)}</span>
+    </div>
+  );
+}
+
 function Clip({ media }: { media: MediaView }) {
   return (
     <video
@@ -109,6 +184,7 @@ export default function Message({
   onReact,
   onUnsend,
   onKeepSticker,
+  focus = false,
 }: Props) {
   const [lightbox, setLightbox] = useState(false);
   const unsent = message.deletedAt !== null;
@@ -126,12 +202,13 @@ export default function Message({
   const bubbleClass =
     "bubble" +
     (unsent ? " unsent" : "") +
-    (media && !asSticker ? " media" : "") +
+    (media && !asSticker && media.kind !== "AUDIO" ? " media" : "") +
+    (media && media.kind === "AUDIO" ? " voice" : "") +
     (asSticker ? " sticker" : "") +
     (big ? " big" : "");
 
   return (
-    <div className={"chat-msg " + (mine ? "mine" : "theirs")}>
+    <div id={"msg-" + message.id} className={"chat-msg " + (mine ? "mine" : "theirs") + (focus ? " focus" : "")}>
       <div
         className={bubbleClass}
         role="button"
@@ -148,6 +225,7 @@ export default function Message({
         {unsent && "unsent"}
         {media && media.kind === "IMAGE" && <Picture media={media} />}
         {media && media.kind === "VIDEO" && <Clip media={media} />}
+        {media && media.kind === "AUDIO" && <Voice media={media} mine={mine} />}
         {!unsent && message.body && (
           <div className={media ? "chat-caption" : undefined}>
             <Linked text={message.body} />

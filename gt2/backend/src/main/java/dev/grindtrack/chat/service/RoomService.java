@@ -13,7 +13,6 @@ import dev.grindtrack.chat.domain.ChatMessage;
 import dev.grindtrack.chat.domain.ChatMessageRepository;
 import dev.grindtrack.chat.domain.ChatReaction;
 import dev.grindtrack.chat.domain.ChatReactionRepository;
-import dev.grindtrack.chat.domain.MediaKind;
 import dev.grindtrack.push.service.PushService;
 import dev.grindtrack.web.BadRequestException;
 import java.time.Duration;
@@ -59,6 +58,10 @@ public class RoomService {
   static final int MAX_EMOJI_CHARS = 32;
   static final int PAGE = 50;
   static final int CATCH_UP = 500;
+
+  /** Either side of a message the thread is opened at. */
+  static final int AROUND = 25;
+
   static final int PREVIEW_CHARS = 120;
   static final Duration DELIVERY_GRACE = Duration.ofSeconds(5);
 
@@ -117,6 +120,27 @@ public class RoomService {
    */
   @Transactional(readOnly = true)
   public Page history(Long before, Long after) {
+    return history(before, after, null);
+  }
+
+  /**
+   * @param around a message to open the thread at: the twenty-five before it, itself, and the
+   *     twenty-five after; {@code hasNewer} says whether the thread goes on past the page
+   */
+  public Page history(Long before, Long after, Long around) {
+    if (around != null) {
+      List<ChatMessage> up = new ArrayList<>(messages.findTop25ByIdLessThanOrderByIdDesc(around));
+      boolean older = up.size() == AROUND;
+      Collections.reverse(up);
+      List<ChatMessage> down =
+          new ArrayList<>(messages.findTop26ByIdGreaterThanEqualOrderByIdAsc(around));
+      boolean newer = down.size() == AROUND + 1;
+      if (newer) {
+        down.remove(down.size() - 1);
+      }
+      up.addAll(down);
+      return new Page(views(up), older, newer);
+    }
     if (after != null) {
       List<ChatMessage> rows = messages.findTop500ByIdGreaterThanOrderByIdAsc(after);
       return new Page(views(rows), rows.size() == CATCH_UP);
@@ -128,6 +152,22 @@ public class RoomService {
                 : messages.findTop50ByIdLessThanOrderByIdDesc(before));
     Collections.reverse(rows);
     return new Page(views(rows), rows.size() == PAGE);
+  }
+
+  /** Messages with these words in them, newest first, forty at most. Unsent ones are not there. */
+  public List<MessageView> search(String q) {
+    return views(messages.findTop40ByDeletedAtIsNullAndBodyContainingIgnoreCaseOrderByIdDesc(q));
+  }
+
+  /** The pictures, clips and recordings sent, newest first — sixty at most. */
+  public List<MessageView> media() {
+    return views(messages.findTop60ByDeletedAtIsNullAndMediaIdIsNotNullOrderByIdDesc());
+  }
+
+  /** Messages with a link in them, newest first — a hundred at most. */
+  public List<MessageView> links() {
+    return views(
+        messages.findTop100ByDeletedAtIsNullAndBodyContainingIgnoreCaseOrderByIdDesc("http"));
   }
 
   /**
@@ -354,7 +394,11 @@ public class RoomService {
     String what =
         view.sticker()
             ? "sticker"
-            : view.media().kind() == MediaKind.IMAGE ? "📷 photo" : "🎥 video";
+            : switch (view.media().kind()) {
+              case IMAGE -> "📷 photo";
+              case VIDEO -> "🎥 video";
+              case AUDIO -> "🎤 voice message";
+            };
     return words.isEmpty() ? what : what + " · " + words;
   }
 
@@ -389,7 +433,16 @@ public class RoomService {
   public record State(
       Person me, Person them, long unread, long latestId, CursorView mine, CursorView theirs) {}
 
-  public record Page(List<MessageView> messages, boolean hasMore) {}
+  /**
+   * @param hasMore whether there are older messages before this page (or, for a catch-up, more
+   *     after it)
+   * @param hasNewer for a page opened around a message: whether the thread goes on past it
+   */
+  public record Page(List<MessageView> messages, boolean hasMore, boolean hasNewer) {
+    public Page(List<MessageView> messages, boolean hasMore) {
+      this(messages, hasMore, false);
+    }
+  }
 
   /**
    * @param body empty once unsent, and possibly empty with a picture

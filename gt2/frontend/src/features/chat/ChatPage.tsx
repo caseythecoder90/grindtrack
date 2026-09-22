@@ -2,7 +2,8 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { errorMessage } from "../../lib/api";
 import { posterUrl, type ChatMessage } from "./chatApi";
 import { chatStore, useChat } from "./chatStore";
-import { prepare, type Prepared } from "./media";
+import { canRecord, clock, prepare, VoiceRecorder, type Prepared } from "./media";
+import ChatSearch from "./ChatSearch";
 import Message, { type Receipt } from "./Message";
 
 /** Within this many pixels of the bottom counts as reading the newest, so new ones scroll into view. */
@@ -34,6 +35,10 @@ export default function ChatPage() {
   const [preparing, setPreparing] = useState(false);
   const [attachError, setAttachError] = useState("");
   const [trayOpen, setTrayOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  /** Recording: the recorder, and the clock the bar shows. */
+  const recorder = useRef<VoiceRecorder | null>(null);
+  const [recordingMs, setRecordingMs] = useState<number | null>(null);
   const box = useRef<HTMLTextAreaElement>(null);
   const picker = useRef<HTMLInputElement>(null);
   const foot = useRef<HTMLDivElement>(null);
@@ -65,11 +70,21 @@ export default function ChatPage() {
   const lastIsMine = !!last && !!view.me && last.senderId === view.me.id;
   const pendingCount = view.pending.length;
   useEffect(() => {
-    if (!view.loaded) return;
+    if (!view.loaded || view.focusId !== null) return;
     if (nearBottom.current || lastIsMine || pendingCount > 0) {
       foot.current?.scrollIntoView({ block: "end" });
     }
-  }, [view.loaded, lastId, lastIsMine, pendingCount]);
+  }, [view.loaded, lastId, lastIsMine, pendingCount, view.focusId]);
+
+  // A message just opened from the search: bring it into view, lit, then let the light fade.
+  const focusId = view.focusId;
+  useEffect(() => {
+    if (focusId === null) return;
+    const el = document.getElementById("msg-" + focusId);
+    el?.scrollIntoView({ block: "center" });
+    const t = window.setTimeout(() => chatStore.clearFocus(), 2500);
+    return () => window.clearTimeout(t);
+  }, [focusId]);
 
   // A preview that was never sent still holds memory until it is let go.
   useEffect(() => {
@@ -110,6 +125,60 @@ export default function ChatPage() {
     } finally {
       setPreparing(false);
       if (picker.current) picker.current.value = "";
+    }
+  }
+
+  // The clock on the recording bar, once a second, and the ten-minute stop.
+  useEffect(() => {
+    if (recordingMs === null) return;
+    const tick = window.setInterval(() => {
+      const r = recorder.current;
+      if (!r) return;
+      const ms = r.elapsedMs();
+      setRecordingMs(ms);
+      if (ms >= VoiceRecorder.MAX_MS) void finishRecording();
+    }, 500);
+    return () => window.clearInterval(tick);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recordingMs !== null]);
+
+  // Leaving the page mid-recording lets the microphone go.
+  useEffect(() => () => recorder.current?.cancel(), []);
+
+  async function startRecording() {
+    setAttachError("");
+    const r = new VoiceRecorder();
+    try {
+      await r.start();
+      recorder.current = r;
+      setRecordingMs(0);
+    } catch {
+      setAttachError("the microphone is not available — allow it for this site and try again");
+    }
+  }
+
+  function cancelRecording() {
+    recorder.current?.cancel();
+    recorder.current = null;
+    setRecordingMs(null);
+  }
+
+  /** Stop and send: a voice message is its own message, sent the moment it ends. */
+  async function finishRecording() {
+    const r = recorder.current;
+    if (!r) return;
+    recorder.current = null;
+    setRecordingMs(null);
+    try {
+      const voice = await r.stop();
+      if ((voice.durationMs ?? 0) < 500) {
+        URL.revokeObjectURL(voice.previewUrl);
+        setAttachError("that was too short to send");
+        return;
+      }
+      void chatStore.send("", voice);
+    } catch (e) {
+      setAttachError(errorMessage(e, "could not record"));
     }
   }
 
@@ -155,6 +224,7 @@ export default function ChatPage() {
           setOpenId(null);
           if (m.media) void chatStore.keepSticker(m.media.id, on);
         }}
+        focus={m.id === view.focusId}
       />,
     );
   }
@@ -167,8 +237,35 @@ export default function ChatPage() {
     <section className="chat" aria-label="chat">
       <div className="chat-head">
         <span>{view.them ? `with ${view.them.username}` : "the room"}</span>
-        <span className={view.typing ? "live" : ""}>{view.typing ? "typing…" : live}</span>
+        <span className="chat-head-right">
+          <span className={view.typing ? "live" : ""}>{view.typing ? "typing…" : live}</span>
+          <button
+            type="button"
+            className="chat-head-search"
+            aria-label="search the conversation"
+            aria-pressed={searchOpen}
+            onClick={() => setSearchOpen((o) => !o)}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M20 20l-3.5-3.5" />
+            </svg>
+          </button>
+        </span>
       </div>
+
+      {searchOpen && (
+        <ChatSearch
+          me={view.me}
+          them={view.them}
+          onClose={() => setSearchOpen(false)}
+          onJump={(id) => {
+            setSearchOpen(false);
+            void chatStore.jumpTo(id);
+          }}
+        />
+      )}
 
       {!view.loaded && !view.error && <p className="muted">opening…</p>}
       {view.error && (
@@ -185,7 +282,7 @@ export default function ChatPage() {
           you talk.
         </p>
       )}
-      {view.hasMore && (
+      {!searchOpen && view.hasMore && (
         <button
           type="button"
           className="linkish chat-older"
@@ -196,12 +293,16 @@ export default function ChatPage() {
         </button>
       )}
 
-      <div className="chat-thread">
+      <div className="chat-thread" hidden={searchOpen}>
         {rows}
         {view.pending.map((p) => (
           <div key={p.clientId} className="chat-msg mine pending">
-            <div className={"bubble" + (p.sticker ? " sticker" : p.preview ? " media" : "")}>
-              {p.preview && <img className="chat-media" src={p.preview} alt="" />}
+            <div className={"bubble" + (p.sticker ? " sticker" : p.attachment?.kind === "audio" ? " voice" : p.preview ? " media" : "")}>
+              {p.attachment?.kind === "audio" ? (
+                <span className="chat-voice-pending">🎤 voice message · {clock(p.attachment.durationMs ?? 0)}</span>
+              ) : (
+                p.preview && <img className="chat-media" src={p.preview} alt="" />
+              )}
               {p.body && <div className={p.preview ? "chat-caption" : undefined}>{p.body}</div>}
             </div>
             <div className="chat-meta">
@@ -226,6 +327,16 @@ export default function ChatPage() {
         ))}
         <div ref={foot} />
       </div>
+      {!searchOpen && view.hasNewer && (
+        <div className="chat-newer">
+          <button type="button" className="linkish" disabled={view.loadingNewer} onClick={() => void chatStore.loadNewer()}>
+            {view.loadingNewer ? "loading…" : "newer messages"}
+          </button>
+          <button type="button" className="linkish" onClick={() => void chatStore.load()}>
+            back to the latest ›
+          </button>
+        </div>
+      )}
 
       {trayOpen && view.mediaOn && (
         <div className="chat-tray" role="group" aria-label="stickers">
@@ -251,11 +362,20 @@ export default function ChatPage() {
       )}
 
       <div className="composer chat-composer">
+        {recordingMs !== null && (
+          <div className="chat-recording" role="status">
+            <span className="dot" aria-hidden="true" />
+            <span className="clock">{clock(recordingMs)}</span>
+            <span className="hint">recording… tap send when you are done</span>
+            <button type="button" className="linkish" onClick={cancelRecording}>cancel</button>
+            <button type="button" className="rec-send" onClick={() => void finishRecording()}>send</button>
+          </div>
+        )}
         {attachment && (
           <div className="chat-attach">
             <img src={attachment.previewUrl} alt="" />
             <span className="hint">
-              {attachment.kind === "video" ? "video clip" : "photo"}
+              {attachment.kind === "video" ? "video clip" : attachment.kind === "audio" ? "voice message" : "photo"}
               {attachment.durationMs ? ` · ${Math.round(attachment.durationMs / 1000)} s` : ""}
             </span>
             <button
@@ -311,6 +431,20 @@ export default function ChatPage() {
                   hidden
                   onChange={(e) => void pick(e.target.files?.[0])}
                 />
+                {canRecord() && recordingMs === null && (
+                  <button
+                    type="button"
+                    className="tool"
+                    aria-label="record a voice message"
+                    onClick={() => void startRecording()}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <rect x="9" y="3" width="6" height="11" rx="3" />
+                      <path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6" />
+                    </svg>
+                  </button>
+                )}
                 <button
                   type="button"
                   className="tool"
