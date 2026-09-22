@@ -9,6 +9,7 @@ import JournalComposer from "./JournalComposer";
 import LibraryPanel from "./LibraryPanel";
 import MeditationTimer from "./MeditationTimer";
 import PeoplePanel from "./PeoplePanel";
+import Pencil from "./Pencil";
 import {
   addJournal,
   catchUp,
@@ -386,6 +387,16 @@ export default function RecoveryPage() {
               ) : (
                 <ReadCard
                   reading={reading}
+                  marks={marks.filter((m) => reading.paragraphs.some((p) => p.seq === m.seq))}
+                  onMarksChanged={(next) => {
+                    const here = new Set(reading.paragraphs.map((p) => p.seq));
+                    setMarks((all) =>
+                      [...all.filter((m) => !here.has(m.seq)), ...next].sort(
+                        (a, b) => a.seq - b.seq || (a.start ?? -1) - (b.start ?? -1) || a.id - b.id,
+                      ),
+                    );
+                    void loadMarks();
+                  }}
                   busy={busy}
                   pagesOpen={pagesOpen}
                   onPages={() => setPagesOpen(true)}
@@ -587,12 +598,13 @@ function BookCard({ reading, loaded, onRead, onBooks }: {
 }
 
 /** Today's part, set like a page, with the pages owed and the button that clears them. */
-function ReadCard({ reading, busy, pagesOpen, onPages, onPagesPicked, onDone, onCatchUp }: {
-  reading: Reading; busy: boolean; pagesOpen: boolean; onPages: () => void;
+function ReadCard({ reading, marks, onMarksChanged, busy, pagesOpen, onPages, onPagesPicked, onDone, onCatchUp }: {
+  reading: Reading; marks: Mark[]; onMarksChanged: (next: Mark[]) => void; busy: boolean;
+  pagesOpen: boolean; onPages: () => void;
   onPagesPicked: (n: number) => void; onDone: () => void; onCatchUp: () => void;
 }) {
   return (
-    <div className="rec-card rec-pages">
+    <div className="rec-card rec-pages rec-reader">
       <div className="rec-cardhead">
         <span className="rec-lbl">
           {reading.chapterNo > 0 && `chapter ${reading.chapterNo} · `}{reading.chapterTitle}
@@ -607,20 +619,11 @@ function ReadCard({ reading, busy, pagesOpen, onPages, onPagesPicked, onDone, on
           <button type="button" className="linkish" disabled={busy} onClick={onCatchUp}>catch up from here</button>
         </div>
       )}
-      <div className="rec-serif rec-reader-text">
-        {reading.paragraphs.map((p, i) => (
-          <div key={p.seq}>
-            {i > 0 && reading.paragraphs[i - 1].pageSeq !== p.pageSeq && p.pageLabel && (
-              <div className="rec-pagerule" aria-label={`page ${p.pageLabel}`}>
-                <span />
-                <em>{p.pageLabel}</em>
-                <span />
-              </div>
-            )}
-            <p className="rec-pline">{p.body}</p>
-          </div>
-        ))}
-      </div>
+      <p className="rec-hint rec-pencil-hint">
+        Tap a paragraph to highlight it or add a note. To mark only some words, select them first:
+        hold on a phone, drag with a mouse.
+      </p>
+      <Pencil paragraphs={reading.paragraphs} marks={marks} onMarksChanged={onMarksChanged} />
       <div className="rec-foot">
         <span className="rec-note">
           {pagesOpen ? (
