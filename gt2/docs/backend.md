@@ -315,15 +315,18 @@ Absent from `/api/public/**` on purpose: none of this has a public shape and non
 | Method | Path | Notes |
 |---|---|---|
 | GET | `` | `?month=YYYY-MM` (default: this month) or an explicit `?from=&to=`; `to` before `from` → 400 |
-| POST | `` | `{title,kind,date,startTime?,endTime?,planItemId?,notes?}`; `kind` ∈ `appointment/study_block/work_block/personal` |
-| PATCH | `/{id}` | partial; `clearTimes:true` makes it all-day, `clearPlanItem:true` unlinks; 404 if missing |
+| POST | `` | `{title,kind,date,startTime?,endTime?,planItemId?,notes?,remindMinutes?}`; `kind` ∈ `appointment/study_block/work_block/personal` |
+| PATCH | `/{id}` | partial; `clearTimes:true` makes it all-day, `clearEndTime:true` leaves it open-ended, `clearPlanItem:true` unlinks, `clearReminder:true` goes back to the default lead; 404 if missing |
 | DELETE | `/{id}` | remove |
 
 A **date plus an optional time**, never a timestamp: "09:00 on Sep 12" on a personal calendar is
 wall clock and must not move when a server's zone does. A null `startTime` *is* all-day, and
 `allDay` is derived from it so the two cannot disagree. Only a study block carries a `planItemId`;
 sent with any other kind it is **dropped, not rejected**, the same rule a focus session follows for
-its reading subject.
+its reading subject. `remindMinutes` is the block's own reminder lead — how many minutes before
+its start the phone is told; null is the configured default (`reminder-minutes`, ten) for a kind
+that is reminded and none for a work block, zero is "not this one", at most a day (1440), which is
+why the reminder scan reads tomorrow as well as today.
 
 ### `UpkeepController` — `/api/upkeep`
 | Method | Path | Notes |
@@ -564,6 +567,7 @@ Schema **`grindtrack`**; Hibernate is `validate`-only, so Liquibase is the singl
 | 038–040 | `roles.sql`, `chat.sql`, `chat-media.sql` | the partner role; the chat's messages, reactions, cursors and media — see [chat.md](chat.md#data-model) |
 | 041 | `chat-sticker-messages.sql` | `chat_messages.sticker`: sent from the tray, so a kept photo's first message stays a photo |
 | 042 | `recovery-marks.sql` | `recovery_marks`: highlights and notes in the book, on a paragraph or on words in it, keyed by slot so they survive an import |
+| 043 | `calendar-reminder-minutes.sql` | `calendar_events.remind_minutes`: the block's own reminder lead; null is the default, zero is none, at most a day |
 
 - Every changeset has a `--rollback` (018's is a documented no-op — the values it cleared were
   wrong and there is nothing to restore them to). Time columns are `TIMESTAMPTZ DEFAULT now()`.

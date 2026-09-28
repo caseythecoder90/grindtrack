@@ -48,10 +48,25 @@ public class CalendarService {
       LocalTime end,
       Long planItemId,
       String notes) {
+    return create(title, kind, date, start, end, planItemId, notes, null);
+  }
+
+  /** As above, with the block's own reminder lead; null takes the default. */
+  @Transactional
+  public CalendarEvent create(
+      String title,
+      EventKind kind,
+      LocalDate date,
+      LocalTime start,
+      LocalTime end,
+      Long planItemId,
+      String notes,
+      Integer remindMinutes) {
 
     CalendarEvent event = new CalendarEvent(title, kind, date, start, end);
     event.setPlanItem(planItemId);
     event.setNotes(notes);
+    event.setRemindMinutes(remindMinutes);
     return events.save(event);
   }
 
@@ -59,7 +74,9 @@ public class CalendarService {
    * Partial update; null means "leave alone".
    *
    * <p>{@code clearPlanItem} exists for the same reason a todo's {@code clearDueDate} does: null
-   * cannot mean both "leave it" and "remove it", and a block genuinely needs unlinking.
+   * cannot mean both "leave it" and "remove it", and a block genuinely needs unlinking. {@code
+   * clearReminder} is the same shape: it puts the block back on the default lead. {@code
+   * clearEndTime} leaves a block open-ended without touching its start.
    *
    * <p>The kind is applied before the plan item so that changing a study block to an appointment
    * drops the link in the same call, rather than leaving hours pointed at a dentist.
@@ -73,9 +90,12 @@ public class CalendarService {
       LocalTime start,
       LocalTime end,
       boolean clearTimes,
+      boolean clearEndTime,
       Long planItemId,
       boolean clearPlanItem,
-      String notes) {
+      String notes,
+      Integer remindMinutes,
+      boolean clearReminder) {
 
     return events
         .findById(id)
@@ -92,10 +112,10 @@ public class CalendarService {
               }
               if (clearTimes) {
                 event.setTimes(null, null);
-              } else if (start != null || end != null) {
+              } else if (start != null || end != null || clearEndTime) {
+                LocalTime newEnd = end != null ? end : event.getEndTime();
                 event.setTimes(
-                    start != null ? start : event.getStartTime(),
-                    end != null ? end : event.getEndTime());
+                    start != null ? start : event.getStartTime(), clearEndTime ? null : newEnd);
               }
               if (clearPlanItem) {
                 event.setPlanItem(null);
@@ -104,6 +124,11 @@ public class CalendarService {
               }
               if (notes != null) {
                 event.setNotes(notes);
+              }
+              if (clearReminder) {
+                event.setRemindMinutes(null);
+              } else if (remindMinutes != null) {
+                event.setRemindMinutes(remindMinutes);
               }
               return events.save(event);
             });

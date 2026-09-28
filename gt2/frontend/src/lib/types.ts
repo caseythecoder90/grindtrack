@@ -696,6 +696,8 @@ export interface CalendarEvent {
   allDay: boolean;
   planItemId: number | null;
   notes: string;
+  /** Minutes before the start the phone is told; null is the app's default, 0 is never. */
+  remindMinutes: number | null;
 }
 
 export type TaskCategory = "pet" | "home" | "health" | "car" | "other";

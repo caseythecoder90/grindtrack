@@ -83,3 +83,5 @@ databaseChangeLog:
       file: db/changelog/041-chat-sticker-messages.sql
   - include:
       file: db/changelog/042-recovery-marks.sql
+  - include:
+      file: db/changelog/043-calendar-reminder-minutes.sql

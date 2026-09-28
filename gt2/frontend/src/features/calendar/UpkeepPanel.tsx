@@ -1,5 +1,9 @@
 import { useState } from "react";
-import { TASK_CATEGORIES, type UpkeepState, type UpkeepTask } from "../../lib/types";
+import {
+  TASK_CATEGORIES,
+  type UpkeepState,
+  type UpkeepTask,
+} from "../../lib/types";
 
 interface Props {
   tasks: UpkeepTask[];
@@ -30,7 +34,12 @@ function whenLabel(task: UpkeepTask): string {
  * genuinely late and yellow for due now — the same vocabulary the todo list uses, so red
  * still means something when it appears.
  */
-export default function UpkeepPanel({ tasks, onDone, onDelete, onCreate }: Props) {
+export default function UpkeepPanel({
+  tasks,
+  onDone,
+  onDelete,
+  onCreate,
+}: Props) {
   const [adding, setAdding] = useState(false);
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("home");
@@ -62,8 +71,8 @@ export default function UpkeepPanel({ tasks, onDone, onDelete, onCreate }: Props
 
       {tasks.length === 0 && (
         <div className="empty">
-          Nothing tracked yet. The dog's flea and tick, the HVAC filter, an oil change —
-          anything where the question is "when did I last".
+          Nothing tracked yet. The dog's flea and tick, the HVAC filter, an oil
+          change — anything where the question is "when did I last".
         </div>
       )}
 
@@ -78,8 +87,8 @@ export default function UpkeepPanel({ tasks, onDone, onDelete, onCreate }: Props
                 <div className="upkeep-body">
                   <div className="upkeep-title">{t.title}</div>
                   <div className="upkeep-meta mono">
-                    {t.lastDoneOn ? `last done ${t.lastDoneOn}` : "never done"} · every{" "}
-                    {t.intervalDays}d
+                    {t.lastDoneOn ? `last done ${t.lastDoneOn}` : "never done"}{" "}
+                    · every {t.intervalDays}d
                   </div>
                 </div>
                 <span className={"due " + t.state}>{whenLabel(t)}</span>
@@ -117,7 +126,11 @@ export default function UpkeepPanel({ tasks, onDone, onDelete, onCreate }: Props
           <div className="row">
             <div>
               <label htmlFor="up-cat">Category</label>
-              <select id="up-cat" value={category} onChange={(e) => setCategory(e.target.value)}>
+              <select
+                id="up-cat"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+              >
                 {TASK_CATEGORIES.map((c) => (
                   <option key={c} value={c}>
                     {c}
@@ -138,7 +151,12 @@ export default function UpkeepPanel({ tasks, onDone, onDelete, onCreate }: Props
             </div>
           </div>
           <div className="actions">
-            <button type="button" className="primary" onClick={submit} disabled={busy}>
+            <button
+              type="button"
+              className="primary"
+              onClick={submit}
+              disabled={busy}
+            >
               add
             </button>
             <button type="button" onClick={() => setAdding(false)}>
@@ -147,7 +165,11 @@ export default function UpkeepPanel({ tasks, onDone, onDelete, onCreate }: Props
           </div>
         </div>
       ) : (
-        <button type="button" className="addrow" onClick={() => setAdding(true)}>
+        <button
+          type="button"
+          className="addrow"
+          onClick={() => setAdding(true)}
+        >
           + add recurring task
         </button>
       )}

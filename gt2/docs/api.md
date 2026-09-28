@@ -193,9 +193,13 @@ on a personal calendar means wall clock, and it must not move when a server's zo
 |---|---|---|
 | GET | `/api/calendar[?month=YYYY-MM]` | Whole month, day order, all-day entries first. Defaults to the current month |
 | GET | `/api/calendar?from=&to=` | An explicit range, for the week view and the assistant. `to` before `from` → 400 |
-| POST | `/api/calendar` | `{title, kind, date, startTime?, endTime?, planItemId?, notes?}`. `kind` ∈ `appointment/study_block/work_block/personal` |
-| PATCH | `/api/calendar/{id}` | Partial. `clearTimes: true` makes it all-day; `clearPlanItem: true` unlinks. 404 if missing |
+| POST | `/api/calendar` | `{title, kind, date, startTime?, endTime?, planItemId?, notes?, remindMinutes?}`. `kind` ∈ `appointment/study_block/work_block/personal` |
+| PATCH | `/api/calendar/{id}` | Partial. `clearTimes: true` makes it all-day; `clearEndTime: true` leaves it open-ended; `clearPlanItem: true` unlinks; `clearReminder: true` returns it to the default lead. 404 if missing |
 | DELETE | `/api/calendar/{id}` | Remove an event |
+
+**A block can choose its own reminder.** `remindMinutes` is how many minutes before the start the
+phone is told: null is the app's default (ten, and none for a work block), 0 is never, 1440 (a day)
+the most. Every response carries it; `allDay` entries are never reminded.
 
 **Only a study block carries a plan item.** A `planItemId` sent with any other kind is **dropped,
 not rejected** — the same rule a focus session follows for its reading subject, and for the same
