@@ -101,8 +101,8 @@ function chapterOf(r: Reading, seq: number): number | null {
  * The recovery tab: the number, the day's readings, the timer, the book, the journal, the
  * people.
  *
- * Four views on a phone — today, read, journal, people — and three columns on a desktop, the
- * same markup either way; styles.css decides which. "Your books" is the fifth screen, where the
+ * Four views — today, read, journal, people — one at a time on every screen, switched by the
+ * control at the top; a desktop gets the same one column, held to a reading measure. "Your books" is the fifth screen, where the
  * texts are imported.
  */
 export default function RecoveryPage() {

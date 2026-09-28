@@ -11,8 +11,9 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Component;
 
 /**
- * One short call per passage, once. The same client and model as the assistant, because it is the
- * same key; the prompt is told who is reading and to keep out of the way.
+ * One short call per passage, once. The same client as the assistant, because it is the same key,
+ * on the lighter model: three plain paragraphs do not need the Opus tier. The prompt is told who is
+ * reading and to keep out of the way.
  */
 @Component
 public class AnthropicPassageModel implements PassageModel {
@@ -58,7 +59,7 @@ public class AnthropicPassageModel implements PassageModel {
     }
     MessageCreateParams params =
         MessageCreateParams.builder()
-            .model(props.model())
+            .model(props.lightModel())
             .maxTokens(1200L)
             .system(SYSTEM_PROMPT)
             .addUserMessage("The passage is " + reference + " (" + translation + "):\n\n" + text)
@@ -78,7 +79,10 @@ public class AnthropicPassageModel implements PassageModel {
                 + ") — try again");
       }
       return new Explained(
-          body, props.model(), response.usage().inputTokens(), response.usage().outputTokens());
+          body,
+          props.lightModel(),
+          response.usage().inputTokens(),
+          response.usage().outputTokens());
     } catch (AnthropicServiceException e) {
       throw new UpstreamException("the model call failed (" + e.statusCode() + ") — try again", e);
     }

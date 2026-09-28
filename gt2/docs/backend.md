@@ -587,7 +587,7 @@ Schema **`grindtrack`**; Hibernate is `validate`-only, so Liquibase is the singl
 | `grindtrack.bootstrap-username` | `GRINDTRACK_USERNAME` | empty | `AppProperties` |
 | `grindtrack.bootstrap-password` | `GRINDTRACK_PASSWORD` | empty | `AppProperties` |
 | `grindtrack.assistant.api-key` | `ANTHROPIC_API_KEY` | empty = off | `AssistantProperties` |
-| `grindtrack.assistant.model` / `zone` / `review-cron` / `brief-cron` | — | `claude-opus-5` / `America/New_York` / Fri 17:00 / 06:00 daily | `AssistantProperties` |
+| `grindtrack.assistant.model` / `light-model` / `zone` / `review-cron` / `brief-cron` | — | `claude-opus-5-5` / `claude-sonnet-5` / `America/New_York` / Fri 17:00 / 06:00 daily | `AssistantProperties` |
 | `grindtrack.push.vapid-public-key` / `vapid-private-key` / `subject` | `PUSH_VAPID_PUBLIC_KEY` / `PUSH_VAPID_PRIVATE_KEY` / `PUSH_VAPID_SUBJECT` | empty = off | `PushProperties` |
 | `grindtrack.speech.api-key` / `model` / `language` | `OPENAI_API_KEY` / — / — | empty = off / `gpt-4o-mini-transcribe` / `en` | `SpeechProperties` |
 | `grindtrack.recovery.sobriety-date` | `SOBRIETY_DATE` | empty = no number on the page and no recovery section in the context | `RecoveryProperties` |

@@ -10,40 +10,66 @@ package dev.grindtrack.assistant.service;
  */
 final class Costs {
 
-  /** Opus 5 list price. The model is configuration; the price is not, and a change here is a PR. */
-  static final double INPUT_USD_PER_MTOK = 5.00;
+  /**
+   * A model's list price: dollars per million input and output tokens, and the cache read rate as a
+   * multiple of the input rate. The model is configuration; the prices are not, and a change here
+   * is a PR.
+   */
+  record Rate(double inputUsdPerMtok, double outputUsdPerMtok, double cacheReadMultiplier) {}
 
-  static final double OUTPUT_USD_PER_MTOK = 25.00;
-
-  /** Five-minute-TTL cache write, as a multiple of the base input rate. */
+  /** Five-minute-TTL cache write, as a multiple of the base input rate, on every model. */
   static final double CACHE_WRITE_MULTIPLIER = 1.25;
 
-  /** Cache read, as a multiple of the base input rate — the whole point of caching. */
-  static final double CACHE_READ_MULTIPLIER = 0.1;
+  static final Rate OPUS_5_5 = new Rate(4.00, 20.00, 0.05);
+  static final Rate OPUS_5 = new Rate(5.00, 25.00, 0.1);
+  static final Rate SONNET_5 = new Rate(2.00, 10.00, 0.1);
+  static final Rate HAIKU_4_5 = new Rate(1.00, 5.00, 0.1);
 
   private Costs() {}
 
+  /** The rate for a model id. An id not listed here is priced as the dearest one it could be. */
+  static Rate rate(String model) {
+    String id = model == null ? "" : model;
+    if (id.startsWith("claude-opus-5-5")) {
+      return OPUS_5_5;
+    }
+    if (id.startsWith("claude-sonnet")) {
+      return SONNET_5;
+    }
+    if (id.startsWith("claude-haiku")) {
+      return HAIKU_4_5;
+    }
+    return OPUS_5;
+  }
+
   static double usd(
-      long inputTokens, long outputTokens, long cacheWriteTokens, long cacheReadTokens) {
+      String model,
+      long inputTokens,
+      long outputTokens,
+      long cacheWriteTokens,
+      long cacheReadTokens) {
+    Rate r = rate(model);
     double dollars =
-        inputTokens / 1_000_000.0 * INPUT_USD_PER_MTOK
-            + cacheWriteTokens / 1_000_000.0 * INPUT_USD_PER_MTOK * CACHE_WRITE_MULTIPLIER
-            + cacheReadTokens / 1_000_000.0 * INPUT_USD_PER_MTOK * CACHE_READ_MULTIPLIER
-            + outputTokens / 1_000_000.0 * OUTPUT_USD_PER_MTOK;
+        inputTokens / 1_000_000.0 * r.inputUsdPerMtok()
+            + cacheWriteTokens / 1_000_000.0 * r.inputUsdPerMtok() * CACHE_WRITE_MULTIPLIER
+            + cacheReadTokens / 1_000_000.0 * r.inputUsdPerMtok() * r.cacheReadMultiplier()
+            + outputTokens / 1_000_000.0 * r.outputUsdPerMtok();
     return round(dollars);
   }
 
   /**
-   * What caching is worth, net — and it can be negative. A read saves 0.9x the base rate; a write
-   * costs 0.25x extra on a token that may never be read back. A negative number means the turns are
-   * too short or too far apart for the prefix to be reused, and the breakpoints should come out.
+   * What caching is worth, net — and it can be negative. A read saves most of the base rate; a
+   * write costs 0.25x extra on a token that may never be read back. A negative number means the
+   * turns are too short or too far apart for the prefix to be reused, and the breakpoints should
+   * come out.
    */
-  static double cacheSaving(long cacheWriteTokens, long cacheReadTokens) {
+  static double cacheSaving(String model, long cacheWriteTokens, long cacheReadTokens) {
+    Rate r = rate(model);
     double dollars =
-        (cacheReadTokens * (1 - CACHE_READ_MULTIPLIER)
+        (cacheReadTokens * (1 - r.cacheReadMultiplier())
                 - cacheWriteTokens * (CACHE_WRITE_MULTIPLIER - 1))
             / 1_000_000.0
-            * INPUT_USD_PER_MTOK;
+            * r.inputUsdPerMtok();
     return round(dollars);
   }
 

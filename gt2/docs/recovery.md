@@ -200,7 +200,7 @@ and a hit opens its chapter at that verse. **Read on** under the day's
 passage opens its chapter there.
 
 **What it means.** The passage card has a button, and the 07:55 job presses
-it first: the model (the assistant's key and model, `AssistantProperties`)
+it first: the model (the assistant's key and its lighter model, `AssistantProperties.lightModel` — Sonnet 5, because three plain paragraphs do not need the Opus tier)
 is given the reference, the edition's name and the verses, and asked for
 three short paragraphs — what is happening, what it means, one honest
 sentence for the day — in plain text, under 180 words, for two people who
