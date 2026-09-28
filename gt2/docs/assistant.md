@@ -61,7 +61,8 @@ one rule.
 ```yaml
 grindtrack.assistant:
   api-key: ${ANTHROPIC_API_KEY:}   # blank means off
-  model: claude-opus-5
+  model: claude-opus-5-5
+  light-model: claude-sonnet-5
   zone: America/New_York           # "Friday at five" means the owner's Friday, not the pod's UTC
   review-cron: "0 0 17 * * FRI"    # Spring cron: second minute hour day month weekday
   brief-cron: "0 30 5 * * *"       # when he wakes up, before email and the feed; every day
@@ -293,8 +294,14 @@ would buy the write premium and never a read.
 
 ## What it costs
 
-Opus 5 bills **$5 per million input tokens and $25 per million output**, with cache writes at 1.25×
-the input rate and cache reads at 0.1×. Cached tokens are stored in their own columns because they
+Opus 5.5 bills **$4 per million input tokens and $20 per million output**, with cache writes at
+1.25× the input rate and cache reads at $0.20 (0.05×); Opus 5 was $5 / $25 with reads at 0.1×. The
+brief, the review, the week plan and the chat run on Opus 5.5; the short, plain jobs — a Bible
+passage explained — run on the lighter model, Sonnet 5 at $2 / $10 (`light-model`). Each call is
+priced at the rate of the model that made it (`Costs.rate`), read off the model name stored with
+the report, so a month that spans a switch adds up right. Opus 5.5's default effort is medium, one
+level below Opus 5's, and is left there: its maker measures it above Opus 5 at high on this kind
+of work, and it is cheaper still. Cached tokens are stored in their own columns because they
 are not billed at the same rate, and the API reports them separately and leaves them out of
 `input_tokens` entirely — folding them in would make the month's figure understate the invoice.
 Every rate lives in `Costs`, because a rate that lives in three files is wrong in one of them.

@@ -22,8 +22,10 @@ import org.springframework.stereotype.Component;
  * response either fills the review form's exact shape or the call fails loudly — there is no "the
  * model wrapped the JSON in prose" case to handle.
  *
- * <p>Thinking is left at the model's default (adaptive, on) and effort at its default (high): a
- * weekly call is not the place to shave cents at the price of a shallower review.
+ * <p>Thinking is left at the model's default (adaptive, on) and effort at its default — medium on
+ * Opus 5.5, which its maker measures above Opus 5 at high on this kind of work. A weekly call is
+ * not the place to shave cents at the price of a shallower review, and this one shaves them
+ * without.
  */
 @Component
 public class AnthropicReviewModel implements ReviewModel {

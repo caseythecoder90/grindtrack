@@ -1327,23 +1327,21 @@ h4 { font-size: var(--fs-small); font-weight: 600; color: var(--muted); margin: 
 .proposal-todo-meta { font-family: var(--mono); font-size: 11px; color: var(--muted); white-space: nowrap; }
 
 /* --- recovery ---------------------------------------------------------------
-   Three views on a phone — today, read, journal — and three columns on a desktop, from the
-   same markup: the segmented control and the view switching exist only under `pointer: coarse`.
-   The cards are their own thing rather than .panel because this page is a column of small
-   cards read top to bottom, not one big form. */
-.recpage { display: flex; flex-direction: column; gap: 10px; }
+   Four views — today, read, journal, people — one at a time, on every screen: the segmented
+   control switches them. A desktop had three columns at first, the book squeezed between the
+   Bible and the journal; a page of a book wants the width to itself, so the desktop now reads
+   like the phone, one column, held to a comfortable measure and centred. The cards are their
+   own thing rather than .panel because this page is a column of small cards read top to
+   bottom, not one big form. */
+.recpage { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 760px; margin: 0 auto; }
 .rec-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.rec-head .seg { display: none; }
+.rec-head .seg { display: inline-flex; }
 .seg button.rec[aria-pressed="true"] { color: var(--rec); }
-.rec-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1fr); gap: 14px; align-items: start; }
-.rec-today { grid-column: 1; grid-row: 1; }
-.rec-people { grid-column: 1; grid-row: 2; }
-.rec-read { grid-column: 2; grid-row: 1 / span 2; }
-.rec-journal { grid-column: 3; grid-row: 1 / span 2; }
-@media (max-width: 900px) {
-  .rec-cols { grid-template-columns: minmax(0, 1fr); }
-  .rec-today, .rec-people, .rec-read, .rec-journal { grid-column: auto; grid-row: auto; }
-}
+.rec-cols { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; align-items: start; }
+.recpage:not(.view-today) .rec-today { display: none; }
+.recpage:not(.view-read) .rec-read { display: none; }
+.recpage:not(.view-journal) .rec-journal { display: none; }
+.recpage:not(.view-people) .rec-people { display: none; }
 .rec-col { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .rec-card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 15px; }
 .rec-card.number { border-left: 2px solid var(--rec); display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
@@ -1400,7 +1398,7 @@ button.rec-chap.open { background: var(--rec-bg); }
 
 /* The door to the journal, drawn like the composer at rest. Phone only. */
 .rec-door {
-  display: none; align-items: center; justify-content: space-between; gap: 8px;
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
   padding: 6px 6px 6px 14px; background: var(--panel2); border: 1px solid var(--line); border-radius: 20px;
   font-family: var(--sans); font-size: 16px; color: var(--muted); text-align: left;
 }
@@ -1436,12 +1434,6 @@ button.rec-chap.open { background: var(--rec-bg); }
 .rec-sample { margin: 0; padding-left: 10px; border-left: 2px solid var(--line); font-family: Georgia, "Times New Roman", serif; font-size: 14px; color: var(--muted); }
 
 @media (pointer: coarse) {
-  .rec-head .seg { display: inline-flex; }
-  .recpage:not(.view-today) .rec-today { display: none; }
-  .recpage:not(.view-read) .rec-read { display: none; }
-  .recpage:not(.view-journal) .rec-journal { display: none; }
-  .rec-cols { grid-template-columns: minmax(0, 1fr); gap: 10px; }
-  .rec-door { display: flex; }
   .rec-entry .ghost { opacity: 1; }
   .rec-chips button, .rec-chips input { min-height: 36px; }
   .rec-chips button { padding: 0 12px; }
@@ -1493,7 +1485,6 @@ button.rec-chap.open { background: var(--rec-bg); }
 .rec-person-add input:not([type="number"]) { flex: 1 1 160px; min-width: 0; }
 .rec-person-add input[type="number"] { width: 64px; }
 @media (pointer: coarse) {
-  .recpage:not(.view-people) .rec-people { display: none; }
   .rec-person-actions button:not(.ghost) { min-height: 40px; }
   .rec-nextcall button { min-height: 40px; }
 }

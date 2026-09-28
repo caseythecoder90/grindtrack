@@ -53,7 +53,12 @@ grindtrack:
   # job stays quiet, so this can deploy before the Kubernetes secret exists.
   assistant:
     api-key: ${ANTHROPIC_API_KEY:}
-    model: claude-opus-5
+    # Opus 5.5: the Opus line at $4 / $20 per million tokens against Opus 5's $5 / $25, for the
+    # brief, the review, the week plan and the chat. Its default effort is medium, one level below
+    # Opus 5's, and deliberately left there: cheaper, and no shallower on this kind of work.
+    model: claude-opus-5-5
+    # The short, plain jobs — a Bible passage explained — on the cheaper tier ($2 / $10).
+    light-model: claude-sonnet-5
     # "Friday at five" means the owner's Friday. Spring cron: second minute hour day month weekday.
     zone: America/New_York
     review-cron: "0 0 17 * * FRI"

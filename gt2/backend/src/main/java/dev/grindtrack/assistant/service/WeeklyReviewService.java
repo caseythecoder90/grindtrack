@@ -112,6 +112,29 @@ public class WeeklyReviewService {
     // would buy a write premium and never a read.
     long cacheWrite = chat.stream().mapToLong(AssistantMessage::getCacheWriteTokens).sum();
     long cacheRead = chat.stream().mapToLong(AssistantMessage::getCacheReadTokens).sum();
+    // Each report at the rate of the model that made it, so a month that spans a model switch
+    // adds up right. A chat message stores no model, so the chat is priced at the current one.
+    double cost =
+        thisMonth.stream()
+                .mapToDouble(r -> cost(r.getModel(), r.getInputTokens(), r.getOutputTokens()))
+                .sum()
+            + chat.stream()
+                .mapToDouble(
+                    m ->
+                        Costs.usd(
+                            props.model(),
+                            m.getInputTokens(),
+                            m.getOutputTokens(),
+                            m.getCacheWriteTokens(),
+                            m.getCacheReadTokens()))
+                .sum();
+    double saving =
+        chat.stream()
+            .mapToDouble(
+                m ->
+                    Costs.cacheSaving(
+                        props.model(), m.getCacheWriteTokens(), m.getCacheReadTokens()))
+            .sum();
     return new Status(
         model.configured(),
         props.model(),
@@ -120,8 +143,8 @@ public class WeeklyReviewService {
         out,
         cacheWrite,
         cacheRead,
-        cost(in, out, cacheWrite, cacheRead),
-        cacheSaving(cacheWrite, cacheRead));
+        Math.round(cost * 10_000.0) / 10_000.0,
+        Math.round(saving * 10_000.0) / 10_000.0);
   }
 
   private void requireOn() {
@@ -131,17 +154,8 @@ public class WeeklyReviewService {
     }
   }
 
-  private static double cost(long inputTokens, long outputTokens) {
-    return Costs.usd(inputTokens, outputTokens, 0, 0);
-  }
-
-  private static double cost(
-      long inputTokens, long outputTokens, long cacheWriteTokens, long cacheReadTokens) {
-    return Costs.usd(inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens);
-  }
-
-  private static double cacheSaving(long cacheWriteTokens, long cacheReadTokens) {
-    return Costs.cacheSaving(cacheWriteTokens, cacheReadTokens);
+  private static double cost(String model, long inputTokens, long outputTokens) {
+    return Costs.usd(model, inputTokens, outputTokens, 0, 0);
   }
 
   private String toJson(Object value) {
@@ -165,7 +179,7 @@ public class WeeklyReviewService {
         r.getModel(),
         r.getInputTokens(),
         r.getOutputTokens(),
-        cost(r.getInputTokens(), r.getOutputTokens()),
+        cost(r.getModel(), r.getInputTokens(), r.getOutputTokens()),
         draft);
   }
 

@@ -83,7 +83,7 @@ public class MorningBriefService {
         r.getWeekStart().toString(),
         r.getGeneratedAt().toString(),
         r.getModel(),
-        Costs.usd(r.getInputTokens(), r.getOutputTokens(), 0, 0),
+        Costs.usd(r.getModel(), r.getInputTokens(), r.getOutputTokens(), 0, 0),
         draft);
   }
 
