@@ -41,6 +41,15 @@ class CalendarEventTest {
   }
 
   @Test
+  void aReminderLeadIsAtMostADayAndNeverNegative() {
+    CalendarEvent e = block();
+    e.setRemindMinutes(1440);
+    assertThat(e.getRemindMinutes()).isEqualTo(1440);
+    assertThatThrownBy(() -> e.setRemindMinutes(1441)).isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> e.setRemindMinutes(-1)).isInstanceOf(IllegalArgumentException.class);
+  }
+
+  @Test
   void onlyAStudyBlockCarriesAPlanItem() {
     CalendarEvent studying = block();
     studying.setPlanItem(42L);

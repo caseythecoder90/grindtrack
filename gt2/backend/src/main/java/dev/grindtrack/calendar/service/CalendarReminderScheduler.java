@@ -6,7 +6,6 @@ import dev.grindtrack.config.AssistantProperties;
 import dev.grindtrack.config.CalendarProperties;
 import dev.grindtrack.push.service.PushService;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -19,11 +18,13 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * A block about to start, to the phone, once.
  *
- * <p>Every minute: the day's timed events whose start is within the next {@code reminderMinutes}
- * and that have not been reminded are pushed and marked. The mark is a column, not a set in memory,
- * so a restart does not repeat a reminder; a block whose start passed while the app was down is
- * skipped rather than announced late. The day job's blocks are not reminded — {@link
- * dev.grindtrack.calendar.domain.EventKind#remindsBeforeStart}.
+ * <p>Every minute: today's and tomorrow's timed events whose start is within their own lead of now
+ * and that have not been reminded are pushed and marked. The lead is the block's own {@code
+ * remindMinutes} when set, else {@code reminderMinutes} from the configuration; a day ahead is the
+ * most a block can ask for, which is why tomorrow is scanned too. The mark is a column, not a set
+ * in memory, so a restart does not repeat a reminder; a block whose start passed while the app was
+ * down is skipped rather than announced late. The day job's blocks are not reminded unless they ask
+ * — {@link dev.grindtrack.calendar.domain.EventKind#remindsBeforeStart}.
  */
 @Component
 public class CalendarReminderScheduler {
@@ -53,7 +54,9 @@ public class CalendarReminderScheduler {
     LocalDateTime now = LocalDateTime.now(ZoneId.of(zone.zone()));
     List<CalendarEvent> due =
         startingSoon(
-            events.findInRange(now.toLocalDate(), now.toLocalDate()), now, props.reminderMinutes());
+            events.findInRange(now.toLocalDate(), now.toLocalDate().plusDays(1)),
+            now,
+            props.reminderMinutes());
     for (CalendarEvent event : due) {
       // Marked before the send: a push that fails is a reminder missed, not one repeated every
       // minute until the block starts.
@@ -71,25 +74,45 @@ public class CalendarReminderScheduler {
   }
 
   /**
-   * The timed events of the day that start after {@code now} and within {@code minutes} of it, not
-   * yet reminded, of a kind that is reminded. Package-private for the test.
+   * The timed events that start after {@code now} and within their own lead of it, not yet
+   * reminded. {@code defaultMinutes} is the lead for a block that has not chosen one.
+   * Package-private for the test.
    */
   static List<CalendarEvent> startingSoon(
-      List<CalendarEvent> today, LocalDateTime now, int minutes) {
-    LocalTime from = now.toLocalTime();
-    LocalTime to = from.plusMinutes(minutes);
-    return today.stream()
+      List<CalendarEvent> upcoming, LocalDateTime now, int defaultMinutes) {
+    return upcoming.stream()
         .filter(e -> e.getStartTime() != null && e.getRemindedAt() == null)
-        .filter(e -> e.getKind().remindsBeforeStart())
-        .filter(e -> e.getStartTime().isAfter(from) && !e.getStartTime().isAfter(to))
+        .filter(
+            e -> {
+              int lead = e.reminderLead(defaultMinutes);
+              if (lead <= 0) {
+                return false;
+              }
+              LocalDateTime start = startOf(e);
+              return start.isAfter(now) && !start.isAfter(now.plusMinutes(lead));
+            })
         .toList();
   }
 
-  /** "etcd lab" / "starts at 05:30 · until 07:00 · study block". Package-private for the test. */
+  private static LocalDateTime startOf(CalendarEvent event) {
+    return event.getEventDate().atTime(event.getStartTime());
+  }
+
+  /**
+   * "etcd lab" / "in 10 minutes · 05:30–07:00 · study block". A lead past an hour and a half reads
+   * as a time instead of a count, and one that crosses midnight says so. Package-private for the
+   * test.
+   */
   static PushService.Notification notification(CalendarEvent event, LocalDateTime now) {
-    long minutes = java.time.Duration.between(now.toLocalTime(), event.getStartTime()).toMinutes();
+    long minutes = java.time.Duration.between(now, startOf(event)).toMinutes();
     StringBuilder body = new StringBuilder();
-    body.append("in ").append(minutes).append(minutes == 1 ? " minute" : " minutes");
+    if (minutes <= 90) {
+      body.append("in ").append(minutes).append(minutes == 1 ? " minute" : " minutes");
+    } else if (event.getEventDate().equals(now.toLocalDate())) {
+      body.append("today");
+    } else {
+      body.append("tomorrow");
+    }
     body.append(" · ").append(HHMM.format(event.getStartTime()));
     if (event.getEndTime() != null) {
       body.append("–").append(HHMM.format(event.getEndTime()));

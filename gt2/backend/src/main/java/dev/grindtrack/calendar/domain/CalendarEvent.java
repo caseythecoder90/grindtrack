@@ -20,6 +20,9 @@ import java.time.OffsetDateTime;
 @Table(name = "calendar_events")
 public class CalendarEvent {
 
+  /** A day ahead. Further than that and the reminder is a todo, not a nudge. */
+  public static final int MAX_REMIND_MINUTES = 1440;
+
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Long id;
@@ -53,6 +56,13 @@ public class CalendarEvent {
   /** When the phone was told this block was about to start. Null: not yet, or never timed. */
   @Column(name = "reminded_at")
   private OffsetDateTime remindedAt;
+
+  /**
+   * Minutes ahead of the start the phone is told, for this block. Null: the configured default for
+   * a kind that is reminded, none for one that is not; zero: not this one; at most a day.
+   */
+  @Column(name = "remind_minutes")
+  private Integer remindMinutes;
 
   protected CalendarEvent() {}
 
@@ -116,6 +126,35 @@ public class CalendarEvent {
   public void setKind(EventKind kind) {
     this.kind = kind;
     setPlanItem(this.planItemId);
+  }
+
+  /**
+   * How far ahead this block wants its reminder, or null to go back to the default. A change
+   * forgets that it was reminded, so a block whose lead grew from ten minutes to an hour at 5:15 is
+   * announced at 5:15 rather than never.
+   */
+  public void setRemindMinutes(Integer minutes) {
+    if (minutes != null && (minutes < 0 || minutes > MAX_REMIND_MINUTES)) {
+      throw new IllegalArgumentException("a reminder is between 0 and 1440 minutes ahead");
+    }
+    this.remindMinutes = minutes;
+    this.remindedAt = null;
+    touch();
+  }
+
+  public Integer getRemindMinutes() {
+    return remindMinutes;
+  }
+
+  /**
+   * The lead the reminder scheduler uses: the block's own when set, else the configured default for
+   * a kind that is reminded, else nothing. Zero means no reminder.
+   */
+  public int reminderLead(int defaultMinutes) {
+    if (remindMinutes != null) {
+      return remindMinutes;
+    }
+    return kind.remindsBeforeStart() ? defaultMinutes : 0;
   }
 
   public void markReminded() {

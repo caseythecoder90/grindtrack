@@ -36,14 +36,18 @@ anything is open, with the same tag each time so the device shows one, not a pil
 reminder is the same shape at 08:05, so the two do not land in the same second.
 
 The block reminder is the one producer that has to remember. `CalendarReminderScheduler` runs
-every minute, takes the day's timed events that start in the next ten minutes and have no
-`reminded_at`, marks each and sends it. The mark is a column rather than a set in memory so a
-restart does not repeat a reminder; a block whose start passed while the app was down is
-skipped, not announced late; moving a block clears the mark, so it is reminded again at its new
-time. Work blocks are not reminded (`EventKind.remindsBeforeStart`): the day job is on the
-calendar so the week reads honestly, not because it might be missed. Each block has its own
-tag, so two blocks close together both show, and the TTL is the minutes left, so a reminder the
-push service could not deliver before the block started is dropped rather than shown after it.
+every minute, takes today's and tomorrow's timed events that start within their lead of now and
+have no `reminded_at`, marks each and sends it. The lead is the block's own `remind_minutes` when
+it has one (set in the event editor: none, five minutes to two hours, or a day, which is why
+tomorrow is read too) and otherwise the configured ten. The mark is a column rather than a set in
+memory so a restart does not repeat a reminder; a block whose start passed while the app was down
+is skipped, not announced late; moving a block, or changing its lead, clears the mark, so it is
+reminded again at its new time. Work blocks are not reminded by default
+(`EventKind.remindsBeforeStart`): the day job is on the calendar so the week reads honestly, not
+because it might be missed — but one that asks for a lead gets it. Each block has its own tag, so
+two blocks close together both show, and the TTL is the minutes left, so a reminder the push
+service could not deliver before the block started is dropped rather than shown after it. Past an
+hour and a half out the body says "today" or "tomorrow" and the time instead of a count of minutes.
 
 The evening line is the motivation that is not written by a model: three facts from the same
 `ContextService` the morning brief is given, so the two never disagree — the week's study hours

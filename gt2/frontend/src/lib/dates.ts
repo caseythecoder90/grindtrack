@@ -67,3 +67,29 @@ export function monthGrid(month: string): string[] {
 export function shortTime(time: string | null): string {
   return time ? time.slice(0, 5) : "";
 }
+
+/** The seven days of the week containing the date, Monday first. */
+export function weekOf(iso: string): string[] {
+  const monday = mondayOf(iso);
+  return Array.from({ length: 7 }, (_, i) => addDays(monday, i));
+}
+
+/** Minutes since midnight from HH:mm or HH:mm:ss. */
+export function minutesOf(time: string): number {
+  const [h, m] = time.split(":").map(Number);
+  return h * 60 + (m || 0);
+}
+
+/** HH:mm from minutes since midnight, clamped to the day. */
+export function timeOf(minutes: number): string {
+  const m = Math.max(0, Math.min(24 * 60 - 1, minutes));
+  return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+}
+
+/** "2h", "1h 30m", "45m" — how long a block is, for reading next to its times. */
+export function durationLabel(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h === 0) return `${m}m`;
+  return m === 0 ? `${h}h` : `${h}h ${m}m`;
+}

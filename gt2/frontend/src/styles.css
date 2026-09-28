@@ -680,27 +680,68 @@ h4 { font-size: var(--fs-small); font-weight: 600; color: var(--muted); margin: 
 .fold > summary:hover { color: var(--text); }
 
 /* --- calendar --------------------------------------------------------------- */
-.calnav { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
-.calnav h2 { margin: 0; min-width: 8.5em; }
+/* --- calendar ---------------------------------------------------------------
+   Three views on one panel: the month (a grid that names its entries, with the
+   selected day listed beside it), and the week and day (hours down, days across,
+   in one scrolling body). Every kind paints with the same four colours the legend
+   shows. Popovers are cards next to what was clicked on a mouse screen and sheets
+   on a phone — see Popover.tsx. */
+.calnav { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.calnav h2 { margin: 0 4px; min-width: 0; font-size: 15px; text-transform: none; letter-spacing: 0; }
 .calnav .spacer { flex: 1; }
+.calnav .seg button { text-transform: lowercase; }
+.calnew { white-space: nowrap; }
+
+/* Month: the grid, and the selected day beside it where there is room. */
+.cal-month { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 18px; align-items: start; }
+@media (max-width: 860px) { .cal-month { grid-template-columns: minmax(0, 1fr); } }
 
 .monthgrid-dows { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px;
   font-family: var(--mono); font-size: var(--fs-label); color: var(--muted);
   text-transform: uppercase; letter-spacing: 0.08em; text-align: center; margin-bottom: 4px; }
 .monthgrid-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
 
-.daycell { aspect-ratio: 1; display: flex; flex-direction: column; align-items: center;
-  justify-content: center; gap: 3px; background: none; border: 1px solid transparent;
-  border-radius: 7px; padding: 0; }
+.daycell { position: relative; display: flex; flex-direction: column; gap: 2px; min-height: 84px;
+  background: none; border: 1px solid var(--line2); border-radius: 7px; padding: 4px 4px 5px;
+  cursor: pointer; min-width: 0; }
 .daycell:hover { border-color: var(--line); }
+.daycell:hover .dayadd { opacity: 1; }
+.dayhead { display: flex; align-items: center; justify-content: space-between; }
+.daynum { font-family: var(--mono); font-size: 13px; background: none; border: none; padding: 1px 5px;
+  border-radius: 999px; color: var(--text); line-height: 1.3; }
+.daynum:hover { border: none; color: var(--cyan); }
+.dayadd { opacity: 0; background: none; border: none; padding: 0 5px; color: var(--muted);
+  font-size: 15px; line-height: 1; }
+.dayadd:hover { color: var(--cyan); border: none; }
+.dayadd:focus-visible { opacity: 1; }
 /* Neighbouring months keep their place so the week starts where it should, but they
    are context rather than somewhere to navigate to. */
-.daycell.outside .daynum { color: var(--muted); opacity: 0.45; }
-.daycell.selected { background: rgba(127, 209, 255, 0.13); border-color: var(--cyan); }
+.daycell.outside .daynum, .daycell.outside .daychip { opacity: 0.45; }
+.daycell.selected { background: rgba(127, 209, 255, 0.08); border-color: var(--cyan); }
 .daycell.selected .daynum { color: var(--cyan); }
-.daycell.is-today { outline: 1px solid var(--magenta); outline-offset: -1px; }
-.daynum { font-family: var(--mono); font-size: 13px; }
-.daydots { display: flex; gap: 2px; height: 4px; }
+.daycell.is-today .daynum { background: var(--magenta); color: #fff; font-weight: 600; }
+
+/* The entries a cell names, on a mouse screen. */
+.daychips { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.daychip { display: block; width: 100%; text-align: left; font-family: var(--sans); font-size: 11px;
+  line-height: 1.35; padding: 1px 5px 1px 6px; border: none; border-left: 3px solid var(--line);
+  border-radius: 3px; background: var(--panel2); color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.daychip:hover { border-color: inherit; filter: brightness(1.15); }
+.daychip .mono { font-size: 10px; color: var(--muted); margin-right: 2px; }
+.daychip.study { border-left-color: var(--study); }
+.daychip.work { border-left-color: var(--work); }
+.daychip.appt { border-left-color: var(--cyan); }
+.daychip.personal { border-left-color: var(--muted); }
+.daychip.allday { border-left-width: 0; padding-left: 6px; color: #06121e; font-weight: 600; }
+.daychip.allday.study { background: var(--study); }
+.daychip.allday.work { background: var(--work); color: #fff; }
+.daychip.allday.appt { background: var(--cyan); }
+.daychip.allday.personal { background: var(--muted); }
+.daymore { font-size: 10px; color: var(--muted); padding-left: 6px; }
+
+/* The dots a phone's cells carry instead. */
+.daydots { display: none; gap: 2px; height: 4px; justify-content: center; }
 .daydots i { width: 4px; height: 4px; border-radius: 50%; display: block; }
 .daydots i.study { background: var(--study); }
 .daydots i.work { background: var(--work); }
@@ -711,25 +752,154 @@ h4 { font-size: var(--fs-small); font-weight: 600; color: var(--muted); margin: 
 .legend .sw.appt { background: var(--cyan); }
 .legend .sw.personal { background: var(--muted); }
 
-.daysheet .panelhead { margin-bottom: 10px; }
-.dayrow { display: flex; gap: 11px; padding: 9px 0; border-bottom: 1px solid var(--line2); }
+/* The selected day's list. A row is a button: it opens the event. */
+.daysheet .panelhead { margin-bottom: 6px; }
+.daysheet .panelhead h2 { font-size: 13px; }
+.dayrow { display: flex; gap: 11px; width: 100%; text-align: left; padding: 9px 8px 9px 10px;
+  background: none; border: none; border-left: 2px solid var(--line); border-radius: 0 6px 6px 0;
+  border-bottom: 1px solid var(--line2); font-family: var(--sans); font-size: 14px; color: var(--text); }
+.dayrow:hover { background: var(--panel2); border-color: var(--line); }
 .dayrow:last-of-type { border-bottom: none; }
-.daytime { flex: none; width: 46px; font-size: 11px; color: var(--muted); padding-top: 2px; }
+.daytime { flex: none; width: 48px; font-size: 11px; color: var(--muted); padding-top: 2px; line-height: 1.5; }
+.daytime small { display: block; font-size: 10px; opacity: 0.8; }
 .daybody { flex: 1; min-width: 0; }
-.dayrow-head { display: flex; align-items: center; gap: 8px; }
-.daytitle { flex: 1; font-size: 14px; }
-.daymeta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px;
+.daytitle { font-size: 14px; }
+.daymeta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 3px;
   font-size: 11px; color: var(--muted); }
-/* The left rule is the kind, using the same two series colours as everywhere else. */
-.dayrow.study_block { border-left: 2px solid var(--study); padding-left: 10px; }
-.dayrow.work_block { border-left: 2px solid var(--work); padding-left: 10px; }
-.dayrow.appointment { border-left: 2px solid var(--cyan); padding-left: 10px; }
-.dayrow.personal { border-left: 2px solid var(--line); padding-left: 10px; }
-
+.daynotes { font-size: 12px; color: var(--muted); margin: 5px 0 0; white-space: pre-wrap;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+/* The left rule is the kind, using the same colours as everywhere else. */
+.dayrow.study { border-left-color: var(--study); }
+.dayrow.work { border-left-color: var(--work); }
+.dayrow.appt { border-left-color: var(--cyan); }
+.dayrow.personal { border-left-color: var(--line); }
 .addrow { width: 100%; margin-top: 12px; color: var(--muted); }
-.eventform { margin-top: 12px; padding: 12px 14px; background: var(--panel2);
-  border: 1px solid var(--line2); border-radius: 8px; }
-.eventform label:first-child { margin-top: 0; }
+
+/* --- the time grid: week and day ------------------------------------------- */
+.tg { --hour: 48px; --gutter: 46px; border: 1px solid var(--line2); border-radius: 8px; overflow: hidden; }
+.tg-head, .tg-allday, .tg-canvas { display: grid; }
+.tg-head { border-bottom: 1px solid var(--line2); background: var(--panel2); }
+.tg-gutter { font-family: var(--mono); font-size: 10px; color: var(--muted); padding: 4px 6px; text-align: right; }
+.tg-day { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 6px 2px;
+  background: none; border: none; border-left: 1px solid var(--line2); border-radius: 0; }
+.tg-day:hover { background: var(--panel); border-color: var(--line2); }
+.tg-dow { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.tg-num { font-family: var(--mono); font-size: 16px; line-height: 1.5; padding: 0 7px; border-radius: 999px; }
+.tg-day.is-today .tg-num { background: var(--magenta); color: #fff; font-weight: 600; }
+.tg-day.is-today .tg-dow { color: var(--magenta); }
+
+.tg-allday { border-bottom: 1px solid var(--line2); }
+.tg-allday .tg-gutter { align-self: center; }
+.tg-allday-col { display: flex; flex-direction: column; gap: 2px; padding: 3px 2px; border-left: 1px solid var(--line2); min-width: 0; }
+.tg-chip { font-family: var(--sans); font-size: 11px; font-weight: 600; text-align: left; padding: 2px 6px;
+  border: none; border-radius: 4px; color: #06121e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tg-chip.study { background: var(--study); }
+.tg-chip.work { background: var(--work); color: #fff; }
+.tg-chip.appt { background: var(--cyan); }
+.tg-chip.personal { background: var(--muted); }
+
+.tg-body { max-height: min(calc(100vh - 320px), calc(24 * var(--hour))); min-height: 340px; overflow-y: auto; }
+.tg-canvas { height: calc(24 * var(--hour)); }
+.tg-hours { position: relative; }
+.tg-hour { height: var(--hour); font-size: 10px; color: var(--muted); text-align: right; padding-right: 6px;
+  transform: translateY(-7px); }
+.tg-col { position: relative; border-left: 1px solid var(--line2); cursor: cell;
+  background: repeating-linear-gradient(to bottom, var(--line2) 0 1px, transparent 1px var(--hour)); }
+.tg-col.is-today { background-color: rgba(255, 46, 147, 0.035); }
+.tg-col:hover { background-color: rgba(127, 209, 255, 0.04); }
+.tg-ev { position: absolute; display: flex; flex-direction: column; gap: 0; overflow: hidden;
+  text-align: left; padding: 3px 6px; border: none; border-left: 3px solid var(--line); border-radius: 4px;
+  background: var(--panel2); color: var(--text); font-family: var(--sans); font-size: 12px; line-height: 1.3;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25); cursor: pointer; }
+.tg-ev:hover { filter: brightness(1.15); border-color: inherit; z-index: 5 !important; }
+.tg-ev:focus-visible { z-index: 5 !important; }
+.tg-ev.study { border-left-color: var(--study); background: rgba(53, 168, 82, 0.22); }
+.tg-ev.work { border-left-color: var(--work); background: rgba(122, 92, 255, 0.22); }
+.tg-ev.appt { border-left-color: var(--cyan); background: rgba(127, 209, 255, 0.18); }
+.tg-ev.personal { border-left-color: var(--muted); background: rgba(127, 151, 179, 0.18); }
+.tg-ev.open { border-bottom: 1px dashed var(--line); }
+.tg-ev-title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tg-ev-time { font-size: 10px; color: var(--muted); }
+.tg-now { position: absolute; left: 0; right: 0; height: 0; border-top: 2px solid var(--magenta); pointer-events: none; z-index: 3; }
+.tg-now::before { content: ""; position: absolute; left: -5px; top: -5px; width: 8px; height: 8px; border-radius: 50%; background: var(--magenta); }
+/* A single day gets the whole width, so its blocks can say more. */
+.tg-one .tg-ev { font-size: 13px; padding: 5px 9px; }
+.tg-one .tg-ev-time { font-size: 11px; }
+
+/* --- popovers: the peek and the editor ------------------------------------- */
+.pop-backdrop { position: fixed; inset: 0; z-index: 40; }
+.pop { position: fixed; width: 340px; max-width: calc(100vw - 16px); max-height: calc(100vh - 16px); overflow-y: auto;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px 16px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45); }
+.pop.editor { width: 400px; }
+.pop-backdrop:not(.sheet-backdrop) { background: rgba(6, 15, 26, 0.35); }
+.pop-sheet { max-height: 88vh; }
+
+.peek-head { display: flex; align-items: flex-start; gap: 8px; padding-left: 10px; border-left: 3px solid var(--line); margin-bottom: 10px; }
+.peek-head.study { border-color: var(--study); }
+.peek-head.work { border-color: var(--work); }
+.peek-head.appt { border-color: var(--cyan); }
+.peek-head.personal { border-color: var(--muted); }
+.peek-title { flex: 1; font-size: 17px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+.peek-facts { display: grid; grid-template-columns: 70px 1fr; gap: 7px 10px; margin: 0; font-size: 13px; }
+.peek-facts dt { font-family: var(--mono); font-size: 11px; color: var(--muted); padding-top: 2px; }
+.peek-facts dd { margin: 0; min-width: 0; }
+.peek-kind { font-family: var(--mono); font-size: 12px; }
+.peek-kind.study { color: var(--study); }
+.peek-kind.work { color: var(--work); }
+.peek-kind.appt { color: var(--cyan); }
+.peek-kind.personal { color: var(--muted); }
+.peek-notes { white-space: pre-wrap; color: var(--muted); }
+.peek-actions, .editor-actions { display: flex; align-items: center; gap: 8px; margin-top: 16px; }
+.peek-actions .spacer, .editor-actions .spacer { flex: 1; }
+.peek-actions .ghost.danger, .editor-actions .ghost.danger { font-size: 12px; font-family: var(--mono); }
+
+.editor-title { font-size: 18px; padding: 8px 4px; border: none; border-bottom: 2px solid var(--line);
+  border-radius: 0; background: none; }
+.editor-title:focus-visible { outline: none; border-bottom-color: var(--cyan); }
+.editor-kinds { margin-top: 12px; }
+.editor-kinds .chip.study[aria-pressed="true"] { color: var(--study); border-color: var(--study); background: rgba(53, 168, 82, 0.12); }
+.editor-kinds .chip.work[aria-pressed="true"] { color: #cfc2ff; border-color: var(--work); background: rgba(122, 92, 255, 0.14); }
+.editor-kinds .chip.appt[aria-pressed="true"] { color: var(--cyan); border-color: var(--cyan); background: rgba(127, 209, 255, 0.12); }
+.editor-kinds .chip.personal[aria-pressed="true"] { color: var(--text); border-color: var(--muted); background: rgba(127, 151, 179, 0.14); }
+.editor-when { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: end; }
+.editor-when > div { min-width: 0; }
+.editor-allday { margin: 0 0 9px; white-space: nowrap; }
+.editor-times { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.editor-times > div { min-width: 0; }
+.editor-durations { margin-top: 8px; }
+.editor-durations .chip { padding: 3px 8px; font-size: 11px; }
+.editor-durations .chip:disabled { opacity: 0.4; cursor: default; }
+.editor textarea, .pop-sheet textarea { min-height: 54px; }
+
+/* On a phone the month's cells are too small for words: dots instead of chips, no hover
+   "+" (the day sheet has the add button), and the grid's targets grow to a thumb. */
+@media (pointer: coarse) {
+  .daycell { min-height: 0; aspect-ratio: 1; align-items: center; justify-content: center; padding: 2px; gap: 3px; }
+  .dayhead { justify-content: center; }
+  .dayadd, .daychips { display: none; }
+  .daydots { display: flex; }
+  .daycell.selected { background: rgba(127, 209, 255, 0.13); }
+  .cal-month { grid-template-columns: minmax(0, 1fr); }
+  .calnav h2 { font-size: 14px; }
+  /* The nav in two rows: arrows, the title and "today" above; the view switch and "+ new"
+     below, the switch taking what is left so each of its three words is a thumb wide. */
+  .calnav h2 { flex: 1; font-size: 14px; }
+  .calnav .spacer { flex: 0 0 100%; height: 0; }
+  .calnav .seg { flex: 1; display: flex; }
+  .calnav .seg button { flex: 1; }
+  .tg { --gutter: 40px; }
+  .tg-day { min-height: 48px; }
+  .tg-body { max-height: calc(100vh - 300px); }
+  /* Seven columns on a phone leave no room for a time line: the title wraps in the block,
+     and the block's height and place on the grid say when. The day view keeps both. */
+  .tg:not(.tg-one) .tg-ev { padding: 2px 3px 2px 4px; }
+  .tg:not(.tg-one) .tg-ev-time { display: none; }
+  .tg:not(.tg-one) .tg-ev-title { white-space: normal; font-size: 10px; line-height: 1.2; overflow-wrap: anywhere; }
+  .tg:not(.tg-one) .tg-chip { white-space: normal; font-size: 10px; line-height: 1.2; padding: 2px 3px; }
+  .dayrow { padding-top: 12px; padding-bottom: 12px; }
+}
+
 .inline-check { display: flex; align-items: center; gap: 9px; margin: 14px 0 0;
   font-family: var(--mono); font-size: 12px; color: var(--muted); }
 .inline-check input { width: auto; }

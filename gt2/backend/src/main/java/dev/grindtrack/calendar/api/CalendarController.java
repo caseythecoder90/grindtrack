@@ -78,7 +78,8 @@ public class CalendarController {
             Requests.optionalTime(body.startTime(), TIME_MESSAGE),
             Requests.optionalTime(body.endTime(), TIME_MESSAGE),
             body.planItemId(),
-            Requests.optionalText(body.notes(), "notes", MAX_NOTES_CHARS)));
+            Requests.optionalText(body.notes(), "notes", MAX_NOTES_CHARS),
+            body.remindMinutes()));
   }
 
   @PatchMapping("/{id}")
@@ -95,9 +96,12 @@ public class CalendarController {
             Requests.optionalTime(body.startTime(), TIME_MESSAGE),
             Requests.optionalTime(body.endTime(), TIME_MESSAGE),
             Boolean.TRUE.equals(body.clearTimes()),
+            Boolean.TRUE.equals(body.clearEndTime()),
             body.planItemId(),
             Boolean.TRUE.equals(body.clearPlanItem()),
-            Requests.optionalText(body.notes(), "notes", MAX_NOTES_CHARS))
+            Requests.optionalText(body.notes(), "notes", MAX_NOTES_CHARS),
+            body.remindMinutes(),
+            Boolean.TRUE.equals(body.clearReminder()))
         .map(EventResponse::from)
         .orElseThrow(() -> new NoSuchElementException("event " + id));
   }

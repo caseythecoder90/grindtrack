@@ -41,6 +41,59 @@ class CalendarReminderSchedulerTest {
   }
 
   @Test
+  void aBlockWithItsOwnLeadIsRemindedOnThatLeadInsteadOfTheDefault() {
+    CalendarEvent dentist = at("dentist", EventKind.APPOINTMENT, LocalTime.of(6, 15), null);
+    dentist.setRemindMinutes(60);
+    CalendarEvent quiet = at("gym", EventKind.PERSONAL, LocalTime.of(5, 25), null);
+    quiet.setRemindMinutes(0);
+    CalendarEvent work = at("work", EventKind.WORK_BLOCK, LocalTime.of(5, 25), LocalTime.of(14, 0));
+    work.setRemindMinutes(5);
+    CalendarEvent tooFar = at("call", EventKind.APPOINTMENT, LocalTime.of(6, 30), null);
+    tooFar.setRemindMinutes(60);
+
+    List<CalendarEvent> due =
+        CalendarReminderScheduler.startingSoon(List.of(dentist, quiet, work, tooFar), NOW, 10);
+
+    // The dentist asked for an hour and is 55 minutes out; the gym asked for nothing; the work
+    // block
+    // is reminded because it asked, which the kind alone would not do; the call is 70 minutes out.
+    assertThat(due).containsExactly(dentist, work);
+  }
+
+  @Test
+  void aDayAheadReachesIntoTomorrow() {
+    CalendarEvent tomorrow =
+        new CalendarEvent(
+            "exam", EventKind.APPOINTMENT, DAY.plusDays(1), LocalTime.of(5, 0), LocalTime.of(7, 0));
+    tomorrow.setRemindMinutes(1440);
+    CalendarEvent tomorrowDefault =
+        new CalendarEvent(
+            "standup", EventKind.APPOINTMENT, DAY.plusDays(1), LocalTime.of(5, 25), null);
+
+    assertThat(CalendarReminderScheduler.startingSoon(List.of(tomorrow, tomorrowDefault), NOW, 10))
+        .containsExactly(tomorrow);
+    assertThat(CalendarReminderScheduler.notification(tomorrow, NOW).body())
+        .isEqualTo("tomorrow · 05:00–07:00 · appointment");
+
+    CalendarEvent laterToday = at("dentist", EventKind.APPOINTMENT, LocalTime.of(9, 0), null);
+    assertThat(CalendarReminderScheduler.notification(laterToday, NOW).body())
+        .isEqualTo("today · 09:00 · appointment");
+  }
+
+  @Test
+  void changingTheLeadForgetsThatItWasReminded() {
+    CalendarEvent block = at("etcd lab", EventKind.STUDY_BLOCK, LocalTime.of(5, 30), null);
+    block.markReminded();
+    block.setRemindMinutes(60);
+    assertThat(block.getRemindedAt()).isNull();
+    assertThat(block.reminderLead(10)).isEqualTo(60);
+    block.setRemindMinutes(null);
+    assertThat(block.reminderLead(10)).isEqualTo(10);
+    assertThat(at("work", EventKind.WORK_BLOCK, LocalTime.of(9, 0), null).reminderLead(10))
+        .isZero();
+  }
+
+  @Test
   void movingABlockForgetsThatItWasReminded() {
     CalendarEvent block = at("etcd lab", EventKind.STUDY_BLOCK, LocalTime.of(5, 30), null);
     block.markReminded();

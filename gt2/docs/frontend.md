@@ -41,10 +41,14 @@ src/
 │   │   ├── AccountsPanel.tsx    the owner's: who can sign in, add a partner, the secret shown once
 │   │   └── authApi.ts           the session endpoints, and the accounts endpoints
 │   ├── calendar/
-│   │   ├── CalendarPage.tsx     month + selected day + upkeep, one request per month
-│   │   ├── MonthGrid.tsx        six-week grid with per-day density dots
-│   │   ├── DaySheet.tsx         the selected day's entries, all-day first
-│   │   ├── EventForm.tsx        add one entry; the plan select only shows for a study block
+│   │   ├── CalendarPage.tsx     month / week / day, the selected day, upkeep; one request per visible span
+│   │   ├── MonthGrid.tsx        six-week grid: named entries and a hover "+" on a mouse, dots on a phone
+│   │   ├── TimeGrid.tsx         hours down, days across — the week and day views; a click on a slot adds
+│   │   ├── DaySheet.tsx         the selected day's entries, all-day first; a row opens the event
+│   │   ├── EventPeek.tsx        one event in full, with edit and delete
+│   │   ├── EventEditor.tsx      add or change one: title first, kind chips, times with length presets, reminder
+│   │   ├── Popover.tsx          a card next to what was clicked on a mouse, a sheet on a phone
+│   │   ├── model.ts             kind colours, the overlap layout, the draft an event is edited through
 │   │   └── UpkeepPanel.tsx      what is due, grouped overdue / this week / later
 │   ├── chat/
 │   │   ├── ChatPage.tsx         the room: the thread as the page, a sticky composer, reactions on a tap

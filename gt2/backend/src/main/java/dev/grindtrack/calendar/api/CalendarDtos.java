@@ -16,6 +16,7 @@ public final class CalendarDtos {
    *
    * @param startTime {@code null} for an all-day entry — {@code allDay} is derived from it rather
    *     than stored, so the two can never disagree
+   * @param remindMinutes the block's own reminder lead, or {@code null} for the default
    */
   public record EventResponse(
       Long id,
@@ -26,7 +27,8 @@ public final class CalendarDtos {
       String endTime,
       boolean allDay,
       Long planItemId,
-      String notes) {
+      String notes,
+      Integer remindMinutes) {
 
     public static EventResponse from(CalendarEvent e) {
       return new EventResponse(
@@ -38,7 +40,8 @@ public final class CalendarDtos {
           e.getEndTime() == null ? null : e.getEndTime().toString(),
           e.isAllDay(),
           e.getPlanItemId(),
-          e.getNotes());
+          e.getNotes(),
+          e.getRemindMinutes());
     }
   }
 
@@ -49,7 +52,8 @@ public final class CalendarDtos {
       String startTime,
       String endTime,
       Long planItemId,
-      String notes) {}
+      String notes,
+      Integer remindMinutes) {}
 
   public record EventUpdateRequest(
       String title,
@@ -58,9 +62,12 @@ public final class CalendarDtos {
       String startTime,
       String endTime,
       Boolean clearTimes,
+      Boolean clearEndTime,
       Long planItemId,
       Boolean clearPlanItem,
-      String notes) {}
+      String notes,
+      Integer remindMinutes,
+      Boolean clearReminder) {}
 
   /**
    * An upkeep task with its derived urgency.
